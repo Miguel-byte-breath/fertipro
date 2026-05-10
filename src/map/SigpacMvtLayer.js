@@ -7,15 +7,24 @@
  * cualquier zoom, y esta capa se activa por encima de `minZoom` (por defecto
  * 13) para tener geometrías reales en cliente.
  *
- * En el paso 2 se renderizan únicamente como guía sutil (borde, sin relleno,
- * sin captura de clics). El modo selección de recintos se incorporará en el
- * paso 3 cambiando `interactive: true` y enganchando handlers de clic.
- *
  * Endpoint upstream:
  *   https://sigpac-hubcloud.es/mvt/recinto@3857@geojson/{z}/{x}/{y}.geojson
  *
  * Cada feature trae al menos:
  *   { provincia, municipio, poligono, parcela, recinto, uso_sigpac }
+ *
+ * Opciones extra (paso 3 — modo selección):
+ *   featureStyle   (feature) => style   función opcional que devuelve el
+ *                                       estilo de cada recinto. Si se omite,
+ *                                       se aplica el estilo por defecto. Útil
+ *                                       para resaltar recintos seleccionados.
+ *   onFeatureClick (feature, layer)     callback opcional al hacer clic sobre
+ *                                       un recinto. Permite al consumidor
+ *                                       gestionar la lógica de selección.
+ *
+ * Método público:
+ *   redrawStyles()   recorre todas las features renderizadas y reaplica
+ *                    `featureStyle`. Se llama tras cambiar la selección.
  *
  * Licencia datos: CC BY 4.0 HVD SIGC (FEGA — Ministerio de Agricultura).
  */
@@ -25,26 +34,25 @@ const TILE_URL =
   'https://sigpac-hubcloud.es/mvt/recinto@3857@geojson/{z}/{x}/{y}.geojson'
 
 const DEFAULT_OPTIONS = {
-  minZoom:     13,            // por debajo no se piden teselas (saturaría)
+  minZoom:     13,
   maxZoom:     20,
   tileSize:    256,
   pane:        'overlayPane',
-  // Estilo guía visual (paso 2: sutil, sin interacción)
+  // Estilo guía visual por defecto (cuando no hay featureStyle)
   color:       '#ff6f00',
   weight:      1.2,
   fillOpacity: 0,
   opacity:     0.85,
-  interactive: false,         // paso 3 lo pondrá a true para captar clics
-  // Diagnóstico
+  interactive: true,   // siempre captamos clics; si no hay handler, no hace nada
   attribution:
-    '© <a href="https://sigpac-hubcloud.es">SIGPAC FEGA</a> · ' +
+    '&copy; <a href="https://sigpac-hubcloud.es">SIGPAC FEGA</a> &middot; ' +
     '<a href="https://creativecommons.org/licenses/by/4.0/deed.es">CC BY 4.0</a>',
 }
 
 export const SigpacMvtLayer = L.GridLayer.extend({
   initialize(options = {}) {
     L.setOptions(this, { ...DEFAULT_OPTIONS, ...options })
-    // Mapa "tileKey → L.featureGroup" para limpiar al hacer unload de la tesela
+    // Mapa "tileKey -> L.featureGroup" para limpiar al hacer unload
     this._featureLayers = new Map()
   },
 
@@ -55,7 +63,6 @@ export const SigpacMvtLayer = L.GridLayer.extend({
 
   onRemove(map) {
     this.off('tileunload', this._onTileUnload, this)
-    // Quitar todos los feature groups acumulados
     this._featureLayers.forEach(group => {
       if (map.hasLayer(group)) map.removeLayer(group)
     })
@@ -64,11 +71,42 @@ export const SigpacMvtLayer = L.GridLayer.extend({
   },
 
   /**
-   * Leaflet llama a `createTile` por cada tesela visible que esté dentro del
-   * rango [minZoom, maxZoom]. Devolvemos un `<div>` invisible (la grid lo
-   * necesita como placeholder), y en paralelo lanzamos el fetch del GeoJSON.
-   * Cuando el GeoJSON llega, lo añadimos al mapa como feature group.
+   * Devuelve el estilo aplicable a una feature: usa `featureStyle` si es una
+   * funcion, en otro caso aplica el estilo por defecto de las options.
    */
+  _styleForFeature(feature) {
+    if (typeof this.options.featureStyle === 'function') {
+      const s = this.options.featureStyle(feature)
+      if (s) return s
+    }
+    return {
+      color:       this.options.color,
+      weight:      this.options.weight,
+      fillOpacity: this.options.fillOpacity,
+      opacity:     this.options.opacity,
+    }
+  },
+
+  /**
+   * Recorre todas las features renderizadas y reaplica su estilo. Se llama
+   * desde fuera tras cambiar la seleccion para reflejar visualmente los
+   * recintos elegidos.
+   */
+  redrawStyles() {
+    this._featureLayers.forEach(group => {
+      group.eachLayer(geoJsonLayer => {
+        if (typeof geoJsonLayer.eachLayer !== 'function') return
+        geoJsonLayer.eachLayer(featureLayer => {
+          const f = featureLayer.feature
+          if (!f) return
+          try {
+            featureLayer.setStyle(this._styleForFeature(f))
+          } catch (_) { /* ignore */ }
+        })
+      })
+    })
+  },
+
   createTile(coords, done) {
     const tile = document.createElement('div')
     tile.style.cssText = 'pointer-events:none;visibility:hidden;'
@@ -92,15 +130,25 @@ export const SigpacMvtLayer = L.GridLayer.extend({
         geojson.features.forEach(f => {
           const t = f.geometry?.type
           if (t !== 'Polygon' && t !== 'MultiPolygon') return
-          L.geoJSON(f, {
-            style: {
-              color:       this.options.color,
-              weight:      this.options.weight,
-              fillOpacity: this.options.fillOpacity,
-              opacity:     this.options.opacity,
-            },
+
+          const featLayer = L.geoJSON(f, {
+            style: this._styleForFeature(f),
             interactive: this.options.interactive,
-          }).addTo(group)
+          })
+
+          // Conectar handlers a cada sub-layer (poligono real)
+          featLayer.eachLayer(sublayer => {
+            // Asegurar que sublayer.feature apunta a la feature original
+            sublayer.feature = f
+            sublayer.on('click', (ev) => {
+              if (typeof this.options.onFeatureClick === 'function') {
+                L.DomEvent.stopPropagation(ev)
+                this.options.onFeatureClick(f, sublayer)
+              }
+            })
+          })
+
+          featLayer.addTo(group)
         })
 
         if (this._map) {
@@ -110,21 +158,16 @@ export const SigpacMvtLayer = L.GridLayer.extend({
         done(null, tile)
       })
       .catch(err => {
-        // Fallo silencioso: la capa no debe bloquear la UX. El usuario verá
-        // que algunas teselas no tienen recintos pintados; el WMS ráster
-        // sigue dando la guía visual.
+        // Fallo silencioso: la capa no debe bloquear la UX. El WMS rastet
+        // sigue dando la guia visual aunque el MVT falle puntualmente.
         // eslint-disable-next-line no-console
-        console.warn('[SigpacMvtLayer] tesela', key, 'falló:', err.message)
+        console.warn('[SigpacMvtLayer] tesela', key, 'fallo:', err.message)
         done(null, tile)
       })
 
     return tile
   },
 
-  /**
-   * Cuando Leaflet descarta una tesela (zoom o pan fuera de vista), retiramos
-   * su feature group del mapa para no acumular memoria.
-   */
   _onTileUnload(e) {
     const key   = this._tileKey(e.coords)
     const group = this._featureLayers.get(key)
@@ -139,10 +182,6 @@ export const SigpacMvtLayer = L.GridLayer.extend({
   },
 })
 
-/**
- * Factory en minúsculas, siguiendo la convención de Leaflet (`L.tileLayer`,
- * `L.geoJSON`, etc.).
- */
 export function sigpacMvtLayer(options) {
   return new SigpacMvtLayer(options)
 }

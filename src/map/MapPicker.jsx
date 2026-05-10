@@ -26,12 +26,13 @@
  *
  * Adaptado de fertipro-zonas-normativas v0.4.5.
  */
-import { useEffect, useRef, useState, forwardRef, useImperativeHandle } from 'react'
+import { useCallback, useEffect, useRef, useState, forwardRef, useImperativeHandle } from 'react'
 import L from 'leaflet'
 import '@geoman-io/leaflet-geoman-free'
 import '@geoman-io/leaflet-geoman-free/dist/leaflet-geoman.css'
 import 'leaflet/dist/leaflet.css'
 import { sigpacMvtLayer } from './SigpacMvtLayer'
+import area from '@turf/area'
 
 // Iconos por defecto de Leaflet (los assets se sirven desde CDN para evitar
 // problemas con el bundler resolviendo PNGs internos del paquete).
@@ -51,6 +52,20 @@ const MapPicker = forwardRef(function MapPicker(
   const markerRef    = useRef(null)
   const fileInputRef = useRef(null)
   const [coords, setCoords] = useState(null)
+
+  // Estado de modo seleccion de recintos SIGPAC (paso 3 — construir hoja)
+  const [modoSeleccion,    setModoSeleccion]    = useState(false)
+  const [selectedRecintos, setSelectedRecintos] = useState(() => new Map())
+  const modoSeleccionRef    = useRef(false)
+  const selectedRecintosRef = useRef(new Map())
+  const sigpacMvtRef        = useRef(null)
+  useEffect(() => { modoSeleccionRef.current    = modoSeleccion    }, [modoSeleccion])
+  useEffect(() => { selectedRecintosRef.current = selectedRecintos }, [selectedRecintos])
+
+  // Cuando cambia la seleccion, repintar estilos de la capa MVT.
+  useEffect(() => {
+    sigpacMvtRef.current?.redrawStyles?.()
+  }, [selectedRecintos])
 
   // Refs estables para callbacks de polígono — evitan stale closure dentro del useEffect de init
   const onPolygonAddRef    = useRef(onPolygonAdd)
@@ -128,7 +143,29 @@ const MapPicker = forwardRef(function MapPicker(
           '<a href="https://creativecommons.org/licenses/by/4.0/deed.es">CC BY 4.0</a>',
       }
     )
-    const sigpacMvt = sigpacMvtLayer({ minZoom: 13 })
+    const sigpacMvt = sigpacMvtLayer({
+      minZoom: 13,
+      // Estilo dinamico segun seleccion del recinto (azul si seleccionado).
+      featureStyle: (f) => {
+        const k = recintoKey(f.properties)
+        if (selectedRecintosRef.current.has(k)) {
+          return { color: '#2962ff', weight: 2.5, fillColor: '#2962ff', fillOpacity: 0.30, opacity: 1 }
+        }
+        return { color: '#ff6f00', weight: 1.2, fillOpacity: 0, opacity: 0.85 }
+      },
+      // Solo procesamos clic cuando el modo seleccion esta activo.
+      onFeatureClick: (f) => {
+        if (!modoSeleccionRef.current) return
+        const k = recintoKey(f.properties)
+        setSelectedRecintos(prev => {
+          const next = new Map(prev)
+          if (next.has(k)) next.delete(k)
+          else            next.set(k, f)
+          return next
+        })
+      },
+    })
+    sigpacMvtRef.current = sigpacMvt
 
     const overlays = {
       'Recintos SIGPAC': L.layerGroup([sigpacWms, sigpacMvt]),
@@ -300,6 +337,28 @@ const MapPicker = forwardRef(function MapPicker(
         })
     }, 600)
 
+    // Boton custom: construir hoja desde recintos SIGPAC
+    map.pm.Toolbar.createCustomControl({
+      name: 'construirSigpac', block: 'custom',
+      title: 'Construir hoja desde recintos SIGPAC (zoom >= 13)',
+      html: '', cssClass: 'pm-construir-sigpac', toggle: true,
+      onClick: () => {
+        setModoSeleccion(prev => {
+          if (prev) setSelectedRecintos(new Map())
+          return !prev
+        })
+      },
+    })
+    setTimeout(() => {
+      document.querySelectorAll('.leaflet-pm-toolbar .button-container, .leaflet-pm-toolbar .leaflet-buttons-control-button')
+        .forEach(btn => {
+          if (btn.getAttribute('title') !== 'Construir hoja desde recintos SIGPAC (zoom >= 13)') return
+          const icon = btn.querySelector('.control-icon')
+          if (icon) icon.style.backgroundImage =
+            "url(\"data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 24 24' fill='none' stroke='%232962ff' stroke-width='2' stroke-linejoin='round'%3E%3Cpath d='M3 11h6V5a2 2 0 0 1 2-2h2v4a2 2 0 0 0 2 2h4v2'/%3E%3Cpath d='M21 13v6a2 2 0 0 1-2 2h-6v-4a2 2 0 0 0-2-2H7v-2'/%3E%3C/svg%3E\")"
+        })
+    }, 700)
+
     // ── Coordenadas bajo el cursor ─────────────────────────────────────────
     map.on('mousemove', e => setCoords({ lat: e.latlng.lat.toFixed(5), lng: e.latlng.lng.toFixed(5) }))
     map.on('mouseout',  () => setCoords(null))
@@ -371,6 +430,80 @@ const MapPicker = forwardRef(function MapPicker(
   }, [selectedPoint, isCentroid])
 
   // ─── Parser DBF ────────────────────────────────────────────────────────────
+  // ─── Helpers de seleccion de recintos SIGPAC ─────────────────────────────
+  // Identificador unico de un recinto = combinacion de sus 5 codigos.
+  function recintoKey(p) {
+    return `${p.provincia}-${p.municipio}-${p.poligono}-${p.parcela}-${p.recinto}`
+  }
+
+  // Suma de superficies de los recintos en el set, en hectareas.
+  function totalSuperficieHa(selectedMap) {
+    let total = 0
+    selectedMap.forEach(f => {
+      try { total += area(f) / 10000 } catch (_) { /* ignore */ }
+    })
+    return total
+  }
+
+  // Construye una hoja de cultivo a partir de los recintos seleccionados.
+  // Resultado: MultiPolygon que conserva cada recinto como sub-poligono
+  // (preserva trazabilidad para futuras intersecciones con capas ZVN, etc.).
+  // Metadatos en feature.properties.recintos_origen[].
+  const handleCrearHoja = useCallback(() => {
+    const map      = mapObj.current
+    const features = [...selectedRecintosRef.current.values()]
+    if (!map || !features.length) return
+
+    const coords = []
+    features.forEach(f => {
+      const t = f.geometry?.type
+      if (t === 'Polygon')           coords.push(f.geometry.coordinates)
+      else if (t === 'MultiPolygon') f.geometry.coordinates.forEach(p => coords.push(p))
+    })
+    if (!coords.length) return
+
+    const recintosOrigen = features.map(f => ({
+      provincia:  f.properties.provincia,
+      municipio:  f.properties.municipio,
+      poligono:   f.properties.poligono,
+      parcela:    f.properties.parcela,
+      recinto:    f.properties.recinto,
+      uso_sigpac: f.properties.uso_sigpac ?? null,
+    }))
+
+    const feature = {
+      type: 'Feature',
+      geometry:   { type: 'MultiPolygon', coordinates: coords },
+      properties: {
+        nombre:           `Hoja SIGPAC (${features.length} ${features.length === 1 ? 'recinto' : 'recintos'})`,
+        recintos_origen:  recintosOrigen,
+      },
+    }
+
+    // Pintar la hoja como un poligono editable (mismo flujo que carga GeoJSON)
+    const geoLayer = L.geoJSON(feature, {
+      style: { color: '#1a237e', weight: 2, fillOpacity: 0.08 },
+    }).addTo(map)
+
+    const subLayer = geoLayer.getLayers()[0]
+    polygonIdCounter.current += 1
+    const id = polygonIdCounter.current
+    if (subLayer) {
+      layerToId.current.set(subLayer, id)
+      layerToId.current.set(geoLayer, id)
+      layersById.current.set(id, geoLayer)
+      subLayer.on('click', (ev) => {
+        L.DomEvent.stopPropagation(ev)
+        onPolygonClickRef.current?.(id)
+      })
+    }
+    onPolygonAddRef.current?.(feature, id)
+
+    // Limpiar seleccion y desactivar modo
+    setSelectedRecintos(new Map())
+    setModoSeleccion(false)
+  }, [])
+
   function parseDbf(buf) {
     const v   = new DataView(buf)
     const n   = v.getInt32(4, true)
@@ -518,6 +651,45 @@ const MapPicker = forwardRef(function MapPicker(
           letterSpacing: '0.04em',
         }}>
           {coords.lat}° N &nbsp;|&nbsp; {coords.lng}° E &nbsp;·&nbsp; EPSG:4326
+        </div>
+      )}
+
+      {modoSeleccion && (
+        <div style={{
+          position: 'absolute', top: 14, left: '50%',
+          transform: 'translateX(-50%)',
+          background: 'rgba(255,255,255,0.96)', borderRadius: 6,
+          padding: '8px 12px', fontSize: 12, zIndex: 1001,
+          boxShadow: '0 2px 8px rgba(0,0,0,0.25)',
+          display: 'flex', gap: 10, alignItems: 'center',
+          fontFamily: 'inherit',
+        }}>
+          <strong style={{ color: '#1565c0' }}>
+            {selectedRecintos.size} {selectedRecintos.size === 1 ? 'recinto' : 'recintos'} seleccionado{selectedRecintos.size === 1 ? '' : 's'}
+          </strong>
+          {selectedRecintos.size > 0 && (
+            <span style={{ color: '#546e7a', fontFamily: 'monospace' }}>
+              {totalSuperficieHa(selectedRecintos).toFixed(2)} ha
+            </span>
+          )}
+          <button
+            onClick={handleCrearHoja}
+            disabled={selectedRecintos.size === 0}
+            style={{
+              marginLeft: 6, padding: '4px 10px', fontSize: 11, fontWeight: 600,
+              color: '#fff', background: '#2962ff',
+              border: 'none', borderRadius: 4, cursor: 'pointer',
+              opacity: selectedRecintos.size === 0 ? 0.5 : 1,
+            }}
+          >Crear hoja</button>
+          <button
+            onClick={() => { setSelectedRecintos(new Map()); setModoSeleccion(false) }}
+            style={{
+              padding: '4px 10px', fontSize: 11,
+              background: '#eceff1', border: '1px solid #cfd8dc',
+              borderRadius: 4, cursor: 'pointer',
+            }}
+          >Cancelar</button>
         </div>
       )}
 
