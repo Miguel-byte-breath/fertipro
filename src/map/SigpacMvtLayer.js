@@ -166,26 +166,51 @@ export const SigpacMvtLayer = L.GridLayer.extend({
    * zoom 13+ son del orden de decenas, asi que es instantaneo.
    */
   findFeatureAt(latlng) {
-    const point = { type: 'Point', coordinates: [latlng.lng, latlng.lat] }
+    // El endpoint MVT devuelve geojson con coords en EPSG:3857 (metros, no
+    // lat/lon). Probamos primero ese sistema, y caemos a 4326 como fallback.
+    const point4326 = { type: 'Point', coordinates: [latlng.lng, latlng.lat] }
+    let point3857 = null
+    try {
+      const proj = this._map?.options?.crs?.project?.(latlng)
+      if (proj) point3857 = { type: 'Point', coordinates: [proj.x, proj.y] }
+    } catch (_) { /* ignore */ }
+
     let totalFeatures = 0
-    this._featureLayers.forEach(g => g.eachLayer(gl => gl.eachLayer && gl.eachLayer(() => totalFeatures++)))
-    console.log('[findFeatureAt] tiles:', this._featureLayers.size, 'features:', totalFeatures, 'point:', latlng)
-    let matched = null
-    this._featureLayers.forEach(group => {
-      if (matched) return
-      group.eachLayer(geoJsonLayer => {
-        if (matched || typeof geoJsonLayer.eachLayer !== 'function') return
-        geoJsonLayer.eachLayer(featureLayer => {
-          if (matched) return
-          const f = featureLayer.feature
-          if (!f) return
-          try {
-            if (booleanPointInPolygon(point, f)) matched = f
-          } catch (_) { /* ignore */ }
+    let sampleCoord = null
+    this._featureLayers.forEach(g => g.eachLayer(gl => gl.eachLayer && gl.eachLayer(fl => {
+      totalFeatures++
+      if (!sampleCoord && fl.feature?.geometry?.coordinates) {
+        const c = fl.feature.geometry.coordinates
+        // [Polygon] [ring0] [point0] = c[0][0]
+        sampleCoord = Array.isArray(c[0]) && Array.isArray(c[0][0]) ? c[0][0] : c[0]
+      }
+    })))
+    console.log('[findFeatureAt] tiles:', this._featureLayers.size, 'features:', totalFeatures,
+                'sample coord:', sampleCoord, 'point4326:', point4326.coordinates, 'point3857:', point3857?.coordinates)
+
+    const tryPoint = (point) => {
+      if (!point) return null
+      let matched = null
+      this._featureLayers.forEach(group => {
+        if (matched) return
+        group.eachLayer(geoJsonLayer => {
+          if (matched || typeof geoJsonLayer.eachLayer !== 'function') return
+          geoJsonLayer.eachLayer(featureLayer => {
+            if (matched) return
+            const f = featureLayer.feature
+            if (!f) return
+            try {
+              if (booleanPointInPolygon(point, f)) matched = f
+            } catch (_) { /* ignore */ }
+          })
         })
       })
-    })
-    return matched
+      return matched
+    }
+
+    // Probar 3857 primero (es lo mas probable dado el path @3857@geojson),
+    // luego 4326 como fallback por si el server reproyecta a WGS84.
+    return tryPoint(point3857) || tryPoint(point4326)
   },
 
   _onTileUnload(e) {
