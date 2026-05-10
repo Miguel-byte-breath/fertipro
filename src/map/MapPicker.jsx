@@ -244,7 +244,7 @@ const MapPicker = forwardRef(function MapPicker(
       drawMarker: false, drawCircle: false, drawPolyline: false,
       drawRectangle: false, drawCircleMarker: false,
       editMode: true, dragMode: false,
-      cutPolygon: false, removalMode: true, rotateMode: false,
+      cutPolygon: true, removalMode: true, rotateMode: false,
     })
     map.pm.setLang('es')
 
