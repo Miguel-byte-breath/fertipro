@@ -1,79 +1,181 @@
 /**
  * src/map/SigpacMvtLayer.js — capa Leaflet vectorial de recintos SIGPAC.
  *
- * Extiende `L.GridLayer` para descargar teselas en formato MVT GeoJSON desde
- * SIGPAC HubCloud y renderizar cada recinto como un polígono vectorial. Es la
- * pareja interactiva del WMS ráster: el WMS da la guía visual continua a
- * cualquier zoom, y esta capa se activa por encima de `minZoom` (por defecto
- * 13) para tener geometrías reales en cliente.
+ * Mantiene el nombre historico pero internamente NO usa teselas MVT (que
+ * son inconsistentes en sigpac-hubcloud). Usa la OGC API de SIGPAC a traves
+ * del proxy serverless `/api/sigpac-bbox`, que es fiable y ya esta probado.
  *
- * Endpoint upstream (a traves de /api/sigpac-mvt para evitar CORB):
- *   https://sigpac-hubcloud.es/mvt/recinto@3857@geojson/{z}/{x}/{y}.geojson
+ * La capa extiende `L.LayerGroup` y escucha el evento `moveend` del mapa
+ * para refrescar los recintos del bbox visible. Hay un guardarrail: el
+ * endpoint /api/sigpac-bbox capa el bbox a ~5km^2, asi que solo se piden
+ * recintos cuando el zoom es >= minZoom (por defecto 14, suficiente para
+ * que el bbox quepa).
  *
  * Cada feature trae al menos:
- *   { provincia, municipio, poligono, parcela, recinto, uso_sigpac }
+ *   { provincia, municipio, poligono, parcela, recinto, uso_sigpac,
+ *     pendiente_media, altitud, superficie_ha }
  *
- * Opciones extra (paso 3 — modo selección):
+ * Opciones extra:
  *   featureStyle (feature) => style   función opcional que devuelve el estilo
  *                                     de cada recinto. Útil para resaltar
  *                                     recintos seleccionados.
  *
  * Métodos públicos:
- *   redrawStyles()         reaplica featureStyle a todas las features
- *                          renderizadas (tras cambiar la selección).
+ *   redrawStyles()         reaplica featureStyle a todas las features.
  *   findFeatureAt(latlng)  devuelve la feature del recinto que contiene
- *                          `latlng`, o null si no hay ninguno bajo el punto.
+ *                          `latlng`, o null si no hay ninguno.
  *
  * Licencia datos: CC BY 4.0 HVD SIGC (FEGA — Ministerio de Agricultura).
  */
 import L from 'leaflet'
 import booleanPointInPolygon from '@turf/boolean-point-in-polygon'
 
-// Proxy serverless propio para evitar CORB del navegador. Internamente
-// hace fetch a sigpac-hubcloud (server-side, sin Referer cross-origin).
-const TILE_URL = '/api/sigpac-mvt?z={z}&x={x}&y={y}'
+// Proxy serverless propio que pega a la OGC API de SIGPAC HubCloud y
+// devuelve los recintos enriquecidos con uso_sigpac.
+const BBOX_URL = '/api/sigpac-bbox?west={w}&south={s}&east={e}&north={n}'
+
+// El endpoint capa internamente el bbox a 0.05 grados. Dejamos un pequeno
+// margen de seguridad por debajo para evitar rechazos cerca del limite.
+const MAX_DELTA = 0.045
 
 const DEFAULT_OPTIONS = {
-  minZoom:     13,
-  maxZoom:     20,
-  tileSize:    256,
-  pane:        'overlayPane',
-  // Estilo guía visual por defecto (cuando no hay featureStyle)
+  minZoom:     14,            // a zoom <14 el bbox no cabria en MAX_DELTA
   color:       '#ff6f00',
   weight:      1.2,
   fillOpacity: 0,
   opacity:     0.85,
-  interactive: false,  // los clics se gestionan en map.on('click') con turf
   attribution:
     '&copy; <a href="https://sigpac-hubcloud.es">SIGPAC FEGA</a> &middot; ' +
     '<a href="https://creativecommons.org/licenses/by/4.0/deed.es">CC BY 4.0</a>',
 }
 
-export const SigpacMvtLayer = L.GridLayer.extend({
+export const SigpacMvtLayer = L.LayerGroup.extend({
   initialize(options = {}) {
-    L.setOptions(this, { ...DEFAULT_OPTIONS, ...options })
-    // Mapa "tileKey -> L.featureGroup" para limpiar al hacer unload
-    this._featureLayers = new Map()
+    L.Util.setOptions(this, { ...DEFAULT_OPTIONS, ...options })
+    L.LayerGroup.prototype.initialize.call(this, [])
+    this._features         = new Map()   // recintoKey -> feature
+    this._featureLayers    = new Map()   // recintoKey -> L.GeoJSON
+    this._lastBboxKey      = null
+    this._abortController  = null
   },
 
   onAdd(map) {
-    L.GridLayer.prototype.onAdd.call(this, map)
-    this.on('tileunload', this._onTileUnload, this)
+    L.LayerGroup.prototype.onAdd.call(this, map)
+    map.on('moveend', this._refresh, this)
+    this._refresh()
   },
 
   onRemove(map) {
-    this.off('tileunload', this._onTileUnload, this)
-    this._featureLayers.forEach(group => {
-      if (map.hasLayer(group)) map.removeLayer(group)
-    })
+    map.off('moveend', this._refresh, this)
+    this._abortController?.abort()
+    this._abortController = null
+    this.clearLayers()
+    this._features.clear()
     this._featureLayers.clear()
-    L.GridLayer.prototype.onRemove.call(this, map)
+    this._lastBboxKey = null
+    L.LayerGroup.prototype.onRemove.call(this, map)
   },
 
   /**
-   * Devuelve el estilo aplicable a una feature: usa `featureStyle` si es una
-   * funcion, en otro caso aplica el estilo por defecto de las options.
+   * Llamado en cada moveend: si el zoom es suficiente, calcula el bbox
+   * visible y fetchea los recintos. Si el zoom es bajo, limpia la capa.
    */
+  _refresh() {
+    const map = this._map
+    if (!map) return
+
+    if (map.getZoom() < this.options.minZoom) {
+      this._clearAll()
+      return
+    }
+
+    const bounds = map.getBounds()
+    let west  = bounds.getWest()
+    let south = bounds.getSouth()
+    let east  = bounds.getEast()
+    let north = bounds.getNorth()
+
+    // Capear el bbox a MAX_DELTA centrado en el centro del mapa.
+    if ((east - west) > MAX_DELTA || (north - south) > MAX_DELTA) {
+      const c    = map.getCenter()
+      const half = MAX_DELTA / 2
+      west  = c.lng - half
+      east  = c.lng + half
+      south = c.lat - half
+      north = c.lat + half
+    }
+
+    const bboxKey = `${west.toFixed(5)},${south.toFixed(5)},${east.toFixed(5)},${north.toFixed(5)}`
+    if (bboxKey === this._lastBboxKey) return
+    this._lastBboxKey = bboxKey
+
+    this._abortController?.abort()
+    this._abortController = new AbortController()
+
+    const url = BBOX_URL
+      .replace('{w}', west)
+      .replace('{s}', south)
+      .replace('{e}', east)
+      .replace('{n}', north)
+
+    fetch(url, { signal: this._abortController.signal })
+      .then(res => (res.ok ? res.json() : null))
+      .then(geojson => {
+        if (!geojson?.features) return
+        this._renderFeatures(geojson.features)
+      })
+      .catch(err => {
+        if (err.name === 'AbortError') return
+        // eslint-disable-next-line no-console
+        console.warn('[SigpacMvtLayer] bbox fetch fallo:', err.message)
+      })
+  },
+
+  _renderFeatures(features) {
+    const seen = new Set()
+    features.forEach(f => {
+      const t = f.geometry?.type
+      if (t !== 'Polygon' && t !== 'MultiPolygon') return
+
+      const key = this._featureKey(f.properties)
+      seen.add(key)
+      if (this._featureLayers.has(key)) {
+        // Ya esta dibujado, solo refrescar feature (puede traer datos nuevos)
+        this._features.set(key, f)
+        return
+      }
+
+      const geoLayer = L.geoJSON(f, {
+        style:       this._styleForFeature(f),
+        interactive: false,
+      })
+      geoLayer.eachLayer(sub => { sub.feature = f })
+
+      this._features.set(key, f)
+      this._featureLayers.set(key, geoLayer)
+      this.addLayer(geoLayer)
+    })
+
+    // Quitar recintos que ya no estan en el bbox visible
+    for (const [key, geoLayer] of [...this._featureLayers.entries()]) {
+      if (seen.has(key)) continue
+      this.removeLayer(geoLayer)
+      this._features.delete(key)
+      this._featureLayers.delete(key)
+    }
+  },
+
+  _clearAll() {
+    this.clearLayers()
+    this._features.clear()
+    this._featureLayers.clear()
+    this._lastBboxKey = null
+  },
+
+  _featureKey(p) {
+    return `${p.provincia}-${p.municipio}-${p.poligono}-${p.parcela}-${p.recinto}`
+  },
+
   _styleForFeature(feature) {
     if (typeof this.options.featureStyle === 'function') {
       const s = this.options.featureStyle(feature)
@@ -93,124 +195,30 @@ export const SigpacMvtLayer = L.GridLayer.extend({
    * recintos elegidos.
    */
   redrawStyles() {
-    this._featureLayers.forEach(group => {
-      group.eachLayer(geoJsonLayer => {
-        if (typeof geoJsonLayer.eachLayer !== 'function') return
-        geoJsonLayer.eachLayer(featureLayer => {
-          const f = featureLayer.feature
-          if (!f) return
-          try {
-            featureLayer.setStyle(this._styleForFeature(f))
-          } catch (_) { /* ignore */ }
-        })
+    this._featureLayers.forEach(geoLayer => {
+      geoLayer.eachLayer(featureLayer => {
+        const f = featureLayer.feature
+        if (!f) return
+        try {
+          featureLayer.setStyle(this._styleForFeature(f))
+        } catch (_) { /* ignore */ }
       })
     })
   },
 
-  createTile(coords, done) {
-    const tile = document.createElement('div')
-    tile.style.cssText = 'pointer-events:none;visibility:hidden;'
-
-    const url = TILE_URL
-      .replace('{z}', coords.z)
-      .replace('{x}', coords.x)
-      .replace('{y}', coords.y)
-
-    const key = this._tileKey(coords)
-
-    fetch(url, { headers: { Accept: 'application/json' } })
-      .then(res => (res.ok ? res.json() : null))
-      .then(geojson => {
-        if (!geojson?.features?.length) {
-          done(null, tile)
-          return
-        }
-
-        const group = L.featureGroup()
-        geojson.features.forEach(f => {
-          const t = f.geometry?.type
-          if (t !== 'Polygon' && t !== 'MultiPolygon') return
-
-          const featLayer = L.geoJSON(f, {
-            style: this._styleForFeature(f),
-            interactive: this.options.interactive,
-          })
-
-          // Asegurar que cada sublayer tiene .feature accesible para findFeatureAt
-          featLayer.eachLayer(sublayer => { sublayer.feature = f })
-
-          featLayer.addTo(group)
-        })
-
-        if (this._map) {
-          group.addTo(this._map)
-          this._featureLayers.set(key, group)
-        }
-        done(null, tile)
-      })
-      .catch(err => {
-        // Fallo silencioso: la capa no debe bloquear la UX. El WMS rastet
-        // sigue dando la guia visual aunque el MVT falle puntualmente.
-        // eslint-disable-next-line no-console
-        console.warn('[SigpacMvtLayer] tesela', key, 'fallo:', err.message)
-        done(null, tile)
-      })
-
-    return tile
-  },
-
   /**
    * Devuelve la feature del recinto SIGPAC que contiene `latlng`, o null.
-   * Recorre todas las teselas cargadas y aplica turf.booleanPointInPolygon
-   * sobre cada feature. Coste O(n) sobre los recintos visibles, pero a
-   * zoom 13+ son del orden de decenas, asi que es instantaneo.
+   * Las features de la OGC API vienen en GeoJSON estandar (lat/lon, EPSG:4326)
+   * asi que el punto se construye directo en ese sistema.
    */
   findFeatureAt(latlng) {
-    // El endpoint MVT devuelve geojson con coords en EPSG:3857 (metros, no
-    // lat/lon). Probamos primero ese sistema, y caemos a 4326 como fallback.
-    const point4326 = { type: 'Point', coordinates: [latlng.lng, latlng.lat] }
-    let point3857 = null
-    try {
-      const proj = this._map?.options?.crs?.project?.(latlng)
-      if (proj) point3857 = { type: 'Point', coordinates: [proj.x, proj.y] }
-    } catch (_) { /* ignore */ }
-
-    const tryPoint = (point) => {
-      if (!point) return null
-      let matched = null
-      this._featureLayers.forEach(group => {
-        if (matched) return
-        group.eachLayer(geoJsonLayer => {
-          if (matched || typeof geoJsonLayer.eachLayer !== 'function') return
-          geoJsonLayer.eachLayer(featureLayer => {
-            if (matched) return
-            const f = featureLayer.feature
-            if (!f) return
-            try {
-              if (booleanPointInPolygon(point, f)) matched = f
-            } catch (_) { /* ignore */ }
-          })
-        })
-      })
-      return matched
+    const point = { type: 'Point', coordinates: [latlng.lng, latlng.lat] }
+    for (const f of this._features.values()) {
+      try {
+        if (booleanPointInPolygon(point, f)) return f
+      } catch (_) { /* ignore */ }
     }
-
-    // Probar 3857 primero (es lo mas probable dado el path @3857@geojson),
-    // luego 4326 como fallback por si el server reproyecta a WGS84.
-    return tryPoint(point3857) || tryPoint(point4326)
-  },
-
-  _onTileUnload(e) {
-    const key   = this._tileKey(e.coords)
-    const group = this._featureLayers.get(key)
-    if (group && this._map?.hasLayer(group)) {
-      this._map.removeLayer(group)
-    }
-    this._featureLayers.delete(key)
-  },
-
-  _tileKey(coords) {
-    return `${coords.z}/${coords.x}/${coords.y}`
+    return null
   },
 })
 

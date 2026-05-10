@@ -144,11 +144,8 @@ const MapPicker = forwardRef(function MapPicker(
       }
     )
     const sigpacMvt = sigpacMvtLayer({
-      minZoom: 13,
-      // SIGPAC HubCloud solo expone teselas a zoom 15-16. Con maxNativeZoom
-      // las peticiones nunca pasan de 16 — Leaflet reescala visualmente para
-      // los zooms 17-20.
-      maxNativeZoom: 16,
+      // A zoom <14 el bbox de la OGC API no cabria en el cap del proxy.
+      minZoom: 14,
       // Estilo dinamico segun seleccion del recinto (azul si seleccionado).
       featureStyle: (f) => {
         const k = recintoKey(f.properties)
