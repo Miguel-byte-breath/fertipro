@@ -370,6 +370,9 @@ const MapPicker = forwardRef(function MapPicker(
 
     map.on('click', e => {
       if (isDrawing) return
+      // En modo seleccion de recintos SIGPAC ignoramos clic libre del mapa:
+      // los clics se gestionan por el handler del sublayer MVT (onFeatureClick).
+      if (modoSeleccionRef.current) return
       onCoordSelect?.({ lon: e.latlng.lng, lat: e.latlng.lat })
     })
 
