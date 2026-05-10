@@ -1,12 +1,15 @@
 /**
  * src/components/GeometryPanel.jsx
  *
- * Panel ligero de gestión de parcelas:
- *  - Selector "todas las parcelas" / parcela individual
- *  - Renombrar / eliminar parcela
- *  - Descargar GeoJSON / Shapefile
+ * Bloque permanente "Geometría de referencia" en la sidebar.
  *
- * Solo se renderiza cuando hay al menos un polígono.
+ * Estado vacío  → explicación de las tres formas de definir la geometría
+ *                 sobre la que FertiPRO calculará las necesidades de nutrientes.
+ * Estado lleno  → selector "todas / individual" + renombrar + eliminar +
+ *                 descargar GeoJSON o Shapefile.
+ *
+ * Las herramientas de dibujo, edición de vértices, recorte (cutPolygon) y
+ * eliminación están en la toolbar del mapa (Geoman).
  */
 export default function GeometryPanel({
   polygons,
@@ -17,10 +20,85 @@ export default function GeometryPanel({
   onDownloadGeoJSON,
   onDownloadSHP,
 }) {
-  if (!polygons?.length) return null
+  const isEmpty = !polygons?.length
 
   return (
     <div style={S.wrap}>
+      <div style={S.title}>📐 Geometría de referencia</div>
+
+      {isEmpty ? (
+        <EmptyState />
+      ) : (
+        <FilledState
+          polygons={polygons}
+          activeId={activeId}
+          onSelect={onSelect}
+          onRename={onRename}
+          onRemove={onRemove}
+          onDownloadGeoJSON={onDownloadGeoJSON}
+          onDownloadSHP={onDownloadSHP}
+        />
+      )}
+    </div>
+  )
+}
+
+// ── Estado vacío: el usuario aún no ha definido ninguna geometría ──────────
+function EmptyState() {
+  return (
+    <>
+      <p style={S.intro}>
+        Define la unidad de producción, hoja de cultivo o recinto SIGPAC
+        sobre el que vas a calcular las necesidades de nutrientes. Tres formas:
+      </p>
+      <ul style={S.optionList}>
+        <li style={S.option}>
+          <span style={S.optionIcon}>🗂️</span>
+          <div>
+            <div style={S.optionTitle}>Cargar archivo</div>
+            <div style={S.optionDesc}>GeoJSON o Shapefile (.zip con .shp + .dbf)</div>
+          </div>
+        </li>
+        <li style={S.option}>
+          <span style={S.optionIcon}>✏️</span>
+          <div>
+            <div style={S.optionTitle}>Dibujar en el mapa</div>
+            <div style={S.optionDesc}>Herramienta de polígono en la toolbar del mapa</div>
+          </div>
+        </li>
+        <li style={S.option}>
+          <span style={S.optionIcon}>🧩</span>
+          <div>
+            <div style={S.optionTitle}>
+              Construir desde recintos SIGPAC
+              <span style={S.soonBadge}>Próximamente</span>
+            </div>
+            <div style={S.optionDesc}>Selecciona uno o varios recintos y FertiPRO los une</div>
+          </div>
+        </li>
+      </ul>
+      <div style={S.editHint}>
+        Una vez definida, podrás editar vértices, recortar partes con la tijera
+        ✂️ o eliminar la geometría completa, todo desde la toolbar del mapa.
+      </div>
+    </>
+  )
+}
+
+// ── Estado lleno: gestión de las parcelas ya definidas ────────────────────
+function FilledState({
+  polygons, activeId, onSelect, onRename, onRemove, onDownloadGeoJSON, onDownloadSHP,
+}) {
+  const activePoly = activeId != null && activeId !== 'todas'
+    ? polygons.find(p => p.id === activeId)
+    : null
+
+  return (
+    <>
+      <div style={S.subtitle}>
+        {polygons.length} {polygons.length === 1 ? 'parcela definida' : 'parcelas definidas'}
+      </div>
+
       <div style={S.row}>
         <select
           value={activeId ?? ''}
@@ -35,11 +113,11 @@ export default function GeometryPanel({
         </select>
       </div>
 
-      {activeId != null && activeId !== 'todas' && (
+      {activePoly && (
         <div style={S.activeRow}>
           <input
             type="text"
-            value={polygons.find(p => p.id === activeId)?.nombre ?? ''}
+            value={activePoly.nombre ?? ''}
             onChange={e => onRename?.(activeId, e.target.value)}
             style={S.input}
           />
@@ -59,16 +137,62 @@ export default function GeometryPanel({
           📥 Shapefile
         </button>
       </div>
-    </div>
+    </>
   )
 }
 
 const S = {
   wrap: {
-    margin: 12, padding: 10,
+    margin: 12, padding: 12,
     background: '#fff', border: '1px solid #e0e6ed', borderRadius: 6,
     boxShadow: '0 1px 2px rgba(0,0,0,0.04)',
   },
+  title: {
+    fontSize: 12, fontWeight: 700, color: '#1a237e',
+    marginBottom: 8,
+  },
+  subtitle: {
+    fontSize: 11, color: '#78909c', marginBottom: 8,
+  },
+
+  // ── EmptyState ────────────────────────────────────────────────────────
+  intro: {
+    fontSize: 12, lineHeight: 1.5, color: '#455a64',
+    margin: '0 0 10px 0',
+  },
+  optionList: {
+    listStyle: 'none', padding: 0, margin: 0,
+    display: 'flex', flexDirection: 'column', gap: 8,
+  },
+  option: {
+    display: 'flex', alignItems: 'flex-start', gap: 8,
+    padding: '7px 9px',
+    background: '#f5f7fa', borderRadius: 4,
+    border: '1px solid #eceff1',
+  },
+  optionIcon: {
+    fontSize: 16, flexShrink: 0, lineHeight: 1.2,
+  },
+  optionTitle: {
+    fontSize: 12, fontWeight: 600, color: '#263238',
+    display: 'flex', alignItems: 'center', gap: 6, flexWrap: 'wrap',
+  },
+  optionDesc: {
+    fontSize: 11, color: '#78909c', marginTop: 1,
+  },
+  soonBadge: {
+    fontSize: 9, fontWeight: 600, color: '#827717',
+    background: '#fffde7', border: '1px solid #fff59d',
+    padding: '1px 6px', borderRadius: 8, textTransform: 'uppercase',
+    letterSpacing: 0.3,
+  },
+  editHint: {
+    marginTop: 10, padding: '7px 9px',
+    background: '#e8eaf6', borderRadius: 4,
+    fontSize: 11, color: '#3949ab', lineHeight: 1.5,
+  },
+
+  // ── FilledState (UI reorganizada) ─────────────────────────────────────
   row:       { display: 'flex', gap: 6 },
   select:    { flex: 1, padding: '6px 8px', fontSize: 12, border: '1px solid #cfd8dc', borderRadius: 4, fontFamily: 'inherit' },
   activeRow: { display: 'flex', gap: 4, marginTop: 6 },

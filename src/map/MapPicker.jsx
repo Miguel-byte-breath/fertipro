@@ -31,6 +31,7 @@ import L from 'leaflet'
 import '@geoman-io/leaflet-geoman-free'
 import '@geoman-io/leaflet-geoman-free/dist/leaflet-geoman.css'
 import 'leaflet/dist/leaflet.css'
+import { sigpacMvtLayer } from './SigpacMvtLayer'
 
 // Iconos por defecto de Leaflet (los assets se sirven desde CDN para evitar
 // problemas con el bundler resolviendo PNGs internos del paquete).
@@ -109,20 +110,28 @@ const MapPicker = forwardRef(function MapPicker(
     basemaps['PNOA Máxima Actualidad (IGN)'].addTo(map)
 
     // ── Overlays ────────────────────────────────────────────────────────────
+    // "Recintos SIGPAC" agrupa dos capas que se activan/desactivan juntas:
+    //   · WMS ráster (sigpac-hubcloud) — guía visual continua a cualquier zoom.
+    //   · MVT vectorial (sigpac-hubcloud) — geometrías reales en cliente desde
+    //     zoom 13, pareja interactiva que el modo selección de recintos usará
+    //     más adelante para construir hojas de cultivo.
+    const sigpacWms = L.tileLayer.wms(
+      'https://sigpac-hubcloud.es/wms/ows',
+      {
+        layers: 'AU.Sigpac:recinto',
+        format: 'image/png',
+        transparent: true,
+        version: '1.3.0',
+        opacity: 0.7,
+        attribution:
+          '© <a href="https://sigpac-hubcloud.es">SIGPAC FEGA</a> · ' +
+          '<a href="https://creativecommons.org/licenses/by/4.0/deed.es">CC BY 4.0</a>',
+      }
+    )
+    const sigpacMvt = sigpacMvtLayer({ minZoom: 13 })
+
     const overlays = {
-      'Recintos SIGPAC': L.tileLayer.wms(
-        'https://sigpac-hubcloud.es/wms/ows',
-        {
-          layers: 'AU.Sigpac:recinto',
-          format: 'image/png',
-          transparent: true,
-          version: '1.3.0',
-          opacity: 0.7,
-          attribution:
-            '© <a href="https://sigpac-hubcloud.es">SIGPAC FEGA</a> · ' +
-            '<a href="https://creativecommons.org/licenses/by/4.0/deed.es">CC BY 4.0</a>',
-        }
-      ),
+      'Recintos SIGPAC': L.layerGroup([sigpacWms, sigpacMvt]),
     }
 
     L.control.layers(basemaps, overlays, { position: 'topright', collapsed: true }).addTo(map)
