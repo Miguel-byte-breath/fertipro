@@ -7,7 +7,7 @@
  * cualquier zoom, y esta capa se activa por encima de `minZoom` (por defecto
  * 13) para tener geometrías reales en cliente.
  *
- * Endpoint upstream:
+ * Endpoint upstream (a traves de /api/sigpac-mvt para evitar CORB):
  *   https://sigpac-hubcloud.es/mvt/recinto@3857@geojson/{z}/{x}/{y}.geojson
  *
  * Cada feature trae al menos:
@@ -30,8 +30,9 @@
  */
 import L from 'leaflet'
 
-const TILE_URL =
-  'https://sigpac-hubcloud.es/mvt/recinto@3857@geojson/{z}/{x}/{y}.geojson'
+// Proxy serverless propio para evitar CORB del navegador. Internamente
+// hace fetch a sigpac-hubcloud (server-side, sin Referer cross-origin).
+const TILE_URL = '/api/sigpac-mvt?z={z}&x={x}&y={y}'
 
 const DEFAULT_OPTIONS = {
   minZoom:     13,
