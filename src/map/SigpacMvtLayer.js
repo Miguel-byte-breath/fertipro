@@ -175,19 +175,6 @@ export const SigpacMvtLayer = L.GridLayer.extend({
       if (proj) point3857 = { type: 'Point', coordinates: [proj.x, proj.y] }
     } catch (_) { /* ignore */ }
 
-    let totalFeatures = 0
-    let sampleCoord = null
-    this._featureLayers.forEach(g => g.eachLayer(gl => gl.eachLayer && gl.eachLayer(fl => {
-      totalFeatures++
-      if (!sampleCoord && fl.feature?.geometry?.coordinates) {
-        const c = fl.feature.geometry.coordinates
-        // [Polygon] [ring0] [point0] = c[0][0]
-        sampleCoord = Array.isArray(c[0]) && Array.isArray(c[0][0]) ? c[0][0] : c[0]
-      }
-    })))
-    console.log('[findFeatureAt] tiles:', this._featureLayers.size, 'features:', totalFeatures,
-                'sample coord:', sampleCoord, 'point4326:', point4326.coordinates, 'point3857:', point3857?.coordinates)
-
     const tryPoint = (point) => {
       if (!point) return null
       let matched = null

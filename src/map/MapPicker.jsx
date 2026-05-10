@@ -145,6 +145,10 @@ const MapPicker = forwardRef(function MapPicker(
     )
     const sigpacMvt = sigpacMvtLayer({
       minZoom: 13,
+      // SIGPAC HubCloud solo expone teselas a zoom 15-16. Con maxNativeZoom
+      // las peticiones nunca pasan de 16 — Leaflet reescala visualmente para
+      // los zooms 17-20.
+      maxNativeZoom: 16,
       // Estilo dinamico segun seleccion del recinto (azul si seleccionado).
       featureStyle: (f) => {
         const k = recintoKey(f.properties)
@@ -358,12 +362,10 @@ const MapPicker = forwardRef(function MapPicker(
     map.on('pm:drawend',   () => { isDrawing = false })
 
     map.on('click', e => {
-      console.log('[map click]', { isDrawing, modo: modoSeleccionRef.current, hasMvt: !!sigpacMvtRef.current, latlng: e.latlng })
       if (isDrawing) return
       // En modo seleccion: detectar recinto bajo el punto con turf y togglear.
       if (modoSeleccionRef.current) {
         const f = sigpacMvtRef.current?.findFeatureAt?.(e.latlng)
-        console.log('[map click] feature found:', f?.properties)
         if (!f) return
         const k = recintoKey(f.properties)
         setSelectedRecintos(prev => {
