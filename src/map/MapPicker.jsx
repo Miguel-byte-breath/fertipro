@@ -1,0 +1,526 @@
+/**
+ * src/map/MapPicker.jsx — FertiPRO
+ *
+ * Mapa interactivo para selección de parcelas de cultivo.
+ *
+ * Capas base: OpenStreetMap / PNOA Máxima Actualidad (IGN)
+ * Overlays:   Recintos SIGPAC (FEGA, CC BY 4.0)
+ * Herramientas:
+ *   - Geoman: dibujar / editar / eliminar polígonos
+ *   - Carga de GeoJSON o Shapefile (ZIP con .shp + .dbf)
+ *   - Geocoder Nominatim (búsqueda municipio / paraje)
+ *   - Mi ubicación (geolocation API)
+ *   - Escala métrica
+ *
+ * Props:
+ *   onCoordSelect({lon, lat})         — clic en mapa fuera de polígonos (modo punto)
+ *   selectedPoint                     — marcador activo {lon, lat} | null
+ *   onPolygonAdd(feature, id)         — polígono añadido (dibujado o cargado)
+ *   onPolygonRemove(id)               — polígono eliminado con herramienta Geoman
+ *   onPolygonClick(id)                — clic sobre un polígono existente
+ *   activePolygonId                   — id de la parcela resaltada | 'todas' | null
+ *   isCentroid                        — true → marcador de centroide, false → pin
+ *
+ * Ref expuesta:
+ *   removeLayerById(id)               — elimina la capa de un polígono desde el panel
+ *
+ * Adaptado de fertipro-zonas-normativas v0.4.5.
+ */
+import { useEffect, useRef, useState, forwardRef, useImperativeHandle } from 'react'
+import L from 'leaflet'
+import '@geoman-io/leaflet-geoman-free'
+import '@geoman-io/leaflet-geoman-free/dist/leaflet-geoman.css'
+import 'leaflet/dist/leaflet.css'
+
+// Iconos por defecto de Leaflet (los assets se sirven desde CDN para evitar
+// problemas con el bundler resolviendo PNGs internos del paquete).
+delete L.Icon.Default.prototype._getIconUrl
+L.Icon.Default.mergeOptions({
+  iconRetinaUrl: 'https://cdnjs.cloudflare.com/ajax/libs/leaflet/1.9.4/images/marker-icon-2x.png',
+  iconUrl:       'https://cdnjs.cloudflare.com/ajax/libs/leaflet/1.9.4/images/marker-icon.png',
+  shadowUrl:     'https://cdnjs.cloudflare.com/ajax/libs/leaflet/1.9.4/images/marker-shadow.png',
+})
+
+const MapPicker = forwardRef(function MapPicker(
+  { onCoordSelect, selectedPoint, onPolygonAdd, onPolygonRemove, onPolygonClick, activePolygonId, isCentroid },
+  ref
+) {
+  const mapRef       = useRef(null)
+  const mapObj       = useRef(null)
+  const markerRef    = useRef(null)
+  const fileInputRef = useRef(null)
+  const [coords, setCoords] = useState(null)
+
+  // Refs estables para callbacks de polígono — evitan stale closure dentro del useEffect de init
+  const onPolygonAddRef    = useRef(onPolygonAdd)
+  const onPolygonRemoveRef = useRef(onPolygonRemove)
+  const onPolygonClickRef  = useRef(onPolygonClick)
+  useEffect(() => { onPolygonAddRef.current    = onPolygonAdd    }, [onPolygonAdd])
+  useEffect(() => { onPolygonRemoveRef.current = onPolygonRemove }, [onPolygonRemove])
+  useEffect(() => { onPolygonClickRef.current  = onPolygonClick  }, [onPolygonClick])
+
+  // Contador de IDs y mapas auxiliares
+  const polygonIdCounter = useRef(0)
+  const layerToId        = useRef(new WeakMap())
+  const layersById       = useRef(new Map())   // id → layer
+
+  // Permite a App.jsx eliminar una capa cuando el usuario borra una parcela desde el panel
+  useImperativeHandle(ref, () => ({
+    removeLayerById: (id) => {
+      const map = mapObj.current
+      if (!map) return
+      const layer = layersById.current.get(id)
+      if (layer) {
+        map.removeLayer(layer)
+        layersById.current.delete(id)
+      }
+    },
+  }), [])
+
+  useEffect(() => {
+    if (mapObj.current) return
+
+    const map = L.map(mapRef.current, { center: [40.0, -3.7], zoom: 6 })
+
+    // Cursor flecha (no mano) para sensación de aplicación de escritorio
+    const styleEl = document.createElement('style')
+    styleEl.textContent =
+      '.leaflet-container { cursor: default !important; } ' +
+      '.leaflet-dragging .leaflet-container { cursor: default !important; }'
+    document.head.appendChild(styleEl)
+
+    // ── Capas base ──────────────────────────────────────────────────────────
+    const basemaps = {
+      'OpenStreetMap': L.tileLayer(
+        'https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png',
+        {
+          attribution: '© <a href="https://openstreetmap.org/copyright">OpenStreetMap</a>',
+          maxZoom: 19,
+        }
+      ),
+      'PNOA Máxima Actualidad (IGN)': L.tileLayer(
+        'https://tms-pnoa-ma.idee.es/1.0.0/pnoa-ma/{z}/{x}/{-y}.jpeg',
+        {
+          attribution: '© <a href="https://www.ign.es">IGN</a> · PNOA',
+          maxZoom: 20,
+        }
+      ),
+    }
+    basemaps['PNOA Máxima Actualidad (IGN)'].addTo(map)
+
+    // ── Overlays ────────────────────────────────────────────────────────────
+    const overlays = {
+      'Recintos SIGPAC': L.tileLayer.wms(
+        'https://sigpac-hubcloud.es/wms/ows',
+        {
+          layers: 'AU.Sigpac:recinto',
+          format: 'image/png',
+          transparent: true,
+          version: '1.3.0',
+          opacity: 0.7,
+          attribution:
+            '© <a href="https://sigpac-hubcloud.es">SIGPAC FEGA</a> · ' +
+            '<a href="https://creativecommons.org/licenses/by/4.0/deed.es">CC BY 4.0</a>',
+        }
+      ),
+    }
+
+    L.control.layers(basemaps, overlays, { position: 'topright', collapsed: true }).addTo(map)
+    L.control.scale({ imperial: false, position: 'bottomleft' }).addTo(map)
+
+    // ── Geocoder Nominatim ─────────────────────────────────────────────────
+    const GeocoderControl = L.Control.extend({
+      options: { position: 'topleft' },
+      onAdd() {
+        const container = L.DomUtil.create('div', 'leaflet-geocoder-control')
+        container.style.cssText = `
+          background: white; border-radius: 4px;
+          box-shadow: 0 1px 5px rgba(0,0,0,0.4);
+          display: flex; align-items: center;
+          padding: 0; width: 34px;
+          transition: width 0.2s ease;
+          position: relative;
+        `
+
+        const btn = L.DomUtil.create('button', '', container)
+        btn.innerHTML = '🔍'
+        btn.title = 'Buscar municipio o lugar'
+        btn.style.cssText = `
+          background: none; border: none; cursor: pointer;
+          font-size: 16px; width: 34px; height: 34px;
+          flex-shrink: 0; display: flex; align-items: center; justify-content: center;
+        `
+
+        const input = L.DomUtil.create('input', '', container)
+        input.type = 'text'
+        input.placeholder = 'Buscar municipio o lugar...'
+        input.style.cssText = `
+          border: none; outline: none; font-size: 13px;
+          width: 240px; max-width: 0; padding: 0;
+          transition: max-width 0.2s ease, padding 0.2s ease;
+          font-family: inherit; overflow: hidden;
+        `
+
+        const results = L.DomUtil.create('div', '', container)
+        results.style.cssText = `
+          position: absolute; top: 0; left: 38px;
+          background: white; border-radius: 4px;
+          box-shadow: 0 2px 8px rgba(0,0,0,0.3);
+          max-height: 250px; overflow-y: auto;
+          width: 280px; display: none; z-index: 99999;
+          font-family: inherit;
+        `
+
+        let expanded = false
+        let searchTimer = null
+
+        btn.onclick = () => {
+          expanded = !expanded
+          if (expanded) {
+            container.style.width = '280px'
+            input.style.maxWidth  = '240px'
+            input.style.padding   = '0 6px'
+            input.focus()
+          } else {
+            container.style.width = '34px'
+            input.style.maxWidth  = '0'
+            input.style.padding   = '0'
+            input.value = ''
+            results.style.display = 'none'
+          }
+        }
+
+        input.addEventListener('keydown', e => {
+          e.stopPropagation()
+          if (e.key === 'Escape') btn.onclick()
+        })
+
+        input.addEventListener('input', e => {
+          e.stopPropagation()
+          clearTimeout(searchTimer)
+          const q = input.value.trim()
+          if (q.length < 3) { results.style.display = 'none'; return }
+          searchTimer = setTimeout(async () => {
+            try {
+              const res = await fetch(
+                `https://nominatim.openstreetmap.org/search?format=json&q=${encodeURIComponent(q)}&countrycodes=es&limit=6&accept-language=es`
+              )
+              const data = await res.json()
+              results.innerHTML = ''
+              if (!data.length) {
+                results.innerHTML = '<div style="padding:8px 12px;color:#888;font-size:12px">Sin resultados</div>'
+              } else {
+                data.forEach(item => {
+                  const row = document.createElement('div')
+                  row.textContent = item.display_name
+                  row.style.cssText = 'padding:7px 12px;cursor:pointer;font-size:12px;border-bottom:1px solid #f0f0f0;'
+                  row.onmouseover = () => { row.style.background = '#e8eaf6' }
+                  row.onmouseout  = () => { row.style.background = 'white'   }
+                  row.onclick = () => {
+                    map.setView([parseFloat(item.lat), parseFloat(item.lon)], 14)
+                    results.style.display = 'none'
+                    input.value = item.display_name.split(',')[0]
+                  }
+                  results.appendChild(row)
+                })
+              }
+              results.style.display = 'block'
+            } catch (err) { console.error('[GEOCODER] error:', err) }
+          }, 400)
+        })
+
+        L.DomEvent.disableClickPropagation(container)
+        L.DomEvent.disableScrollPropagation(container)
+        container.appendChild(results)
+        return container
+      },
+    })
+    new GeocoderControl().addTo(map)
+
+    // ── Geoman: dibujar / editar / eliminar polígonos ──────────────────────
+    map.pm.addControls({
+      position: 'topleft',
+      drawPolygon: true,
+      drawMarker: false, drawCircle: false, drawPolyline: false,
+      drawRectangle: false, drawCircleMarker: false,
+      editMode: true, dragMode: false,
+      cutPolygon: false, removalMode: true, rotateMode: false,
+    })
+    map.pm.setLang('es')
+
+    // Botón custom: cargar GeoJSON / Shapefile
+    map.pm.Toolbar.createCustomControl({
+      name: 'cargarGeometria', block: 'draw',
+      title: 'Cargar GeoJSON / Shapefile',
+      html: '', cssClass: 'pm-cargar-geometria', toggle: false,
+      onClick: () => fileInputRef.current?.click(),
+    })
+    setTimeout(() => {
+      document.querySelectorAll('.leaflet-pm-toolbar .button-container, .leaflet-pm-toolbar .leaflet-buttons-control-button')
+        .forEach(btn => {
+          if (btn.getAttribute('title') !== 'Cargar GeoJSON / Shapefile') return
+          const icon = btn.querySelector('.control-icon')
+          if (icon) icon.style.backgroundImage =
+            "url(\"data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 24 24' fill='none' stroke='%23555' stroke-width='2'%3E%3Cpath d='M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4'/%3E%3Cpolyline points='17 8 12 3 7 8'/%3E%3Cline x1='12' y1='3' x2='12' y2='15'/%3E%3C/svg%3E\")"
+        })
+    }, 500)
+
+    // Botón custom: mi ubicación
+    map.pm.Toolbar.createCustomControl({
+      name: 'miUbicacion', block: 'custom',
+      title: 'Mi ubicación',
+      html: '', cssClass: 'pm-mi-ubicacion', toggle: false,
+      onClick: () => {
+        if (!navigator.geolocation) return
+        navigator.geolocation.getCurrentPosition(({ coords }) => {
+          map.setView([coords.latitude, coords.longitude], 14)
+          L.circleMarker([coords.latitude, coords.longitude], {
+            radius: 8, color: '#1a3a2a',
+            fillColor: '#2d9d5c', fillOpacity: 0.9, weight: 2,
+          }).addTo(map).bindPopup('Mi ubicación').openPopup()
+        })
+      },
+    })
+    setTimeout(() => {
+      document.querySelectorAll('.leaflet-pm-toolbar .button-container, .leaflet-pm-toolbar .leaflet-buttons-control-button')
+        .forEach(btn => {
+          if (btn.getAttribute('title') !== 'Mi ubicación') return
+          const icon = btn.querySelector('.control-icon')
+          if (icon) icon.style.backgroundImage =
+            "url(\"data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 24 24' fill='none' stroke='%23555' stroke-width='2'%3E%3Ccircle cx='12' cy='12' r='3'/%3E%3Cpath d='M12 2v4M12 18v4M2 12h4M18 12h4'/%3E%3C/svg%3E\")"
+        })
+    }, 600)
+
+    // ── Coordenadas bajo el cursor ─────────────────────────────────────────
+    map.on('mousemove', e => setCoords({ lat: e.latlng.lat.toFixed(5), lng: e.latlng.lng.toFixed(5) }))
+    map.on('mouseout',  () => setCoords(null))
+
+    // ── Modo dibujo: silencia click para no disparar onCoordSelect ─────────
+    let isDrawing = false
+    map.on('pm:drawstart', () => { isDrawing = true  })
+    map.on('pm:drawend',   () => { isDrawing = false })
+
+    map.on('click', e => {
+      if (isDrawing) return
+      onCoordSelect?.({ lon: e.latlng.lng, lat: e.latlng.lat })
+    })
+
+    // ── Polígono dibujado con Geoman ───────────────────────────────────────
+    map.on('pm:create', e => {
+      const layer = e.layer
+      if (typeof layer.toGeoJSON !== 'function') return
+      const feature = layer.toGeoJSON()
+      const t = feature.geometry?.type
+      if (t !== 'Polygon' && t !== 'MultiPolygon') return
+
+      polygonIdCounter.current += 1
+      const id = polygonIdCounter.current
+      layerToId.current.set(layer, id)
+      layersById.current.set(id, layer)
+
+      layer.on('click', (ev) => {
+        L.DomEvent.stopPropagation(ev)
+        onPolygonClickRef.current?.(id)
+      })
+
+      onPolygonAddRef.current?.(feature, id)
+    })
+
+    // ── Polígono eliminado con la herramienta de borrado de Geoman ─────────
+    map.on('pm:remove', e => {
+      const id = layerToId.current.get(e.layer)
+      if (id != null) {
+        layersById.current.delete(id)
+        onPolygonRemoveRef.current?.(id)
+      }
+    })
+
+    mapObj.current = map
+  }, []) // eslint-disable-line react-hooks/exhaustive-deps
+
+  // ── Resaltar polígono activo ─────────────────────────────────────────────
+  useEffect(() => {
+    const normalStyle = { color: '#1a237e', weight: 2,   fillOpacity: 0.08 }
+    const activeStyle = { color: '#1565c0', weight: 3.5, fillOpacity: 0.22, dashArray: null }
+    layersById.current.forEach((layer, id) => {
+      try { layer.setStyle(id === activePolygonId ? activeStyle : normalStyle) } catch {}
+    })
+  }, [activePolygonId])
+
+  // ── Marcador: pin (punto libre) o círculo (centroide) ────────────────────
+  useEffect(() => {
+    if (!mapObj.current) return
+    if (markerRef.current) { markerRef.current.remove(); markerRef.current = null }
+    if (selectedPoint) {
+      markerRef.current = isCentroid
+        ? L.circleMarker([selectedPoint.lat, selectedPoint.lon], {
+            radius: 7, color: '#0d47a1', weight: 2,
+            fillColor: '#5c6bc0', fillOpacity: 0.95,
+          }).addTo(mapObj.current)
+        : L.marker([selectedPoint.lat, selectedPoint.lon]).addTo(mapObj.current)
+    }
+  }, [selectedPoint, isCentroid])
+
+  // ─── Parser DBF ────────────────────────────────────────────────────────────
+  function parseDbf(buf) {
+    const v   = new DataView(buf)
+    const n   = v.getInt32(4, true)
+    const hdr = v.getUint16(8, true)
+    const fields = []
+    let off = 32
+    while (v.getUint8(off) !== 0x0D) {
+      const name = String.fromCharCode(...new Uint8Array(buf, off, 11)).replace(/\0/g, '')
+      const len  = v.getUint8(off + 16)
+      fields.push({ name, len })
+      off += 32
+    }
+    const recLen = v.getUint16(10, true)
+    const rows   = []
+    for (let i = 0; i < n; i++) {
+      let pos = hdr + i * recLen + 1
+      const row = {}
+      fields.forEach(f => {
+        const bytes = new Uint8Array(buf, pos, f.len)
+        row[f.name] = new TextDecoder().decode(bytes).trim()
+        pos += f.len
+      })
+      rows.push(row)
+    }
+    return rows
+  }
+
+  // ─── Parser SHP ────────────────────────────────────────────────────────────
+  function parseShp(buf, props) {
+    const v   = new DataView(buf)
+    const len = v.getInt32(24, false) * 2
+    const feats = []
+    let off = 100
+    let i   = 0
+    while (off < len) {
+      off += 4
+      const cLen = v.getInt32(off, false) * 2; off += 4
+      const type = v.getInt32(off, true)
+      if (type === 5 || type === 15) {
+        off += 4; off += 32
+        const nParts  = v.getInt32(off, true); off += 4
+        const nPoints = v.getInt32(off, true); off += 4
+        const parts   = []
+        for (let p = 0; p < nParts; p++) { parts.push(v.getInt32(off, true)); off += 4 }
+        const pts = []
+        for (let p = 0; p < nPoints; p++) {
+          pts.push([v.getFloat64(off, true), v.getFloat64(off + 8, true)]); off += 16
+        }
+        const rings = parts.map((start, idx) => pts.slice(start, parts[idx + 1] || pts.length))
+        feats.push({
+          type: 'Feature',
+          geometry: { type: 'Polygon', coordinates: rings },
+          properties: props[i] || {},
+        })
+      } else {
+        off += cLen
+      }
+      i++
+    }
+    return feats
+  }
+
+  // ── Carga de fichero GeoJSON o Shapefile ─────────────────────────────────
+  const handleFileLoad = async (e) => {
+    const file = e.target.files[0]
+    if (!file) return
+    e.target.value = ''
+    const map = mapObj.current
+    if (!map) return
+
+    let features = []
+    try {
+      if (file.name.toLowerCase().endsWith('.zip')) {
+        const { default: JSZip } = await import('jszip')
+        const zip   = await JSZip.loadAsync(await file.arrayBuffer())
+        const files = Object.values(zip.files)
+        const shp   = files.find(f => f.name.toLowerCase().endsWith('.shp'))
+        const dbf   = files.find(f => f.name.toLowerCase().endsWith('.dbf'))
+        if (!shp) throw new Error('No se encontró archivo .shp dentro del ZIP')
+        const shpBuf = await shp.async('arraybuffer')
+        const dbfBuf = dbf ? await dbf.async('arraybuffer') : null
+        const props  = dbfBuf ? parseDbf(dbfBuf) : []
+        features     = parseShp(shpBuf, props)
+      } else {
+        const parsed = JSON.parse(await file.text())
+        if (parsed.type === 'FeatureCollection')       features = parsed.features || []
+        else if (parsed.type === 'Feature')            features = [parsed]
+        else if (parsed.type === 'Polygon' || parsed.type === 'MultiPolygon')
+          features = [{ type: 'Feature', geometry: parsed, properties: {} }]
+      }
+    } catch (err) {
+      alert('Error al cargar el archivo: ' + err.message)
+      return
+    }
+
+    features = features.filter(f =>
+      f.geometry?.type === 'Polygon' || f.geometry?.type === 'MultiPolygon'
+    )
+    if (!features.length) {
+      alert('No se encontraron geometrías de tipo Polígono en el archivo.')
+      return
+    }
+    const CAP = 20
+    if (features.length > CAP) {
+      alert(`El archivo contiene ${features.length} polígonos. Se cargarán los primeros ${CAP}.`)
+      features = features.slice(0, CAP)
+    }
+
+    features.forEach(feature => {
+      const geoLayer = L.geoJSON(feature, {
+        style: { color: '#1a237e', weight: 2, fillOpacity: 0.08 },
+      }).addTo(map)
+
+      const subLayer = geoLayer.getLayers()[0]
+      polygonIdCounter.current += 1
+      const id = polygonIdCounter.current
+      if (subLayer) {
+        layerToId.current.set(subLayer, id)
+        layerToId.current.set(geoLayer, id)
+        layersById.current.set(id, geoLayer)
+        subLayer.on('click', (ev) => {
+          L.DomEvent.stopPropagation(ev)
+          onPolygonClickRef.current?.(id)
+        })
+      }
+
+      onPolygonAddRef.current?.(feature, id)
+    })
+
+    const bounds = L.geoJSON({ type: 'FeatureCollection', features }).getBounds()
+    if (bounds.isValid()) map.fitBounds(bounds, { padding: [40, 40] })
+  }
+
+  return (
+    <div style={{ height: '100%', width: '100%', position: 'relative' }}>
+      <div ref={mapRef} style={{ height: '100%', width: '100%' }} />
+
+      {coords && (
+        <div style={{
+          position: 'absolute', bottom: 32, left: '50%',
+          transform: 'translateX(-50%)',
+          background: 'rgba(26,58,42,0.85)', color: '#e8f5ee',
+          padding: '4px 12px', borderRadius: 4, fontSize: 12,
+          fontFamily: 'monospace', zIndex: 1000, pointerEvents: 'none',
+          letterSpacing: '0.04em',
+        }}>
+          {coords.lat}° N &nbsp;|&nbsp; {coords.lng}° E &nbsp;·&nbsp; EPSG:4326
+        </div>
+      )}
+
+      <input
+        ref={fileInputRef}
+        type="file"
+        accept=".geojson,.json,.zip"
+        style={{ display: 'none' }}
+        onChange={handleFileLoad}
+      />
+    </div>
+  )
+})
+
+export default MapPicker
