@@ -153,17 +153,6 @@ const MapPicker = forwardRef(function MapPicker(
         }
         return { color: '#ff6f00', weight: 1.2, fillOpacity: 0, opacity: 0.85 }
       },
-      // Solo procesamos clic cuando el modo seleccion esta activo.
-      onFeatureClick: (f) => {
-        if (!modoSeleccionRef.current) return
-        const k = recintoKey(f.properties)
-        setSelectedRecintos(prev => {
-          const next = new Map(prev)
-          if (next.has(k)) next.delete(k)
-          else            next.set(k, f)
-          return next
-        })
-      },
     })
     sigpacMvtRef.current = sigpacMvt
 
@@ -370,9 +359,19 @@ const MapPicker = forwardRef(function MapPicker(
 
     map.on('click', e => {
       if (isDrawing) return
-      // En modo seleccion de recintos SIGPAC ignoramos clic libre del mapa:
-      // los clics se gestionan por el handler del sublayer MVT (onFeatureClick).
-      if (modoSeleccionRef.current) return
+      // En modo seleccion: detectar recinto bajo el punto con turf y togglear.
+      if (modoSeleccionRef.current) {
+        const f = sigpacMvtRef.current?.findFeatureAt?.(e.latlng)
+        if (!f) return
+        const k = recintoKey(f.properties)
+        setSelectedRecintos(prev => {
+          const next = new Map(prev)
+          if (next.has(k)) next.delete(k)
+          else            next.set(k, f)
+          return next
+        })
+        return
+      }
       onCoordSelect?.({ lon: e.latlng.lng, lat: e.latlng.lat })
     })
 

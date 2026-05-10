@@ -14,21 +14,20 @@
  *   { provincia, municipio, poligono, parcela, recinto, uso_sigpac }
  *
  * Opciones extra (paso 3 — modo selección):
- *   featureStyle   (feature) => style   función opcional que devuelve el
- *                                       estilo de cada recinto. Si se omite,
- *                                       se aplica el estilo por defecto. Útil
- *                                       para resaltar recintos seleccionados.
- *   onFeatureClick (feature, layer)     callback opcional al hacer clic sobre
- *                                       un recinto. Permite al consumidor
- *                                       gestionar la lógica de selección.
+ *   featureStyle (feature) => style   función opcional que devuelve el estilo
+ *                                     de cada recinto. Útil para resaltar
+ *                                     recintos seleccionados.
  *
- * Método público:
- *   redrawStyles()   recorre todas las features renderizadas y reaplica
- *                    `featureStyle`. Se llama tras cambiar la selección.
+ * Métodos públicos:
+ *   redrawStyles()         reaplica featureStyle a todas las features
+ *                          renderizadas (tras cambiar la selección).
+ *   findFeatureAt(latlng)  devuelve la feature del recinto que contiene
+ *                          `latlng`, o null si no hay ninguno bajo el punto.
  *
  * Licencia datos: CC BY 4.0 HVD SIGC (FEGA — Ministerio de Agricultura).
  */
 import L from 'leaflet'
+import booleanPointInPolygon from '@turf/boolean-point-in-polygon'
 
 // Proxy serverless propio para evitar CORB del navegador. Internamente
 // hace fetch a sigpac-hubcloud (server-side, sin Referer cross-origin).
@@ -44,7 +43,7 @@ const DEFAULT_OPTIONS = {
   weight:      1.2,
   fillOpacity: 0,
   opacity:     0.85,
-  interactive: true,   // siempre captamos clics; si no hay handler, no hace nada
+  interactive: false,  // los clics se gestionan en map.on('click') con turf
   attribution:
     '&copy; <a href="https://sigpac-hubcloud.es">SIGPAC FEGA</a> &middot; ' +
     '<a href="https://creativecommons.org/licenses/by/4.0/deed.es">CC BY 4.0</a>',
@@ -137,17 +136,8 @@ export const SigpacMvtLayer = L.GridLayer.extend({
             interactive: this.options.interactive,
           })
 
-          // Conectar handlers a cada sub-layer (poligono real)
-          featLayer.eachLayer(sublayer => {
-            // Asegurar que sublayer.feature apunta a la feature original
-            sublayer.feature = f
-            sublayer.on('click', (ev) => {
-              if (typeof this.options.onFeatureClick === 'function') {
-                L.DomEvent.stopPropagation(ev)
-                this.options.onFeatureClick(f, sublayer)
-              }
-            })
-          })
+          // Asegurar que cada sublayer tiene .feature accesible para findFeatureAt
+          featLayer.eachLayer(sublayer => { sublayer.feature = f })
 
           featLayer.addTo(group)
         })
@@ -167,6 +157,32 @@ export const SigpacMvtLayer = L.GridLayer.extend({
       })
 
     return tile
+  },
+
+  /**
+   * Devuelve la feature del recinto SIGPAC que contiene `latlng`, o null.
+   * Recorre todas las teselas cargadas y aplica turf.booleanPointInPolygon
+   * sobre cada feature. Coste O(n) sobre los recintos visibles, pero a
+   * zoom 13+ son del orden de decenas, asi que es instantaneo.
+   */
+  findFeatureAt(latlng) {
+    const point = { type: 'Point', coordinates: [latlng.lng, latlng.lat] }
+    let matched = null
+    this._featureLayers.forEach(group => {
+      if (matched) return
+      group.eachLayer(geoJsonLayer => {
+        if (matched || typeof geoJsonLayer.eachLayer !== 'function') return
+        geoJsonLayer.eachLayer(featureLayer => {
+          if (matched) return
+          const f = featureLayer.feature
+          if (!f) return
+          try {
+            if (booleanPointInPolygon(point, f)) matched = f
+          } catch (_) { /* ignore */ }
+        })
+      })
+    })
+    return matched
   },
 
   _onTileUnload(e) {
