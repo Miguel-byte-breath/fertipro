@@ -167,6 +167,9 @@ export const SigpacMvtLayer = L.GridLayer.extend({
    */
   findFeatureAt(latlng) {
     const point = { type: 'Point', coordinates: [latlng.lng, latlng.lat] }
+    let totalFeatures = 0
+    this._featureLayers.forEach(g => g.eachLayer(gl => gl.eachLayer && gl.eachLayer(() => totalFeatures++)))
+    console.log('[findFeatureAt] tiles:', this._featureLayers.size, 'features:', totalFeatures, 'point:', latlng)
     let matched = null
     this._featureLayers.forEach(group => {
       if (matched) return
