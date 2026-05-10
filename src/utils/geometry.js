@@ -1,7 +1,7 @@
 import turfCentroid from '@turf/centroid'
 
 /**
- * src/utils/geometry.js — FertiPRO Zonas Normativas
+ * src/utils/geometry.js — FertiPRO
  *
  * Utilidades de geometría:
  *   - centroide()        → {lat, lon} del anillo exterior
@@ -86,7 +86,7 @@ export async function exportarSHP(features, filename = 'fertipro_parcelas') {
   zip.file(`${filename}.shx`, shxBuf)
   zip.file(`${filename}.prj`, prj)
   zip.file('README.txt', [
-    'Shapefile generado por FertiPRO — Zonas Normativas',
+    'Shapefile generado por FertiPRO',
     `Fecha: ${new Date().toLocaleDateString('es-ES')}`,
     'CRS: EPSG:4326 (WGS 84)',
     '',
