@@ -20,6 +20,7 @@ import MapPicker        from './map/MapPicker'
 import CultivoSelector  from './cultivos/CultivoSelector'
 import CultivoCard      from './cultivos/CultivoCard'
 import RecintoCard      from './components/RecintoCard'
+import RecintosOrigenCard from './components/RecintosOrigenCard'
 import GeometryPanel    from './components/GeometryPanel'
 import { getSigpacRecinto } from './api/sigpac'
 import {
@@ -227,6 +228,14 @@ export default function App() {
             loading={cargando}
             error={estado === ESTADO.ERROR ? error : null}
           />
+
+          {/* Recintos SIGPAC que componen la hoja activa (si es construida) */}
+          {(() => {
+            if (activePolygonId == null || activePolygonId === 'todas') return null
+            const poly = polygons.find(p => p.id === activePolygonId)
+            const recintos = poly?.feature?.properties?.recintos_origen
+            return <RecintosOrigenCard recintos={recintos} />
+          })()}
 
           <CultivoCard cultivo={cultivo} />
 

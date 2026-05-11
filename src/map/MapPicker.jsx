@@ -465,14 +465,21 @@ const MapPicker = forwardRef(function MapPicker(
     })
     if (!coords.length) return
 
-    const recintosOrigen = features.map(f => ({
-      provincia:  f.properties.provincia,
-      municipio:  f.properties.municipio,
-      poligono:   f.properties.poligono,
-      parcela:    f.properties.parcela,
-      recinto:    f.properties.recinto,
-      uso_sigpac: f.properties.uso_sigpac ?? null,
-    }))
+    const recintosOrigen = features.map(f => {
+      const p = f.properties
+      return {
+        provincia:       p.provincia,
+        municipio:       p.municipio,
+        poligono:        p.poligono,
+        parcela:         p.parcela,
+        recinto:         p.recinto,
+        uso_sigpac:      p.uso_sigpac ?? null,
+        // Datos agronomicos directos del OGC API (sin enriquecimiento extra)
+        superficie_ha:   p.superficie_ha != null ? Number(p.superficie_ha)   : null,
+        pendiente_media: p.pendiente_media != null ? Number(p.pendiente_media) : null,
+        altitud:         p.altitud != null ? Number(p.altitud)               : null,
+      }
+    })
 
     const feature = {
       type: 'Feature',
