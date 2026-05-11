@@ -146,26 +146,19 @@ export default async function handler(req, res) {
     return res.status(200).json({ type: 'FeatureCollection', features: [] })
   }
 
-  // ── 2. MVT → uso_sigpac para cada recinto en paralelo ─────────────────────
-  // Procesamos en lotes de 5 para no saturar la API MVT
-  const features = data.features
-  const enriched = []
-
-  for (let i = 0; i < features.length; i += 5) {
-    const batch = features.slice(i, i + 5)
-    const usos  = await Promise.all(
-      batch.map(f => getUsoForRecinto(f.properties, f.geometry))
-    )
-    batch.forEach((f, idx) => {
-      enriched.push({
-        ...f,
-        properties: {
-          ...f.properties,
-          uso_sigpac: usos[idx] ?? f.properties.uso_sigpac ?? null,
-        },
-      })
-    })
-  }
+  // ── 2. Normalizar uso_sigpac desde las properties de la OGC API ───────
+  // (Antes haciamos un enriquecimiento extra via MVT, pero sigpac-hubcloud
+  //  esta devolviendo 404 sistematicamente al MVT y disparaba el tiempo de
+  //  respuesta a varios minutos. La OGC API ya expone el uso en `uso`,
+  //  `uso_sigpac` o `cod_uso` segun el recinto.)
+  const enriched = data.features.map(f => ({
+    ...f,
+    properties: {
+      ...f.properties,
+      uso_sigpac:
+        f.properties.uso_sigpac ?? f.properties.uso ?? f.properties.cod_uso ?? null,
+    },
+  }))
 
   res.setHeader('Cache-Control', 's-maxage=300, stale-while-revalidate=600')
   return res.status(200).json({ type: 'FeatureCollection', features: enriched })
