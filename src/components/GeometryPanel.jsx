@@ -19,6 +19,9 @@ export default function GeometryPanel({
   onRemove,
   onDownloadGeoJSON,
   onDownloadSHP,
+  onDownloadExcel,
+  loadingExcel,
+  excelError,
 }) {
   const isEmpty = !polygons?.length
 
@@ -37,6 +40,9 @@ export default function GeometryPanel({
           onRemove={onRemove}
           onDownloadGeoJSON={onDownloadGeoJSON}
           onDownloadSHP={onDownloadSHP}
+          onDownloadExcel={onDownloadExcel}
+          loadingExcel={loadingExcel}
+          excelError={excelError}
         />
       )}
     </div>
@@ -87,11 +93,28 @@ function EmptyState() {
 
 // ── Estado lleno: gestión de las parcelas ya definidas ────────────────────
 function FilledState({
-  polygons, activeId, onSelect, onRename, onRemove, onDownloadGeoJSON, onDownloadSHP,
+  polygons, activeId, onSelect, onRename, onRemove,
+  onDownloadGeoJSON, onDownloadSHP, onDownloadExcel,
+  loadingExcel, excelError,
 }) {
   const activePoly = activeId != null && activeId !== 'todas'
     ? polygons.find(p => p.id === activeId)
     : null
+
+  // El selector manda en la descarga: si no hay parcela activa (punto libre),
+  // los botones quedan deshabilitados.
+  const canDownload  = activeId === 'todas' || activePoly != null
+  const canExcel     = canDownload && !loadingExcel
+  const downloadHint = activeId === 'todas'
+    ? `Descargar las ${polygons.length} parcelas`
+    : activePoly
+      ? `Descargar solo "${activePoly.nombre}"`
+      : 'Selecciona una parcela o "Todas las parcelas" para descargar'
+  const excelHint = activeId === 'todas'
+    ? `Informe SIGPAC de las ${polygons.length} parcelas`
+    : activePoly
+      ? `Informe SIGPAC de "${activePoly.nombre}"`
+      : 'Selecciona una parcela para generar el informe SIGPAC'
 
   return (
     <>
@@ -130,13 +153,34 @@ function FilledState({
       )}
 
       <div style={S.actions}>
-        <button onClick={onDownloadGeoJSON} style={S.actionBtn} title="Descargar GeoJSON">
-          📥 GeoJSON
-        </button>
-        <button onClick={onDownloadSHP} style={S.actionBtn} title="Descargar Shapefile (ZIP)">
-          📥 Shapefile
+        <button
+          onClick={onDownloadGeoJSON}
+          disabled={!canDownload}
+          style={canDownload ? S.actionBtn : S.actionBtnDisabled}
+          title={downloadHint}
+        >📥 GeoJSON</button>
+        <button
+          onClick={onDownloadSHP}
+          disabled={!canDownload}
+          style={canDownload ? S.actionBtn : S.actionBtnDisabled}
+          title={downloadHint}
+        >📥 Shapefile</button>
+      </div>
+
+      <div style={S.actionsRow2}>
+        <button
+          onClick={onDownloadExcel}
+          disabled={!canExcel}
+          style={canExcel ? S.actionBtnExcel : S.actionBtnDisabled}
+          title={excelHint}
+        >
+          {loadingExcel ? '⏳ Generando informe…' : '📊 Excel SIGPAC'}
         </button>
       </div>
+
+      {excelError && (
+        <div style={S.errorBox}>⚠️ {excelError}</div>
+      )}
     </>
   )
 }
@@ -203,5 +247,22 @@ const S = {
     flex: 1, padding: '5px 8px', fontSize: 11, fontWeight: 600,
     color: '#1a237e', background: '#e8eaf6',
     border: '1px solid #c5cae9', borderRadius: 4, cursor: 'pointer',
+  },
+  actionBtnDisabled: {
+    flex: 1, padding: '5px 8px', fontSize: 11, fontWeight: 600,
+    color: '#b0bec5', background: '#f5f7fa',
+    border: '1px solid #eceff1', borderRadius: 4, cursor: 'not-allowed',
+  },
+  actionsRow2: { display: 'flex', gap: 6, marginTop: 6 },
+  actionBtnExcel: {
+    flex: 1, padding: '6px 8px', fontSize: 11, fontWeight: 600,
+    color: '#1b5e20', background: '#e8f5e9',
+    border: '1px solid #a5d6a7', borderRadius: 4, cursor: 'pointer',
+  },
+  errorBox: {
+    marginTop: 8, padding: '7px 9px',
+    background: '#ffebee', border: '1px solid #ef9a9a',
+    borderRadius: 4, fontSize: 11, color: '#c62828',
+    whiteSpace: 'pre-line', lineHeight: 1.5,
   },
 }

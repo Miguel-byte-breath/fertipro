@@ -44,7 +44,7 @@ L.Icon.Default.mergeOptions({
 })
 
 const MapPicker = forwardRef(function MapPicker(
-  { onCoordSelect, selectedPoint, onPolygonAdd, onPolygonRemove, onPolygonClick, activePolygonId, isCentroid },
+  { onCoordSelect, selectedPoint, onPolygonAdd, onPolygonRemove, onPolygonUpdate, onPolygonClick, activePolygonId, isCentroid },
   ref
 ) {
   const mapRef       = useRef(null)
@@ -70,9 +70,11 @@ const MapPicker = forwardRef(function MapPicker(
   // Refs estables para callbacks de polígono — evitan stale closure dentro del useEffect de init
   const onPolygonAddRef    = useRef(onPolygonAdd)
   const onPolygonRemoveRef = useRef(onPolygonRemove)
+  const onPolygonUpdateRef = useRef(onPolygonUpdate)
   const onPolygonClickRef  = useRef(onPolygonClick)
   useEffect(() => { onPolygonAddRef.current    = onPolygonAdd    }, [onPolygonAdd])
   useEffect(() => { onPolygonRemoveRef.current = onPolygonRemove }, [onPolygonRemove])
+  useEffect(() => { onPolygonUpdateRef.current = onPolygonUpdate }, [onPolygonUpdate])
   useEffect(() => { onPolygonClickRef.current  = onPolygonClick  }, [onPolygonClick])
 
   // Contador de IDs y mapas auxiliares
@@ -92,6 +94,27 @@ const MapPicker = forwardRef(function MapPicker(
       }
     },
   }), [])
+
+  // Adjunta `pm:edit` a una layer concreta. Geoman dispara el evento en la
+  // propia layer (no en el mapa), así que hay que registrarlo individualmente
+  // para cada polígono que se cree, cargue desde fichero o resulte de un corte.
+  //
+  // Marca el feature con `editada_por_usuario: true` para que el motor de
+  // intersección distinga "Recortado" (acción explícita) de "Parcial"
+  // (dibujo libre que simplemente no coincide con los bordes catastrales).
+  const attachEditListener = useCallback((layer) => {
+    if (!layer || typeof layer.on !== 'function') return
+    layer.on('pm:edit', () => {
+      if (typeof layer.toGeoJSON !== 'function') return
+      const id = layerToId.current.get(layer)
+      if (id == null) return
+      const feature = layer.toGeoJSON()
+      const t = feature.geometry?.type
+      if (t !== 'Polygon' && t !== 'MultiPolygon') return
+      feature.properties = { ...(feature.properties || {}), editada_por_usuario: true }
+      onPolygonUpdateRef.current?.(id, feature)
+    })
+  }, [])
 
   useEffect(() => {
     if (mapObj.current) return
@@ -284,6 +307,9 @@ const MapPicker = forwardRef(function MapPicker(
     })
     map.pm.setLang('es')
 
+    // Salvaguarda: evita formas auto-intersectadas tras edición o recorte.
+    map.pm.setGlobalOptions({ allowSelfIntersection: false })
+
     // Botón custom: cargar GeoJSON / Shapefile
     map.pm.Toolbar.createCustomControl({
       name: 'cargarGeometria', block: 'draw',
@@ -393,6 +419,7 @@ const MapPicker = forwardRef(function MapPicker(
         L.DomEvent.stopPropagation(ev)
         onPolygonClickRef.current?.(id)
       })
+      attachEditListener(layer)
 
       onPolygonAddRef.current?.(feature, id)
     })
@@ -404,6 +431,37 @@ const MapPicker = forwardRef(function MapPicker(
         layersById.current.delete(id)
         onPolygonRemoveRef.current?.(id)
       }
+    })
+
+    // ── Polígono recortado con la tijera (cutPolygon) ─────────────────────
+    // Geoman DESTRUYE la layer original y CREA una nueva con el resultado.
+    // Mantenemos el mismo id (la parcela sigue siendo "Parcela N") para no
+    // sobresaltar al usuario en el panel.
+    map.on('pm:cut', e => {
+      const oldLayer = e.originalLayer
+      const newLayer = e.layer
+      if (!newLayer || typeof newLayer.toGeoJSON !== 'function') return
+      const id = layerToId.current.get(oldLayer)
+      if (id == null) return
+
+      // Limpiar referencias de la antigua y registrar la nueva con el mismo id
+      layerToId.current.delete(oldLayer)
+      layersById.current.delete(id)
+      layerToId.current.set(newLayer, id)
+      layersById.current.set(id, newLayer)
+
+      // Clic sobre el resultado del corte = activar parcela (mismo flujo)
+      newLayer.on('click', (ev) => {
+        L.DomEvent.stopPropagation(ev)
+        onPolygonClickRef.current?.(id)
+      })
+      attachEditListener(newLayer)
+
+      const feature = newLayer.toGeoJSON()
+      const t = feature.geometry?.type
+      if (t !== 'Polygon' && t !== 'MultiPolygon') return
+      feature.properties = { ...(feature.properties || {}), editada_por_usuario: true }
+      onPolygonUpdateRef.current?.(id, feature)
     })
 
     mapObj.current = map
@@ -506,13 +564,14 @@ const MapPicker = forwardRef(function MapPicker(
         L.DomEvent.stopPropagation(ev)
         onPolygonClickRef.current?.(id)
       })
+      attachEditListener(subLayer)
     }
     onPolygonAddRef.current?.(feature, id)
 
     // Limpiar seleccion y desactivar modo
     setSelectedRecintos(new Map())
     setModoSeleccion(false)
-  }, [])
+  }, [attachEditListener])
 
   function parseDbf(buf) {
     const v   = new DataView(buf)
@@ -638,6 +697,7 @@ const MapPicker = forwardRef(function MapPicker(
           L.DomEvent.stopPropagation(ev)
           onPolygonClickRef.current?.(id)
         })
+        attachEditListener(subLayer)
       }
 
       onPolygonAddRef.current?.(feature, id)

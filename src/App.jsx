@@ -29,6 +29,9 @@ import {
   exportarGeoJSON,
   exportarSHP,
 } from './utils/geometry'
+import { slugify } from './utils/slugify'
+import { interseccionRecintos, detectarTipoParcela } from './utils/recintosInterseccion'
+import { exportarRecintosSigpacExcel } from './utils/exportExcel'
 
 const ESTADO = {
   IDLE:     'idle',
@@ -55,6 +58,10 @@ export default function App() {
 
   // ── Estado cultivo seleccionado ────────────────────────────────────────
   const [cultivo, setCultivo] = useState(null)
+
+  // ── Estado generación informe Excel SIGPAC ─────────────────────────────
+  const [loadingExcel, setLoadingExcel] = useState(false)
+  const [excelError,   setExcelError]   = useState(null)
 
   // ── Consulta SIGPAC ────────────────────────────────────────────────────
   const queryCoords = useCallback(async ({ lon, lat }) => {
@@ -125,6 +132,32 @@ export default function App() {
     queryCoords(cent)
   }, [queryCoords])
 
+  // ── Polígono editado (mover vértices o tijera) ─────────────────────────
+  // Actualiza la geometría guardada y recalcula el centroide. Si la parcela
+  // era la activa (individual o "todas"), refresca también la ficha SIGPAC
+  // consultando el nuevo centroide.
+  const handlePolygonUpdate = useCallback((id, feature) => {
+    const cent = centroide(feature)
+    setPolygons(prev => {
+      const next = prev.map(p =>
+        p.id === id ? { ...p, feature, centroid: cent } : p
+      )
+      // Refresco condicional de SIGPAC: solo si la parcela editada afecta
+      // al centroide que ahora mismo se está consultando.
+      setActivePolygonId(currentActive => {
+        if (currentActive === id) {
+          queryCoords(cent)
+        } else if (currentActive === 'todas' && next.length) {
+          const lat = next.reduce((s, p) => s + p.centroid.lat, 0) / next.length
+          const lon = next.reduce((s, p) => s + p.centroid.lon, 0) / next.length
+          queryCoords({ lon, lat })
+        }
+        return currentActive
+      })
+      return next
+    })
+  }, [queryCoords])
+
   // ── Polígono eliminado vía Geoman ──────────────────────────────────────
   const handlePolygonRemove = useCallback((id) => {
     setPolygons(prev => {
@@ -154,19 +187,65 @@ export default function App() {
     handlePolygonRemove(id)
   }, [handlePolygonRemove])
 
+  // Selección activa del panel manda en la descarga:
+  //   activePolygonId === null    → punto libre → no descarga (botón deshabilitado)
+  //   activePolygonId === 'todas' → descarga todas las parcelas
+  //   activePolygonId === <id>    → descarga solo esa parcela
+  const polygonsToExport = useCallback(() => {
+    if (activePolygonId == null) return null
+    if (activePolygonId === 'todas') {
+      return { features: polygons, baseName: 'fertipro_parcelas' }
+    }
+    const poly = polygons.find(p => p.id === activePolygonId)
+    if (!poly) return null
+    return { features: [poly], baseName: `fertipro_${slugify(poly.nombre)}` }
+  }, [polygons, activePolygonId])
+
   const handleDownloadGeoJSON = useCallback(() => {
+    const sel = polygonsToExport()
+    if (!sel) return
     exportarGeoJSON(
-      polygons.map(p => ({ ...p.feature, properties: { id: p.id, nombre: p.nombre } })),
-      'fertipro_parcelas'
+      sel.features.map(p => ({ ...p.feature, properties: { id: p.id, nombre: p.nombre } })),
+      sel.baseName
     )
-  }, [polygons])
+  }, [polygonsToExport])
 
   const handleDownloadSHP = useCallback(() => {
+    const sel = polygonsToExport()
+    if (!sel) return
     exportarSHP(
-      polygons.map(p => ({ ...p.feature, properties: { id: p.id, nombre: p.nombre } })),
-      'fertipro_parcelas'
+      sel.features.map(p => ({ ...p.feature, properties: { id: p.id, nombre: p.nombre } })),
+      sel.baseName
     )
-  }, [polygons])
+  }, [polygonsToExport])
+
+  // ── Excel SIGPAC: recintos intersectados con cada parcela activa ───────
+  // Lazy: el cálculo (incluida una llamada a /api/sigpac-bbox por parcela
+  // "libre" o editada) solo ocurre al pulsar el botón.
+  const handleDownloadExcel = useCallback(async () => {
+    const sel = polygonsToExport()
+    if (!sel) return
+    setLoadingExcel(true)
+    setExcelError(null)
+    try {
+      const parcelas = await Promise.all(sel.features.map(async (p) => ({
+        nombre:   p.nombre,
+        tipo:     detectarTipoParcela(p.feature),
+        feature:  p.feature,
+        recintos: await interseccionRecintos(p.feature),
+      })))
+      // baseName: fertipro_parcelas → fertipro_sigpac
+      //           fertipro_<slug>   → fertipro_sigpac_<slug>
+      const xlsxName = sel.baseName === 'fertipro_parcelas'
+        ? 'fertipro_sigpac'
+        : sel.baseName.replace(/^fertipro_/, 'fertipro_sigpac_')
+      await exportarRecintosSigpacExcel(parcelas, xlsxName)
+    } catch (err) {
+      setExcelError(err.message || 'Error generando el informe Excel.')
+    } finally {
+      setLoadingExcel(false)
+    }
+  }, [polygonsToExport])
 
   // ── Render ─────────────────────────────────────────────────────────────
   const cargando      = estado === ESTADO.CARGANDO
@@ -193,6 +272,7 @@ export default function App() {
             selectedPoint={point}
             onPolygonAdd={handlePolygonAdd}
             onPolygonRemove={handlePolygonRemove}
+            onPolygonUpdate={handlePolygonUpdate}
             onPolygonClick={handlePolygonClick}
             activePolygonId={activePolygonId}
             isCentroid={isCentroid}
@@ -221,6 +301,9 @@ export default function App() {
             onRemove={handlePanelRemove}
             onDownloadGeoJSON={handleDownloadGeoJSON}
             onDownloadSHP={handleDownloadSHP}
+            onDownloadExcel={handleDownloadExcel}
+            loadingExcel={loadingExcel}
+            excelError={excelError}
           />
 
           <RecintoCard
