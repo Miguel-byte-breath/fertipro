@@ -4,19 +4,19 @@ import react from '@vitejs/plugin-react'
 /**
  * vite.config.js — FertiPRO
  *
- * En desarrollo local, redirige /api/* a las funciones serverless desplegadas
- * en Vercel para evitar CORS sin necesidad de `vercel dev`.
+ * En desarrollo local, `npm run dev` redirige /api/* a las funciones
+ * serverless desplegadas en https://fertipro.vercel.app para evitar CORS
+ * y poder probar SIGPAC + Sativum sin necesidad de `vercel dev` ni de
+ * mantener credenciales upstream en local.
  *
- * Cuando el deploy esté en marcha, sustituye `target` por la URL real.
- * Mientras tanto, las llamadas a /api/* fallarán con 502 hasta que existan
- * las funciones serverless en producción — el resto de la app funciona.
+ * En producción, las mismas funciones se sirven directamente desde Vercel.
+ * Mismo código frontend en ambos entornos, sin cambios.
  */
 export default defineConfig({
   plugins: [react()],
   server: {
     proxy: {
       '/api': {
-        // TODO: actualizar tras primer deploy
         target: 'https://fertipro.vercel.app',
         changeOrigin: true,
       },
