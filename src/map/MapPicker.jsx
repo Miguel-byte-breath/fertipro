@@ -119,7 +119,11 @@ const MapPicker = forwardRef(function MapPicker(
   useEffect(() => {
     if (mapObj.current) return
 
-    const map = L.map(mapRef.current, { center: [40.0, -3.7], zoom: 6 })
+    // maxZoom: 22 permite acercarse mucho más allá del nivel real de las
+    // teselas (PNOA ~19, OSM ~19, SIGPAC MVT ~16). Cada capa expone su propio
+    // `maxNativeZoom` y Leaflet escala su tesela cuando se pide más zoom —
+    // así se evita el "blanco" del que se quejaba la UI a zoom alto.
+    const map = L.map(mapRef.current, { center: [40.0, -3.7], zoom: 6, maxZoom: 22 })
 
     // Cursor flecha (no mano) para sensación de aplicación de escritorio
     const styleEl = document.createElement('style')
@@ -134,14 +138,16 @@ const MapPicker = forwardRef(function MapPicker(
         'https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png',
         {
           attribution: '© <a href="https://openstreetmap.org/copyright">OpenStreetMap</a>',
-          maxZoom: 19,
+          maxZoom: 22,
+          maxNativeZoom: 19,   // OSM no expone teselas más allá; el resto se escala
         }
       ),
       'PNOA Máxima Actualidad (IGN)': L.tileLayer(
         'https://tms-pnoa-ma.idee.es/1.0.0/pnoa-ma/{z}/{x}/{-y}.jpeg',
         {
           attribution: '© <a href="https://www.ign.es">IGN</a> · PNOA',
-          maxZoom: 20,
+          maxZoom: 22,
+          maxNativeZoom: 19,   // PNOA-MA suele llegar a ~19 según la zona
         }
       ),
     }
