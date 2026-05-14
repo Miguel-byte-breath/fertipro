@@ -606,7 +606,42 @@ const MapPicker = forwardRef(function MapPicker(
     return rows
   }
 
-  // ─── Parser SHP ────────────────────────────────────────────────────────────
+ // ----- Parser SHP -----
+  //
+  // Convencion de orientacion de anillos (ESRI Shapefile, spec julio 1998 sec. 3.5):
+  //   - Outer rings: CLOCKWISE   -> area shoelace NEGATIVA (coords y-norte-arriba)
+  //   - Holes:       CCW         -> area shoelace POSITIVA
+  //
+  // Convencion GeoJSON RFC 7946:
+  //   - Outer rings: CCW         -> area shoelace POSITIVA
+  //   - Holes:       CW          -> area shoelace NEGATIVA
+  //
+  // Para preservar la semantica (varios outers = MultiPolygon, no Polygon-con-huecos)
+  // distinguimos por area signed, asignamos cada hole al outer que lo contiene
+  // (point-in-ring) y reorientamos para cumplir GeoJSON.
+  function _signedAreaRing(ring) {
+    // Shoelace; ring puede o no estar cerrado (ultimo punto == primero)
+    let a = 0
+    for (let i = 0, n = ring.length - 1; i < n; i++) {
+      a += ring[i][0] * ring[i + 1][1] - ring[i + 1][0] * ring[i][1]
+    }
+    return a / 2
+  }
+
+  function _pointInRing(pt, ring) {
+    // Ray casting; ring puede o no estar cerrado
+    const [x, y] = pt
+    let inside = false
+    for (let i = 0, j = ring.length - 1; i < ring.length; j = i++) {
+      const [xi, yi] = ring[i]
+      const [xj, yj] = ring[j]
+      const intersect = ((yi > y) !== (yj > y)) &&
+        (x < (xj - xi) * (y - yi) / (yj - yi + 0) + xi)
+      if (intersect) inside = !inside
+    }
+    return inside
+  }
+
   function parseShp(buf, props) {
     const v   = new DataView(buf)
     const len = v.getInt32(24, false) * 2
@@ -627,10 +662,49 @@ const MapPicker = forwardRef(function MapPicker(
         for (let p = 0; p < nPoints; p++) {
           pts.push([v.getFloat64(off, true), v.getFloat64(off + 8, true)]); off += 16
         }
-        const rings = parts.map((start, idx) => pts.slice(start, parts[idx + 1] || pts.length))
+        // Rings tal como vienen en el shapefile
+        const rawRings = parts.map((start, idx) => pts.slice(start, parts[idx + 1] || pts.length))
+
+        // Clasificar por orientacion
+        const ringsMeta = rawRings.map(r => ({ ring: r, area: _signedAreaRing(r) }))
+        let outers = ringsMeta.filter(r => r.area < 0)
+        let holes  = ringsMeta.filter(r => r.area >= 0)
+
+        // Fallback: si ningun ring se detecta como outer, tratamos todos como outers
+        if (outers.length === 0) {
+          outers = ringsMeta
+          holes  = []
+        }
+
+        // Construir poligonos: cada outer + sus huecos contenidos
+        const polys = outers.map(o => ({ outer: o.ring, holes: [] }))
+        for (const h of holes) {
+          const pt = h.ring[0]
+          let owner = polys.find(p => _pointInRing(pt, p.outer))
+          if (!owner) owner = polys[0]
+          owner.holes.push(h.ring)
+        }
+
+        // Reorientar a convencion GeoJSON: outer CCW (positivo), hole CW (negativo).
+        // En shapefile el outer es CW y el hole CCW, asi que invertimos todos.
+        const reorient = ring => ring.slice().reverse()
+
+        let geometry
+        if (polys.length === 1) {
+          geometry = {
+            type: 'Polygon',
+            coordinates: [reorient(polys[0].outer), ...polys[0].holes.map(reorient)],
+          }
+        } else {
+          geometry = {
+            type: 'MultiPolygon',
+            coordinates: polys.map(p => [reorient(p.outer), ...p.holes.map(reorient)]),
+          }
+        }
+
         feats.push({
           type: 'Feature',
-          geometry: { type: 'Polygon', coordinates: rings },
+          geometry,
           properties: props[i] || {},
         })
       } else {
