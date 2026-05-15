@@ -10,8 +10,50 @@
  *  - Enriquece uso_sigpac para CADA recinto individualmente
  *  - Las geometrías se devuelven completas para intersección con Turf.js en cliente
  *
+ * Resiliencia (rev. 2026-05-15):
+ *  - Reintento con backoff ante 502/503/504/429 y errores de red en el OGC API.
+ *  - Timeout del fetch OGC coherente con maxDuration de vercel.json.
+ *  NOTA: este endpoint NO hace enriquecimiento MVT (lee uso/uso_sigpac/cod_uso
+ *  de las properties de la OGC API). No reintroducir el fan-out MVT. Las
+ *  funciones lonLatToTile / _fetchMVT / getUsoForRecinto quedan como código
+ *  muerto de una versión anterior; se pueden limpiar aparte.
+ *
  * Licencia datos: CC BY 4.0 HVD SIGC (FEGA — Ministerio de Agricultura)
  */
+
+const OGC_TIMEOUT_MS  = 6000
+const OGC_MAX_RETRIES = 2     // 1 intento + 2 reintentos
+
+/**
+ * fetch con AbortController + reintento con backoff exponencial.
+ * Reintenta ante 502/503/504/429 y ante errores de red (incluido timeout).
+ * Devuelve la Response (sea ok o no); lanza si agota reintentos por error de red.
+ */
+async function fetchConReintento(url, { timeoutMs, maxRetries, headers }) {
+  let ultimoError
+  for (let intento = 0; intento <= maxRetries; intento++) {
+    if (intento > 0) {
+      // backoff: 400ms, 800ms, 1600ms...
+      await new Promise(r => setTimeout(r, 400 * Math.pow(2, intento - 1)))
+    }
+    const controller = new AbortController()
+    const timeoutId  = setTimeout(() => controller.abort(), timeoutMs)
+    try {
+      const res = await fetch(url, { headers, signal: controller.signal })
+      clearTimeout(timeoutId)
+      if ([502, 503, 504, 429].includes(res.status) && intento < maxRetries) {
+        ultimoError = new Error(`upstream ${res.status}`)
+        continue
+      }
+      return res
+    } catch (err) {
+      clearTimeout(timeoutId)
+      ultimoError = err
+      if (intento >= maxRetries) throw err
+    }
+  }
+  throw ultimoError || new Error('fetchConReintento: agotados los reintentos')
+}
 
 function lonLatToTile(lon, lat, z) {
   const x = Math.floor((lon + 180) / 360 * Math.pow(2, z))
@@ -119,17 +161,11 @@ export default async function handler(req, res) {
 
   let data
   try {
-    const controller = new AbortController()
-    const timeoutId  = setTimeout(() => controller.abort(), 10000)
-    let upstream
-    try {
-      upstream = await fetch(ogcUrl, {
-        headers: { Accept: 'application/geo+json' },
-        signal: controller.signal,
-      })
-    } finally {
-      clearTimeout(timeoutId)
-    }
+    const upstream = await fetchConReintento(ogcUrl, {
+      timeoutMs: OGC_TIMEOUT_MS,
+      maxRetries: OGC_MAX_RETRIES,
+      headers: { Accept: 'application/geo+json' },
+    })
 
     if (!upstream.ok) {
       return res.status(upstream.status).json({

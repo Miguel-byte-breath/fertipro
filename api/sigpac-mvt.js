@@ -20,7 +20,41 @@
  * Licencia datos: CC BY 4.0 HVD SIGC (FEGA — Ministerio de Agricultura).
  */
 
-const TILE_BASE = 'https://sigpac-hubcloud.es/mvt/recinto@3857@geojson'
+const TILE_BASE       = 'https://sigpac-hubcloud.es/mvt/recinto@3857@geojson'
+const MVT_TIMEOUT_MS  = 6000
+const MVT_MAX_RETRIES = 2     // 1 intento + 2 reintentos
+
+/**
+ * fetch con AbortController + reintento con backoff exponencial.
+ * Reintenta ante 502/503/504/429 y errores de red (incluido timeout).
+ * El 404 NO se reintenta — es un caso normal (tesela sin recintos) y se
+ * devuelve tal cual al handler, que lo trata como tesela vacia.
+ */
+async function fetchConReintento(url, { timeoutMs, maxRetries, headers }) {
+  let ultimoError
+  for (let intento = 0; intento <= maxRetries; intento++) {
+    if (intento > 0) {
+      // backoff: 400ms, 800ms, 1600ms...
+      await new Promise(r => setTimeout(r, 400 * Math.pow(2, intento - 1)))
+    }
+    const controller = new AbortController()
+    const timeoutId  = setTimeout(() => controller.abort(), timeoutMs)
+    try {
+      const res = await fetch(url, { headers, signal: controller.signal })
+      clearTimeout(timeoutId)
+      if ([502, 503, 504, 429].includes(res.status) && intento < maxRetries) {
+        ultimoError = new Error(`upstream ${res.status}`)
+        continue
+      }
+      return res
+    } catch (err) {
+      clearTimeout(timeoutId)
+      ultimoError = err
+      if (intento >= maxRetries) throw err
+    }
+  }
+  throw ultimoError || new Error('fetchConReintento: agotados los reintentos')
+}
 
 export default async function handler(req, res) {
   const { z, x, y } = req.query
@@ -43,18 +77,11 @@ export default async function handler(req, res) {
   const url = `${TILE_BASE}/${zi}/${xi}/${yi}.geojson`
 
   try {
-    const controller = new AbortController()
-    const timeoutId  = setTimeout(() => controller.abort(), 8000)
-
-    let upstream
-    try {
-      upstream = await fetch(url, {
-        headers: { Accept: 'application/json' },
-        signal: controller.signal,
-      })
-    } finally {
-      clearTimeout(timeoutId)
-    }
+    const upstream = await fetchConReintento(url, {
+      timeoutMs: MVT_TIMEOUT_MS,
+      maxRetries: MVT_MAX_RETRIES,
+      headers: { Accept: 'application/json' },
+    })
 
     // Si SIGPAC devuelve 404 para una tesela, lo tratamos como tesela vacia:
     // muchas zonas (mar, montana sin recintos) carecen de datos y eso no
