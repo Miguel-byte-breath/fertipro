@@ -12,6 +12,7 @@
     "@geoman-io/leaflet-geoman-free": "^2.16.0",
     "@turf/area": "^7.3.4",
     "@turf/bbox": "^7.3.5",
+    "@turf/center-of-mass": "^7.3.5",
     "@turf/centroid": "^7.3.4",
     "@turf/helpers": "^6.5.0",
     "@turf/intersect": "^7.3.5",

@@ -1,4 +1,5 @@
-import turfCentroid from '@turf/centroid'
+import turfCentroid from '@turf/center-of-mass'
+import turfArea from '@turf/area'
 
 /**
  * src/utils/geometry.js — FertiPRO
@@ -18,7 +19,38 @@ import turfCentroid from '@turf/centroid'
  * @returns {{ lat: number, lon: number }}
  */
 export function centroide(feature) {
-  // @turf/centroid — cálculo correcto sobre esfera, sin distorsiones de proyección
+  const geom = feature?.geometry
+
+  // Para MultiPolygon disjunto (parcela con varios trozos separados), el
+  // centroide global puede caer en hueco entre las partes. Para que el punto
+  // siempre caiga dentro de un trozo real (y la consulta SigPac devuelva un
+  // recinto coherente con la parcela), devolvemos el centroide del poligono
+  // de mayor area. Para Polygon simple o MultiPolygon de una sola parte,
+  // comportamiento sin cambio (@turf/centroid).
+  if (geom?.type === 'MultiPolygon' && geom.coordinates.length > 1) {
+    let bestIdx  = 0
+    let bestArea = -1
+    for (let i = 0; i < geom.coordinates.length; i++) {
+      const sub = {
+        type: 'Feature',
+        geometry: { type: 'Polygon', coordinates: geom.coordinates[i] },
+        properties: {},
+      }
+      const a = turfArea(sub)
+      if (a > bestArea) {
+        bestArea = a
+        bestIdx  = i
+      }
+    }
+    const largest = {
+      type: 'Feature',
+      geometry: { type: 'Polygon', coordinates: geom.coordinates[bestIdx] },
+      properties: {},
+    }
+    const c = turfCentroid(largest).geometry.coordinates
+    return { lon: c[0], lat: c[1] }
+  }
+
   const c = turfCentroid(feature).geometry.coordinates
   return { lon: c[0], lat: c[1] }
 }
