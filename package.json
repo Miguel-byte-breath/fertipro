@@ -2,6 +2,7 @@
   "name": "fertipro",
   "version": "0.1.0",
   "private": true,
+  "type": "module",
   "description": "FertiPRO — Simulador de necesidades de nutrientes para cultivos agrícolas",
   "scripts": {
     "dev": "vite",
