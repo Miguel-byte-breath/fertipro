@@ -21,6 +21,7 @@
  */
 
 import soilTypesSimpl from '../data/sativum/soilTypesSimpl.json'
+import soilTypes      from '../data/sativum/soilTypes.json'
 
 /**
  * Identify Sativum en un punto lon/lat.
@@ -105,9 +106,16 @@ export function normalizarSuelo(arcgisData) {
   const soilTypeEntry = soilTypesSimpl.find(s => s.value === soilTypePixel)
   const soilType      = soilTypeEntry?.descNutrients ?? 'LOAM'  // fallback seguro
 
+  // Textura USDA oficial desde capa 2 (clasificación 12 clases, valores 1-12)
+  const soilTypeUsdaPixel = byLayer[2]
+  const soilTypeUsdaEntry = soilTypes.find(s => s.value === soilTypeUsdaPixel)
+  const soilTypeUsdaLabel = soilTypeUsdaEntry?.description ?? null
+
   return {
     soilType,
     soilTypePixel,
+    soilTypeUsdaPixel,
+    soilTypeUsdaLabel,
     organicMatter: isNaN(byLayer[0]) ? null : byLayer[0],
     ph:            isNaN(byLayer[5]) ? null : byLayer[5],
     pOlsen:        isNaN(byLayer[6]) ? null : byLayer[6],

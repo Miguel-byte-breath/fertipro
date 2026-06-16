@@ -528,6 +528,7 @@ export default function App() {
             cultivo={cultivo}
             params={calculo}
             onChange={setCalculo}
+            soilType={suelo?.soilType ?? 'LOAM'}
           />
 
           {/* Botón calcular */}

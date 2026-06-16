@@ -104,7 +104,8 @@ export default function SueloCard({ suelo, loading, cec, onCecChange, riego, onR
         {!suelo && <span style={S.badge}>sin datos ArcGIS</span>}
       </div>
 
-      <Row label="Textura (USDA)"  value={texLabel} />
+      <Row label="Textura (USDA oficial)" value={suelo?.soilTypeUsdaLabel ?? null} />
+      <Row label="Textura simplificada"   value={texLabel} />
       <Row label="Materia orgánica" value={fmtNum(suelo?.organicMatter, 2)} unit="%" />
       <Row label="pH"               value={fmtNum(suelo?.ph, 1)} />
       <Row label="P Olsen"          value={fmtNum(suelo?.pOlsen, 1)} unit="ppm" />

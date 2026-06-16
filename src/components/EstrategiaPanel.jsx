@@ -14,7 +14,7 @@
  *   onChange   — (params) => void
  */
 import { useState } from 'react'
-import { N_EQUATION_DEFAULTS } from '../data/sativum/algoParams'
+import { N_EQUATION_DEFAULTS, getAlgoParams, MAX_P_RATE, MAX_K_RATE } from '../data/sativum/algoParams'
 
 // ── Catálogo de estrategias ───────────────────────────────────────────────────
 
@@ -57,14 +57,15 @@ function tieneResidueRule(cultivo) {
 
 // ── Componentes internos ──────────────────────────────────────────────────────
 
-function ParamInput({ label, value, step = 0.1, min = 0, max, unit, onChange }) {
+function ParamInput({ label, value, placeholder, step = 0.1, min = 0, max, unit, onChange }) {
   return (
     <div style={SA.paramRow}>
       <span style={SA.paramLbl}>{label}</span>
-      <span style={{ display: 'flex', alignItems: 'center', gap: 4 }}>
+      <span style={{ display: 'flex', alignItems: 'center', gap: 4, flexShrink: 0 }}>
         <input
           type="number"
           value={value}
+          placeholder={placeholder}
           step={step}
           min={min}
           max={max}
@@ -79,17 +80,28 @@ function ParamInput({ label, value, step = 0.1, min = 0, max, unit, onChange }) 
 
 // ── Componente principal ──────────────────────────────────────────────────────
 
-export default function EstrategiaPanel({ cultivo, params, onChange }) {
+export default function EstrategiaPanel({ cultivo, params, onChange, soilType = 'LOAM' }) {
   const [openAvanzado, setOpenAvanzado] = useState(false)
 
   const set  = (patch) => onChange({ ...params, ...patch })
   const setN = (patch) => onChange({ ...params, nEcuacion: { ...params.nEcuacion, ...patch } })
   const setAO = (patch) => onChange({ ...params, algoOverrides: { ...(params.algoOverrides ?? {}), ...patch } })
 
+  // Parámetros P/K por defecto según estrategia × textura actual
+  const stratDefaults = getAlgoParams(params.strategy, soilType)
+
   // Valor efectivo de los overrides N (combina defaults con overrides)
   const nVal  = (key) => params.nEcuacion[key] ?? N_EQUATION_DEFAULTS[key]
   // Valor efectivo de los overrides P/K (null = usar default de estrategia)
   const aoVal = (key) => params.algoOverrides?.[key] ?? ''
+  // Placeholder con el default de estrategia+suelo
+  const aoPlaceholder = (key) => {
+    if (key === 'maxPRate') return String(MAX_P_RATE)
+    if (key === 'maxKRate') return String(MAX_K_RATE)
+    const map = { pThreshold: 'p_threshold', kThreshold: 'k_threshold', efficiencyFactor: 'efficiency_factor' }
+    const v = stratDefaults[map[key]]
+    return v != null ? String(v) : ''
+  }
 
   // ── Placeholder sin cultivo ───────────────────────────────────────────────
   if (!cultivo) {
@@ -224,42 +236,49 @@ export default function EstrategiaPanel({ cultivo, params, onChange }) {
             Overrides de <code>n_equation_parameter</code>. Vaciar = usar default.
           </div>
           <ParamInput
-            label="N final suelo (n_end)"
+            label="N inorgánico final"
             value={nVal('n_end')}
             unit="kg/ha"
             onChange={v => setN({ n_end: v })}
           />
           <ParamInput
-            label="N perdido (n_lost)"
+            label="N deposición atmosférica, fijación simbiótica y agua de riego"
+            value={nVal('n_other')}
+            unit="kg/ha"
+            onChange={v => setN({ n_other: v })}
+          />
+          <ParamInput
+            label="N perdido (filtración, volatilización, desnitrificación)"
             value={nVal('n_lost')}
             unit="kg/ha"
             onChange={v => setN({ n_lost: v })}
           />
           <ParamInput
-            label="Factor Nmin (f_nr)"
+            label="N en raíces / N en brotes"
             value={nVal('f_nr')}
             step={0.01} min={0} max={1}
             onChange={v => setN({ f_nr: v })}
           />
           <ParamInput
-            label="Eficiencia planta (beta_pl)"
+            label="Beta pl"
             value={nVal('beta_pl')}
             step={0.01} min={0} max={1}
             onChange={v => setN({ beta_pl: v })}
           />
           <ParamInput
-            label="Eficiencia fertilizante (efic)"
+            label="Efic"
             value={nVal('efic')}
             step={0.01} min={0} max={1}
             onChange={v => setN({ efic: v })}
           />
           {/* ── Ajustes P/K ─────────────────────────────────────────── */}
           <div style={{ ...SA.accordionNote, marginTop: 10, marginBottom: 4 }}>
-            Ajustes P/K — vacío = default de la estrategia
+            Ajustes P/K — el placeholder muestra el default de la estrategia × textura actual
           </div>
           <ParamInput
             label="Umbral Fósforo"
             value={aoVal('pThreshold')}
+            placeholder={aoPlaceholder('pThreshold')}
             step={1} min={0}
             unit="ppm"
             onChange={v => setAO({ pThreshold: v || null })}
@@ -267,6 +286,7 @@ export default function EstrategiaPanel({ cultivo, params, onChange }) {
           <ParamInput
             label="Umbral Potasio"
             value={aoVal('kThreshold')}
+            placeholder={aoPlaceholder('kThreshold')}
             step={1} min={0}
             unit="ppm"
             onChange={v => setAO({ kThreshold: v || null })}
@@ -274,6 +294,7 @@ export default function EstrategiaPanel({ cultivo, params, onChange }) {
           <ParamInput
             label="Tasa máx. Fósforo"
             value={aoVal('maxPRate')}
+            placeholder={aoPlaceholder('maxPRate')}
             step={1} min={0}
             unit="kg P/ha"
             onChange={v => setAO({ maxPRate: v || null })}
@@ -281,6 +302,7 @@ export default function EstrategiaPanel({ cultivo, params, onChange }) {
           <ParamInput
             label="Tasa máx. Potasio"
             value={aoVal('maxKRate')}
+            placeholder={aoPlaceholder('maxKRate')}
             step={1} min={0}
             unit="kg K/ha"
             onChange={v => setAO({ maxKRate: v || null })}
@@ -288,7 +310,8 @@ export default function EstrategiaPanel({ cultivo, params, onChange }) {
           <ParamInput
             label="Factor corrección K"
             value={aoVal('efficiencyFactor')}
-            step={0.01} min={0} max={1}
+            placeholder={aoPlaceholder('efficiencyFactor')}
+            step={0.01} min={0} max={10}
             onChange={v => setAO({ efficiencyFactor: v || null })}
           />
 
@@ -386,10 +409,10 @@ const SA = {
   },
   paramRow: {
     display: 'flex', justifyContent: 'space-between', alignItems: 'center',
-    fontSize: 12, padding: '3px 0',
-    borderBottom: '1px solid #f0f4f7',
+    fontSize: 11, padding: '4px 0',
+    borderBottom: '1px solid #f0f4f7', gap: 6,
   },
-  paramLbl: { color: '#78909c' },
+  paramLbl: { color: '#78909c', flexShrink: 1 },
   resetBtn: {
     marginTop: 6, fontSize: 11, padding: '3px 10px',
     background: '#fff', border: '1px solid #cfd8dc', borderRadius: 3,
