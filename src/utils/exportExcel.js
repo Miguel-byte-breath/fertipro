@@ -145,6 +145,7 @@ function num(v, dec = 2) {
  * @param {number}  opts.cec         — meq/kg
  * @param {object}  opts.riego       — { fuenteId, fuenteLabel, no3MgL, dotacionM3 }
  * @param {object}  opts.calculo     — { strategy, tillage, cropYield, recogeResiduos }
+ * @param {string}  [opts.fecha]     — fecha del plan (YYYY-MM-DD)
  * @param {object}  opts.npk         — respuesta /algo/ con .n .p .k
  * @param {object}  [opts.recomendacion] — respuesta /recommendation
  * @param {string}  [opts.baseName]
@@ -157,6 +158,7 @@ export async function exportarPlanAbonado({
   cec,
   riego,
   calculo,
+  fecha,
   npk,
   recomendacion,
   baseName = 'fertipro_plan_abonado',
@@ -175,7 +177,7 @@ export async function exportarPlanAbonado({
   const plan = []
   const row = (campo, valor, unidad = '') => plan.push({ 'Campo': campo, 'Valor': valor ?? '—', 'Unidad': unidad })
 
-  row('Fecha',            new Date().toLocaleDateString('es-ES'))
+  row('Fecha',            fecha ? new Date(fecha + 'T00:00:00').toLocaleDateString('es-ES') : new Date().toLocaleDateString('es-ES'))
   row('Longitud',         num(point?.lon, 5), '°')
   row('Latitud',          num(point?.lat, 5), '°')
   if (recinto) {

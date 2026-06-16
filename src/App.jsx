@@ -83,6 +83,9 @@ export default function App() {
     quemaResiduos:  false,
   })
 
+  // ── Estado fecha del plan ─────────────────────────────────────────────
+  const [fecha, setFecha] = useState(() => new Date().toISOString().slice(0, 10))
+
   // ── Estado estrategia + parámetros de cálculo ──────────────────────────
   const [calculo, setCalculo] = useState({
     strategy:       'MAINTENANCE',
@@ -91,6 +94,7 @@ export default function App() {
     recogeResiduos: false,
     quemaResiduos:  false,
     nEcuacion:      {},
+    algoOverrides:  {},
   })
 
   // Reset rendimiento/residuos al cambiar cultivo
@@ -160,11 +164,12 @@ export default function App() {
       }
 
       const npkData = await calcularNPK(cultivosArr, sueloEfectivo, {
-        strategy:  calculo.strategy,
-        tillage:   calculo.tillage,
+        strategy:      calculo.strategy,
+        tillage:       calculo.tillage,
         cec,
-        riego:     riegoOpts,
-        nEcuacion: calculo.nEcuacion,
+        riego:         riegoOpts,
+        nEcuacion:     calculo.nEcuacion,
+        algoOverrides: calculo.algoOverrides ?? {},
       })
 
       if (!npkData) {
@@ -399,6 +404,7 @@ export default function App() {
         cec,
         riego: { ...riego, fuenteLabel },
         calculo,
+        fecha,
         npk:          resultados.npk,
         recomendacion: resultados.recomendacion,
         baseName,
@@ -406,7 +412,7 @@ export default function App() {
     } finally {
       setExportingPlan(false)
     }
-  }, [cultivo, resultados, point, recinto, suelo, cec, riego, calculo])
+  }, [cultivo, resultados, point, recinto, suelo, cec, riego, calculo, fecha])
 
   // ── Render ─────────────────────────────────────────────────────────────
   const cargando      = estado === ESTADO.CARGANDO
@@ -497,6 +503,23 @@ export default function App() {
             onCultivoChange={setCultivoAnterior}
             onParamsChange={setCultivoAnteriorParams}
           />
+
+          {/* Fecha del plan */}
+          <div style={{ margin: '4px 12px 0' }}>
+            <label style={{ fontSize: 11, color: '#78909c', display: 'block', marginBottom: 2 }}>
+              Fecha del plan de abonado
+            </label>
+            <input
+              type="date"
+              value={fecha}
+              onChange={e => setFecha(e.target.value)}
+              style={{
+                width: '100%', padding: '5px 7px', fontSize: 12,
+                border: '1px solid #cfd8dc', borderRadius: 4,
+                fontFamily: 'inherit', color: '#263238', boxSizing: 'border-box',
+              }}
+            />
+          </div>
 
           <EstrategiaPanel
             cultivo={cultivo}

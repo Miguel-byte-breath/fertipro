@@ -82,11 +82,14 @@ function ParamInput({ label, value, step = 0.1, min = 0, max, unit, onChange }) 
 export default function EstrategiaPanel({ cultivo, params, onChange }) {
   const [openAvanzado, setOpenAvanzado] = useState(false)
 
-  const set = (patch) => onChange({ ...params, ...patch })
+  const set  = (patch) => onChange({ ...params, ...patch })
   const setN = (patch) => onChange({ ...params, nEcuacion: { ...params.nEcuacion, ...patch } })
+  const setAO = (patch) => onChange({ ...params, algoOverrides: { ...(params.algoOverrides ?? {}), ...patch } })
 
   // Valor efectivo de los overrides N (combina defaults con overrides)
-  const nVal = (key) => params.nEcuacion[key] ?? N_EQUATION_DEFAULTS[key]
+  const nVal  = (key) => params.nEcuacion[key] ?? N_EQUATION_DEFAULTS[key]
+  // Valor efectivo de los overrides P/K (null = usar default de estrategia)
+  const aoVal = (key) => params.algoOverrides?.[key] ?? ''
 
   // ── Placeholder sin cultivo ───────────────────────────────────────────────
   if (!cultivo) {
@@ -98,7 +101,6 @@ export default function EstrategiaPanel({ cultivo, params, onChange }) {
     )
   }
 
-  const mostrarResiduos = tieneResidueRule(cultivo)
   const yieldPlaceholder = cultivo.yieldMedium != null ? String(cultivo.yieldMedium) : '0'
 
   return (
@@ -167,36 +169,33 @@ export default function EstrategiaPanel({ cultivo, params, onChange }) {
         <strong>{cultivo.yieldHigh ?? '—'}</strong> kg/ha
       </div>
 
-      {/* ── Residuos (regla B7, solo cereales fres=10) ────────────────────── */}
-      {mostrarResiduos && (
-        <>
-          <div style={SA.sectionTitle}>Gestión de residuos (paja)</div>
-          <label style={SA.checkRow}>
-            <input
-              type="checkbox"
-              checked={params.recogeResiduos}
-              onChange={e => set({ recogeResiduos: e.target.checked, quemaResiduos: false })}
-              style={{ marginRight: 6 }}
-            />
-            <span style={SA.checkLabel}>Recoge la paja del campo</span>
-          </label>
-          {params.recogeResiduos && (
-            <label style={{ ...SA.checkRow, marginLeft: 20 }}>
-              <input
-                type="checkbox"
-                checked={params.quemaResiduos}
-                onChange={e => set({ quemaResiduos: e.target.checked })}
-                style={{ marginRight: 6 }}
-              />
-              <span style={SA.checkLabel}>Quema los residuos</span>
-            </label>
-          )}
-          {!params.recogeResiduos && (
-            <div style={SA.ruleBox}>
-              Paja incorporada → <code>f_res = 100</code> (regla Sativum)
-            </div>
-          )}
-        </>
+      {/* ── Residuos (para todos los cultivos) ───────────────────────────── */}
+      <div style={SA.sectionTitle}>Gestión de residuos</div>
+      <label style={SA.checkRow}>
+        <input
+          type="checkbox"
+          checked={params.recogeResiduos}
+          onChange={e => set({ recogeResiduos: e.target.checked, quemaResiduos: false })}
+          style={{ marginRight: 6 }}
+        />
+        <span style={SA.checkLabel}>Recoge la paja del campo</span>
+      </label>
+      {params.recogeResiduos && (
+        <label style={{ ...SA.checkRow, marginLeft: 20 }}>
+          <input
+            type="checkbox"
+            checked={params.quemaResiduos}
+            onChange={e => set({ quemaResiduos: e.target.checked })}
+            style={{ marginRight: 6 }}
+          />
+          <span style={SA.checkLabel}>Quema los residuos</span>
+        </label>
+      )}
+      {/* Regla B7: solo cereales con fres=10 */}
+      {esCereal(cultivo) && cultivo?.fres === 10 && !params.recogeResiduos && (
+        <div style={SA.ruleBox}>
+          Paja incorporada → <code>f_res = 100</code> (regla Sativum)
+        </div>
       )}
 
       {/* ── Accordion: parámetros N avanzados ────────────────────────────── */}
@@ -204,7 +203,7 @@ export default function EstrategiaPanel({ cultivo, params, onChange }) {
         onClick={() => setOpenAvanzado(v => !v)}
         style={SA.accordionBtn}
       >
-        <span>🔬 Parámetros N avanzados</span>
+        <span>⚙️ Ajustes del algoritmo</span>
         <span style={{ fontSize: 10 }}>{openAvanzado ? '▲' : '▼'}</span>
       </button>
 
@@ -243,8 +242,47 @@ export default function EstrategiaPanel({ cultivo, params, onChange }) {
             step={0.01} min={0} max={1}
             onChange={v => setN({ efic: v })}
           />
+          {/* ── Ajustes P/K ─────────────────────────────────────────── */}
+          <div style={{ ...SA.accordionNote, marginTop: 10, marginBottom: 4 }}>
+            Ajustes P/K — vacío = default de la estrategia
+          </div>
+          <ParamInput
+            label="Umbral Fósforo"
+            value={aoVal('pThreshold')}
+            step={1} min={0}
+            unit="ppm"
+            onChange={v => setAO({ pThreshold: v || null })}
+          />
+          <ParamInput
+            label="Umbral Potasio"
+            value={aoVal('kThreshold')}
+            step={1} min={0}
+            unit="ppm"
+            onChange={v => setAO({ kThreshold: v || null })}
+          />
+          <ParamInput
+            label="Tasa máx. Fósforo"
+            value={aoVal('maxPRate')}
+            step={1} min={0}
+            unit="kg P/ha"
+            onChange={v => setAO({ maxPRate: v || null })}
+          />
+          <ParamInput
+            label="Tasa máx. Potasio"
+            value={aoVal('maxKRate')}
+            step={1} min={0}
+            unit="kg K/ha"
+            onChange={v => setAO({ maxKRate: v || null })}
+          />
+          <ParamInput
+            label="Factor corrección K"
+            value={aoVal('efficiencyFactor')}
+            step={0.01} min={0} max={1}
+            onChange={v => setAO({ efficiencyFactor: v || null })}
+          />
+
           <button
-            onClick={() => onChange({ ...params, nEcuacion: {} })}
+            onClick={() => onChange({ ...params, nEcuacion: {}, algoOverrides: {} })}
             style={SA.resetBtn}
           >
             Restaurar defaults
