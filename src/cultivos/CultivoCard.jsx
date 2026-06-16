@@ -80,15 +80,15 @@ export default function CultivoCard({ cultivo }) {
 
       {/* ── Rendimientos esperados ────────────────────────────────────────── */}
       <div style={S.section}>
-        <div style={S.sectionTitle}>Rendimientos esperados (t/ha)</div>
+        <div style={S.sectionTitle}>Rendimientos esperados (kg/ha)</div>
         <div style={S.grid}>
-          <Param label="Mínimo"  value={cultivo.yieldLow    != null ? `${cultivo.yieldLow} t/ha`    : null} warn={anomalo} />
-          <Param label="Medio"   value={cultivo.yieldMedium != null ? `${cultivo.yieldMedium} t/ha`  : null} warn={anomalo} />
-          <Param label="Máximo"  value={cultivo.yieldHigh   != null ? `${cultivo.yieldHigh} t/ha`    : null} />
+          <Param label="Mínimo"  value={cultivo.yieldLow    != null ? `${cultivo.yieldLow} kg/ha`    : null} warn={anomalo} />
+          <Param label="Medio"   value={cultivo.yieldMedium != null ? `${cultivo.yieldMedium} kg/ha`  : null} warn={anomalo} />
+          <Param label="Máximo"  value={cultivo.yieldHigh   != null ? `${cultivo.yieldHigh} kg/ha`    : null} />
         </div>
         {anomalo && (
           <div style={S.warningBox}>
-            ⚠️ Rend. medio ({cultivo.yieldMedium} t/ha) &lt; mínimo ({cultivo.yieldLow} t/ha): dato anómalo en catálogo Sativum (id {cultivo.id}).
+            ⚠️ Rend. medio ({cultivo.yieldMedium} kg/ha) &lt; mínimo ({cultivo.yieldLow} kg/ha): dato anómalo en catálogo Sativum (id {cultivo.id}).
           </div>
         )}
       </div>

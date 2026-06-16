@@ -4,7 +4,7 @@
  * Panel de configuración del cálculo NPK:
  *   1. Estrategia de fertilización (4 opciones)
  *   2. Laboreo (checkbox)
- *   3. Rendimiento esperado (t/ha) — default yieldMedium del cultivo
+ *   3. Rendimiento esperado (kg/ha) — default yieldMedium del cultivo
  *   4. Residuos / paja — solo visible si CEREALS + fres===10 (regla B7)
  *   5. Accordion: parámetros N avanzados (overrides de N_EQUATION_DEFAULTS)
  *
@@ -156,7 +156,7 @@ export default function EstrategiaPanel({ cultivo, params, onChange }) {
             onChange={e => set({ cropYield: e.target.value === '' ? null : Number(e.target.value) })}
             style={SA.numInput}
           />
-          <span style={SA.unit}>t/ha</span>
+          <span style={SA.unit}>kg/ha</span>
         </span>
       </div>
 
@@ -164,7 +164,7 @@ export default function EstrategiaPanel({ cultivo, params, onChange }) {
       <div style={SA.yieldHint}>
         Catálogo Sativum — mín: <strong>{cultivo.yieldLow ?? '—'}</strong> · med:{' '}
         <strong>{cultivo.yieldMedium ?? '—'}</strong> · máx:{' '}
-        <strong>{cultivo.yieldHigh ?? '—'}</strong> t/ha
+        <strong>{cultivo.yieldHigh ?? '—'}</strong> kg/ha
       </div>
 
       {/* ── Residuos (regla B7, solo cereales fres=10) ────────────────────── */}

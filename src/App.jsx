@@ -25,7 +25,8 @@ import GeometryPanel    from './components/GeometryPanel'
 import { getSigpacRecinto } from './api/sigpac'
 import { identifySativum, normalizarSuelo } from './api/sativum-suelo'
 import SueloCard        from './components/SueloCard'
-import EstrategiaPanel  from './components/EstrategiaPanel'
+import EstrategiaPanel       from './components/EstrategiaPanel'
+import CultivoAnteriorPanel  from './components/CultivoAnteriorPanel'
 import ResultadosCard   from './components/ResultadosCard'
 import { calcularNPK }  from './api/sativum-algo'
 import { getRecomendacion } from './api/sativum-fertilizers'
@@ -72,6 +73,15 @@ export default function App() {
   const [suelo,  setSuelo]  = useState(null)
   const [cec,    setCec]    = useState(220)
   const [riego,  setRiego]  = useState({ fuenteId: 0, no3MgL: '', dotacionM3: '' })
+
+  // ── Estado cultivo anterior (rotación) ────────────────────────────────
+  const [cultivoAnterior,       setCultivoAnterior]       = useState(null)
+  const [cultivoAnteriorParams, setCultivoAnteriorParams] = useState({
+    cropYield:      null,
+    laboreo:        false,
+    recogeResiduos: false,
+    quemaResiduos:  false,
+  })
 
   // ── Estado estrategia + parámetros de cálculo ──────────────────────────
   const [calculo, setCalculo] = useState({
@@ -120,13 +130,25 @@ export default function App() {
         }
       }
 
-      const cultivosArr = [{
+      const cultivosArr = []
+      // Cultivo anterior (precede en la rotación)
+      if (cultivoAnterior) {
+        cultivosArr.push({
+          cultivo:        cultivoAnterior,
+          cropYield:      cultivoAnteriorParams.cropYield ?? cultivoAnterior.yieldMedium ?? 0,
+          cv:             30,
+          recogeResiduos: cultivoAnteriorParams.recogeResiduos,
+          quemaResiduos:  cultivoAnteriorParams.quemaResiduos,
+        })
+      }
+      // Cultivo actual
+      cultivosArr.push({
         cultivo,
         cropYield:      calculo.cropYield ?? cultivo.yieldMedium ?? 0,
         cv:             0,
         recogeResiduos: calculo.recogeResiduos,
         quemaResiduos:  calculo.quemaResiduos,
-      }]
+      })
 
       // Suelo mínimo si no hay datos ArcGIS
       const sueloEfectivo = suelo ?? {
@@ -467,6 +489,13 @@ export default function App() {
             onCecChange={setCec}
             riego={riego}
             onRiegoChange={setRiego}
+          />
+
+          <CultivoAnteriorPanel
+            cultivo={cultivoAnterior}
+            params={cultivoAnteriorParams}
+            onCultivoChange={setCultivoAnterior}
+            onParamsChange={setCultivoAnteriorParams}
           />
 
           <EstrategiaPanel
