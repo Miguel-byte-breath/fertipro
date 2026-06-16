@@ -61,7 +61,7 @@ export default function CultivoAnteriorPanel({ cultivo, params, onCultivoChange,
     onCultivoChange(allCultivos.find(c => c.name === name) ?? null)
   }
 
-  const mostrarResiduos = tieneResidueRule(cultivo)
+  const mostrarResiduos = cultivo != null
 
   return (
     <div style={SC.card}>
@@ -132,7 +132,7 @@ export default function CultivoAnteriorPanel({ cultivo, params, onCultivoChange,
                 <span>Laboreo tras cosecha</span>
               </label>
 
-              {/* Residuos (solo cereales fres=10) */}
+              {/* Residuos (todos los cultivos) */}
               {mostrarResiduos && (
                 <>
                   <label style={SC.checkRow}>
@@ -142,7 +142,7 @@ export default function CultivoAnteriorPanel({ cultivo, params, onCultivoChange,
                       onChange={e => set({ recogeResiduos: e.target.checked, quemaResiduos: false })}
                       style={{ marginRight: 6 }}
                     />
-                    <span>Recoge la paja del campo</span>
+                    <span>Recoge residuos del campo</span>
                   </label>
                   {params.recogeResiduos && (
                     <label style={{ ...SC.checkRow, marginLeft: 20 }}>
@@ -155,7 +155,8 @@ export default function CultivoAnteriorPanel({ cultivo, params, onCultivoChange,
                       <span>Quema los residuos</span>
                     </label>
                   )}
-                  {!params.recogeResiduos && (
+                  {/* Regla B7: solo cereales con fres=10 */}
+                  {esCereal(cultivo) && cultivo?.fres === 10 && !params.recogeResiduos && (
                     <div style={SC.ruleBox}>Paja incorporada → <code>f_res = 100</code></div>
                   )}
                 </>

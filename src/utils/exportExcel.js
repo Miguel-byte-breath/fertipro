@@ -188,7 +188,7 @@ export async function exportarPlanAbonado({
   row('', null)   // spacer
   row('Cultivo',           cultivo?.name)
   row('Grupo',             cultivo?.plantSpeciesGroup)
-  row('Rendimiento objetivo', num(calculo?.cropYield ?? cultivo?.yieldMedium, 2), 't/ha')
+  row('Rendimiento objetivo', num(calculo?.cropYield ?? cultivo?.yieldMedium, 2), 'kg/ha')
   row('Estrategia',        calculo?.strategy)
   row('Laboreo',           calculo?.tillage ? 'Sí' : 'No')
   row('Residuos recogidos',calculo?.recogeResiduos ? 'Sí' : 'No')

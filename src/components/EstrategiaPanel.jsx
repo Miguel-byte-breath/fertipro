@@ -198,6 +198,17 @@ export default function EstrategiaPanel({ cultivo, params, onChange }) {
         </div>
       )}
 
+      {/* ── Abono verde ───────────────────────────────────────────────────── */}
+      <label style={SA.checkRow}>
+        <input
+          type="checkbox"
+          checked={params.abonoVerde ?? false}
+          onChange={e => set({ abonoVerde: e.target.checked })}
+          style={{ marginRight: 6 }}
+        />
+        <span style={SA.checkLabel}>¿Abono verde? (incorporar el cultivo al suelo)</span>
+      </label>
+
       {/* ── Accordion: parámetros N avanzados ────────────────────────────── */}
       <button
         onClick={() => setOpenAvanzado(v => !v)}

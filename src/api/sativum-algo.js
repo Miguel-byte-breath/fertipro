@@ -119,11 +119,12 @@ export function ensamblarPayloadAlgo(cultivos, suelo, opts = {}) {
   // n_other = deposición atmosférica (10) + N del agua de riego
   const nOther = (N_EQUATION_DEFAULTS.n_other + nAgua)
 
-  const rotation = cultivos.map(({ cultivo, cropYield, cv = 0, recogeResiduos = false, quemaResiduos = false }) => ({
+  const rotation = cultivos.map(({ cultivo, cropYield, cv = 0, recogeResiduos = false, quemaResiduos = false, abonoVerde = false }) => ({
     crop_yield:       cropYield,
     cv:               cv,
     collect_residues: recogeResiduos,
     burn_residues:    quemaResiduos,
+    green_manure:     abonoVerde,
     crop_features:    cultivoToCropFeatures(cultivo, { recogeResiduos, quemaResiduos }),
   }))
 

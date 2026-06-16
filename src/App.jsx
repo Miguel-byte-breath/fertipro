@@ -93,6 +93,7 @@ export default function App() {
     cropYield:      null,
     recogeResiduos: false,
     quemaResiduos:  false,
+    abonoVerde:     false,
     nEcuacion:      {},
     algoOverrides:  {},
   })
@@ -104,6 +105,7 @@ export default function App() {
       cropYield:      cultivo?.yieldMedium ?? null,
       recogeResiduos: false,
       quemaResiduos:  false,
+      abonoVerde:     false,
     }))
   }, [cultivo?.id])
 
@@ -152,6 +154,7 @@ export default function App() {
         cv:             0,
         recogeResiduos: calculo.recogeResiduos,
         quemaResiduos:  calculo.quemaResiduos,
+        abonoVerde:     calculo.abonoVerde ?? false,
       })
 
       // Suelo mínimo si no hay datos ArcGIS
@@ -574,8 +577,7 @@ export default function App() {
           <CultivoCard cultivo={cultivo} />
 
           <div style={S.footer}>
-            <strong>v0.1.0 · stub</strong> · Mapa + SIGPAC + cat. cultivos + suelo + estrategia.<br />
-            Pendiente: motor de cálculo NPK, exportar.
+            <strong>v0.2.0</strong> · FertiPRO × Sativum (ITACyL) · FertiliCalc (Villalobos et al. 2020)
           </div>
         </aside>
       </div>
