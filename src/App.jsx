@@ -26,6 +26,10 @@ import { getSigpacRecinto } from './api/sigpac'
 import { identifySativum, normalizarSuelo } from './api/sativum-suelo'
 import SueloCard        from './components/SueloCard'
 import EstrategiaPanel  from './components/EstrategiaPanel'
+import ResultadosCard   from './components/ResultadosCard'
+import { calcularNPK }  from './api/sativum-algo'
+import { getRecomendacion } from './api/sativum-fertilizers'
+import { FUENTE_SUBTERRANEA, FUENTE_SIN_RIEGO } from './data/sativum/fuentesAgua'
 import {
   centroide,
   centroidesPorParte,
@@ -87,6 +91,72 @@ export default function App() {
       quemaResiduos:  false,
     }))
   }, [cultivo?.id])
+
+  // ── Estado resultados NPK ──────────────────────────────────────────────
+  const [resultados, setResultados] = useState({
+    npk:           null,
+    recomendacion: null,
+    loading:       false,
+    error:         null,
+  })
+
+  // ── Cálculo NPK ────────────────────────────────────────────────────────
+  const handleCalcularNecesidades = useCallback(async () => {
+    if (!cultivo) return
+    setResultados({ npk: null, recomendacion: null, loading: true, error: null })
+
+    try {
+      // Riego efectivo según fuente SIEX
+      const fuenteId = riego.fuenteId
+      let riegoOpts = null
+      if (fuenteId !== FUENTE_SIN_RIEGO) {
+        const no3 = fuenteId === FUENTE_SUBTERRANEA
+          ? (suelo?.no3Irrigation ?? riego.no3MgL)
+          : riego.no3MgL
+        const dot = riego.dotacionM3
+        if (no3 && dot) {
+          riegoOpts = { no3MgL: Number(no3), dotacionM3: Number(dot) }
+        }
+      }
+
+      const cultivosArr = [{
+        cultivo,
+        cropYield:      calculo.cropYield ?? cultivo.yieldMedium ?? 0,
+        cv:             0,
+        recogeResiduos: calculo.recogeResiduos,
+        quemaResiduos:  calculo.quemaResiduos,
+      }]
+
+      // Suelo mínimo si no hay datos ArcGIS
+      const sueloEfectivo = suelo ?? {
+        soilType:      'LOAM',
+        organicMatter: 2,
+        ph:            null,
+        pOlsen:        null,
+        kSoil:         null,
+      }
+
+      const npkData = await calcularNPK(cultivosArr, sueloEfectivo, {
+        strategy:  calculo.strategy,
+        tillage:   calculo.tillage,
+        cec,
+        riego:     riegoOpts,
+        nEcuacion: calculo.nEcuacion,
+      })
+
+      if (!npkData) {
+        setResultados({ npk: null, recomendacion: null, loading: false, error: 'No se obtuvo respuesta del motor Sativum.' })
+        return
+      }
+
+      // Recomendación de fertilizantes
+      const recomData = await getRecomendacion(npkData)
+
+      setResultados({ npk: npkData, recomendacion: recomData, loading: false, error: null })
+    } catch (err) {
+      setResultados({ npk: null, recomendacion: null, loading: false, error: err.message || 'Error en el cálculo.' })
+    }
+  }, [cultivo, suelo, cec, riego, calculo])
 
   // ── Estado generación informe Excel SIGPAC ─────────────────────────────
   const [loadingExcel, setLoadingExcel] = useState(false)
@@ -376,6 +446,32 @@ export default function App() {
             onChange={setCalculo}
           />
 
+          {/* Botón calcular */}
+          <div style={S.calcWrap}>
+            <button
+              onClick={handleCalcularNecesidades}
+              disabled={!cultivo || resultados.loading}
+              style={{
+                ...S.calcBtn,
+                opacity: (!cultivo || resultados.loading) ? 0.5 : 1,
+                cursor:  (!cultivo || resultados.loading) ? 'not-allowed' : 'pointer',
+              }}
+            >
+              {resultados.loading ? '⏳ Calculando…' : '🧮 Calcular necesidades NPK'}
+            </button>
+            {!cultivo && (
+              <div style={S.calcHint}>Selecciona un cultivo para calcular.</div>
+            )}
+          </div>
+
+          <ResultadosCard
+            npk={resultados.npk}
+            recomendacion={resultados.recomendacion}
+            cultivo={cultivo}
+            loading={resultados.loading}
+            error={resultados.error}
+          />
+
           <CultivoCard cultivo={cultivo} />
 
           <div style={S.footer}>
@@ -461,4 +557,14 @@ const S = {
     background: '#fffde7', border: '1px dashed #fff59d', borderRadius: 6,
     fontSize: 11, color: '#827717', lineHeight: 1.5,
   },
+  calcWrap: { padding: '4px 12px 8px' },
+  calcBtn: {
+    width: '100%', padding: '10px 0',
+    background: '#1a237e', color: '#fff',
+    border: 'none', borderRadius: 6,
+    fontSize: 13, fontWeight: 700, fontFamily: 'inherit',
+    letterSpacing: 0.3,
+    transition: 'opacity 0.15s',
+  },
+  calcHint: { fontSize: 11, color: '#90a4ae', marginTop: 4, textAlign: 'center' },
 }
