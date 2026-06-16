@@ -1,0 +1,8 @@
+[
+  { "value": 101, "description": "Gruesa",              "descNutrients": "SANDY" },
+  { "value": 102, "description": "Moderadamente gruesa","descNutrients": "SANDY_LOAM" },
+  { "value": 103, "description": "Media gruesa",        "descNutrients": "LOAM" },
+  { "value": 104, "description": "Media fina",          "descNutrients": "SILTY_LOAM" },
+  { "value": 105, "description": "Moderadamente fina",  "descNutrients": "CLAY_LOAM" },
+  { "value": 106, "description": "Fina",                "descNutrients": "CLAY" }
+]

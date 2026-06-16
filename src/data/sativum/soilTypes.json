@@ -1,0 +1,14 @@
+[
+  { "value": 1,  "description": "Arenosa",                  "soilTypeSimplified": 101 },
+  { "value": 2,  "description": "Arenosa franca",           "soilTypeSimplified": 101 },
+  { "value": 3,  "description": "Franco arenosa",           "soilTypeSimplified": 102 },
+  { "value": 4,  "description": "Franca",                   "soilTypeSimplified": 103 },
+  { "value": 5,  "description": "Franco limosa",            "soilTypeSimplified": 104 },
+  { "value": 6,  "description": "Limosa",                   "soilTypeSimplified": 104 },
+  { "value": 7,  "description": "Franco areno arcillosa",   "soilTypeSimplified": 105 },
+  { "value": 8,  "description": "Franco arcillosa",         "soilTypeSimplified": 105 },
+  { "value": 9,  "description": "Franco limo arcillosa",    "soilTypeSimplified": 105 },
+  { "value": 10, "description": "Arcillo arenosa",          "soilTypeSimplified": 106 },
+  { "value": 11, "description": "Arcillo limosa",           "soilTypeSimplified": 106 },
+  { "value": 12, "description": "Arcillosa",                "soilTypeSimplified": 106 }
+]
