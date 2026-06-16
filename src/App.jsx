@@ -24,7 +24,8 @@ import RecintosOrigenCard from './components/RecintosOrigenCard'
 import GeometryPanel    from './components/GeometryPanel'
 import { getSigpacRecinto } from './api/sigpac'
 import { identifySativum, normalizarSuelo } from './api/sativum-suelo'
-import SueloCard from './components/SueloCard'
+import SueloCard        from './components/SueloCard'
+import EstrategiaPanel  from './components/EstrategiaPanel'
 import {
   centroide,
   centroidesPorParte,
@@ -66,6 +67,26 @@ export default function App() {
   const [suelo,  setSuelo]  = useState(null)
   const [cec,    setCec]    = useState(220)
   const [riego,  setRiego]  = useState({ fuenteId: 0, no3MgL: '', dotacionM3: '' })
+
+  // ── Estado estrategia + parámetros de cálculo ──────────────────────────
+  const [calculo, setCalculo] = useState({
+    strategy:       'MAINTENANCE',
+    tillage:        false,
+    cropYield:      null,
+    recogeResiduos: false,
+    quemaResiduos:  false,
+    nEcuacion:      {},
+  })
+
+  // Reset rendimiento/residuos al cambiar cultivo
+  useEffect(() => {
+    setCalculo(prev => ({
+      ...prev,
+      cropYield:      cultivo?.yieldMedium ?? null,
+      recogeResiduos: false,
+      quemaResiduos:  false,
+    }))
+  }, [cultivo?.id])
 
   // ── Estado generación informe Excel SIGPAC ─────────────────────────────
   const [loadingExcel, setLoadingExcel] = useState(false)
@@ -349,11 +370,17 @@ export default function App() {
             onRiegoChange={setRiego}
           />
 
+          <EstrategiaPanel
+            cultivo={cultivo}
+            params={calculo}
+            onChange={setCalculo}
+          />
+
           <CultivoCard cultivo={cultivo} />
 
           <div style={S.footer}>
-            <strong>v0.1.0 · stub</strong> · Mapa + SIGPAC + cat. cultivos + suelo.<br />
-            Pendiente: estrategia + rendimiento, motor de cálculo, exportar.
+            <strong>v0.1.0 · stub</strong> · Mapa + SIGPAC + cat. cultivos + suelo + estrategia.<br />
+            Pendiente: motor de cálculo NPK, exportar.
           </div>
         </aside>
       </div>
