@@ -296,7 +296,7 @@ export default function App() {
         <aside style={S.aside}>
           <div style={{ padding: 12 }}>
             <CultivoSelector
-              value={cultivo?.nombre ?? null}
+              value={cultivo?.name ?? null}
               onChange={setCultivo}
             />
           </div>

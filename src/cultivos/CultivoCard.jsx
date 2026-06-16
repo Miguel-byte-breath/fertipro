@@ -1,19 +1,33 @@
 /**
  * src/cultivos/CultivoCard.jsx
  *
- * Tarjeta de detalle del cultivo seleccionado:
- *   - Categoría, familia botánica, fijador de N
- *   - Parámetros (ms_pct, hi_pct, residuos_pct, beta, ef, efr)
- *   - Tabla de nutrientes (parte comercial + parte no comercial)
+ * Tarjeta de detalle del cultivo seleccionado, con datos del catálogo Sativum.
  *
- * Renderiza `nd` para los valores `null` (no determinado).
+ * Campos mostrados:
+ *   name, plantSpeciesGroup, dryMatter, n/p/k (%), hi, fres, nfixCode,
+ *   yieldLow / yieldMedium / yieldHigh, advertencia de rendimiento anómalo.
  */
+import { tieneRendimientoAnomalo } from '../api/sativum-crops'
 
-const NUTRIENTES = ['N', 'P', 'K', 'Ca', 'Mg', 'S', 'Fe', 'Cu', 'Mn', 'Zn', 'B', 'Mo']
+const GRUPO_LABEL = {
+  CEREALS:                 'Cereales',
+  FORAGE_NON_LEGUME:       'Forrajes no leguminosos',
+  FORAGE_LEGUME:           'Forrajes leguminosos',
+  FORAGE_MIX_LEGUME_GRASS: 'Mezclas forrajeras',
+  INDUSTRIAL:              'Cultivos industriales',
+  PULSES:                  'Leguminosas grano',
+  HORTICULTURAL:           'Hortícolas',
+  TUBERS_ROOT:             'Tubérculos y raíces',
+  TREES:                   'Leñosos',
+  OTHER:                   'Otros',
+}
 
-function fmt(v, dec = 3) {
-  if (v == null) return <span style={{ color: '#bdbdbd' }}>nd</span>
-  if (v === 0)   return '0'
+function pct(v) {
+  if (v == null) return <span style={S.nd}>nd</span>
+  return `${Number(v).toFixed(3)} %`
+}
+function num(v, dec = 2) {
+  if (v == null) return <span style={S.nd}>nd</span>
   return Number(v).toFixed(dec)
 }
 
@@ -21,76 +35,76 @@ export default function CultivoCard({ cultivo }) {
   if (!cultivo) {
     return (
       <div style={{ padding: '14px 12px', fontSize: 12, color: '#90a4ae', fontStyle: 'italic' }}>
-        Selecciona un cultivo para ver sus extracciones por nutriente.
+        Selecciona un cultivo para ver sus parámetros.
       </div>
     )
   }
 
-  const { params, parte_comercial: pc, parte_no_comercial: pnc } = cultivo
+  const anomalo  = tieneRendimientoAnomalo(cultivo)
+  const grupo    = GRUPO_LABEL[cultivo.plantSpeciesGroup?.toUpperCase()] ?? cultivo.plantSpeciesGroup
 
   return (
     <div style={S.card}>
+
+      {/* ── Cabecera ──────────────────────────────────────────────────────── */}
       <div style={S.header}>
         <div>
-          <div style={S.title}>{cultivo.nombre}</div>
-          <div style={S.subtitle}>
-            {cultivo.categoria}
-            {cultivo.familia_botanica ? ` · ${cultivo.familia_botanica}` : ''}
-          </div>
+          <div style={S.title}>{cultivo.name}</div>
+          <div style={S.subtitle}>{grupo}</div>
         </div>
-        {cultivo.n_fijado && (
-          <span style={S.badge}>🌱 Fijador N</span>
-        )}
+        <div style={{ display: 'flex', gap: 5, flexWrap: 'wrap', justifyContent: 'flex-end' }}>
+          {cultivo.nfixCode && <span style={{ ...S.badge, background: '#e8f5e9', color: '#2e7d32', border: '1px solid #c8e6c9' }}>🌱 Fijador N</span>}
+          {anomalo          && <span style={{ ...S.badge, background: '#fff3e0', color: '#e65100', border: '1px solid #ffe0b2' }}>⚠️ Rend. anómalo</span>}
+        </div>
       </div>
 
       {/* ── Parámetros agronómicos ────────────────────────────────────────── */}
       <div style={S.section}>
-        <div style={S.sectionTitle}>Parámetros</div>
-        <div style={S.paramsGrid}>
-          <Param label="MS"        value={params.ms_pct}       suffix="%" />
-          <Param label="HI"        value={params.hi_pct}       suffix="%" />
-          <Param label="Residuos"  value={params.residuos_pct} suffix="%" />
-          <Param label="β (beta)"  value={params.beta} />
-          <Param label="EF"        value={params.ef} />
-          <Param label="EFR"       value={params.efr} />
+        <div style={S.sectionTitle}>Parámetros agronómicos</div>
+        <div style={S.grid}>
+          <Param label="Materia seca"        value={cultivo.dryMatter != null ? `${cultivo.dryMatter} %` : null} />
+          <Param label="Harvest Index (HI)"  value={cultivo.hi        != null ? num(cultivo.hi)            : null} />
+          <Param label="Coef. residuos (fres)" value={cultivo.fres    != null ? num(cultivo.fres, 0)        : null} />
         </div>
       </div>
 
-      {/* ── Tabla de nutrientes ───────────────────────────────────────────── */}
+      {/* ── Nutrientes en cosecha ─────────────────────────────────────────── */}
       <div style={S.section}>
-        <div style={S.sectionTitle}>Nutrientes (% sobre MS)</div>
-        <table style={S.table}>
-          <thead>
-            <tr>
-              <th style={S.th}>Nutriente</th>
-              <th style={S.th}>{pc?.organo ?? 'comercial'}</th>
-              <th style={S.th}>{pnc?.organo ?? 'no comercial'}</th>
-            </tr>
-          </thead>
-          <tbody>
-            {NUTRIENTES.map(n => (
-              <tr key={n}>
-                <td style={S.tdLabel}>{n}</td>
-                <td style={S.td}>{fmt(pc?.nutrientes_pct?.[n])}</td>
-                <td style={S.td}>{fmt(pnc?.nutrientes_pct?.[n])}</td>
-              </tr>
-            ))}
-          </tbody>
-        </table>
+        <div style={S.sectionTitle}>Concentración en cosecha</div>
+        <div style={S.grid}>
+          <Param label="N (%)" value={cultivo.n != null ? pct(cultivo.n) : null} raw />
+          <Param label="P (%)" value={cultivo.p != null ? pct(cultivo.p) : null} raw />
+          <Param label="K (%)" value={cultivo.k != null ? pct(cultivo.k) : null} raw />
+        </div>
       </div>
+
+      {/* ── Rendimientos esperados ────────────────────────────────────────── */}
+      <div style={S.section}>
+        <div style={S.sectionTitle}>Rendimientos esperados (t/ha)</div>
+        <div style={S.grid}>
+          <Param label="Mínimo"  value={cultivo.yieldLow    != null ? `${cultivo.yieldLow} t/ha`    : null} warn={anomalo} />
+          <Param label="Medio"   value={cultivo.yieldMedium != null ? `${cultivo.yieldMedium} t/ha`  : null} warn={anomalo} />
+          <Param label="Máximo"  value={cultivo.yieldHigh   != null ? `${cultivo.yieldHigh} t/ha`    : null} />
+        </div>
+        {anomalo && (
+          <div style={S.warningBox}>
+            ⚠️ Rend. medio ({cultivo.yieldMedium} t/ha) &lt; mínimo ({cultivo.yieldLow} t/ha): dato anómalo en catálogo Sativum (id {cultivo.id}).
+          </div>
+        )}
+      </div>
+
     </div>
   )
 }
 
-function Param({ label, value, suffix = '' }) {
+function Param({ label, value, raw = false, warn = false }) {
+  const display = value == null
+    ? <span style={S.nd}>nd</span>
+    : raw ? value : <span style={warn ? { color: '#e65100' } : {}}>{value}</span>
   return (
     <div style={S.paramItem}>
       <div style={S.paramLabel}>{label}</div>
-      <div style={S.paramValue}>
-        {value == null
-          ? <span style={{ color: '#bdbdbd' }}>nd</span>
-          : `${Number(value).toFixed(suffix === '%' ? 1 : 2)}${suffix}`}
-      </div>
+      <div style={S.paramValue}>{display}</div>
     </div>
   )
 }
@@ -108,16 +122,15 @@ const S = {
   title:    { fontSize: 14, fontWeight: 700, color: '#1a237e' },
   subtitle: { fontSize: 11, color: '#78909c', marginTop: 2 },
   badge: {
-    fontSize: 10, fontWeight: 600, color: '#2e7d32',
-    background: '#e8f5e9', border: '1px solid #c8e6c9',
-    padding: '2px 7px', borderRadius: 10, whiteSpace: 'nowrap',
+    fontSize: 10, fontWeight: 600, padding: '2px 7px',
+    borderRadius: 10, whiteSpace: 'nowrap',
   },
   section:      { marginBottom: 10 },
   sectionTitle: {
     fontSize: 11, fontWeight: 700, textTransform: 'uppercase',
     letterSpacing: 0.5, color: '#546e7a', marginBottom: 6,
   },
-  paramsGrid: {
+  grid: {
     display: 'grid', gridTemplateColumns: 'repeat(3, 1fr)', gap: 6,
   },
   paramItem: {
@@ -125,12 +138,10 @@ const S = {
   },
   paramLabel: { fontSize: 10, color: '#78909c' },
   paramValue: { fontSize: 12, fontWeight: 600, color: '#263238' },
-  table:   { width: '100%', borderCollapse: 'collapse', fontSize: 12 },
-  th:      {
-    textAlign: 'left', padding: '4px 6px',
-    fontWeight: 600, color: '#546e7a',
-    borderBottom: '1px solid #cfd8dc', fontSize: 11,
+  nd:         { color: '#bdbdbd' },
+  warningBox: {
+    marginTop: 6, fontSize: 11, color: '#e65100',
+    background: '#fff3e0', border: '1px solid #ffe0b2',
+    borderRadius: 4, padding: '5px 8px',
   },
-  td:      { padding: '3px 6px', borderBottom: '1px solid #f0f4f7', fontFamily: 'monospace' },
-  tdLabel: { padding: '3px 6px', borderBottom: '1px solid #f0f4f7', fontWeight: 600, color: '#37474f' },
 }
