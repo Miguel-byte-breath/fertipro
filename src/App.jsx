@@ -23,6 +23,8 @@ import RecintoCard      from './components/RecintoCard'
 import RecintosOrigenCard from './components/RecintosOrigenCard'
 import GeometryPanel    from './components/GeometryPanel'
 import { getSigpacRecinto } from './api/sigpac'
+import { identifySativum, normalizarSuelo } from './api/sativum-suelo'
+import SueloCard from './components/SueloCard'
 import {
   centroide,
   centroidesPorParte,
@@ -60,6 +62,11 @@ export default function App() {
   // ── Estado cultivo seleccionado ────────────────────────────────────────
   const [cultivo, setCultivo] = useState(null)
 
+  // ── Estado suelo / agua de riego ───────────────────────────────────────
+  const [suelo,  setSuelo]  = useState(null)
+  const [cec,    setCec]    = useState(220)
+  const [riego,  setRiego]  = useState({ fuenteId: 0, no3MgL: '', dotacionM3: '' })
+
   // ── Estado generación informe Excel SIGPAC ─────────────────────────────
   const [loadingExcel, setLoadingExcel] = useState(false)
   const [excelError,   setExcelError]   = useState(null)
@@ -70,9 +77,14 @@ export default function App() {
     setEstado(ESTADO.CARGANDO)
     setError(null)
     setRecinto(null)
+    setSuelo(null)
     try {
-      const rec = await getSigpacRecinto(lon, lat)
+      const [rec, arcgisData] = await Promise.all([
+        getSigpacRecinto(lon, lat),
+        identifySativum(lon, lat),
+      ])
       setRecinto(rec)
+      setSuelo(normalizarSuelo(arcgisData))
       setEstado(ESTADO.LISTO)
     } catch (err) {
       setError(err.message || 'Error consultando SIGPAC.')
@@ -328,11 +340,20 @@ export default function App() {
             return <RecintosOrigenCard recintos={recintos} />
           })()}
 
+          <SueloCard
+            suelo={suelo}
+            loading={cargando}
+            cec={cec}
+            onCecChange={setCec}
+            riego={riego}
+            onRiegoChange={setRiego}
+          />
+
           <CultivoCard cultivo={cultivo} />
 
           <div style={S.footer}>
-            <strong>v0.1.0 · stub</strong> · Mapa + SIGPAC + cat. cultivos.<br />
-            Pendiente: análisis suelo (Sativum), agua, enmienda, motor de cálculo.
+            <strong>v0.1.0 · stub</strong> · Mapa + SIGPAC + cat. cultivos + suelo.<br />
+            Pendiente: estrategia + rendimiento, motor de cálculo, exportar.
           </div>
         </aside>
       </div>
