@@ -39,7 +39,8 @@ import {
 } from './utils/geometry'
 import { slugify } from './utils/slugify'
 import { interseccionRecintos, detectarTipoParcela } from './utils/recintosInterseccion'
-import { exportarRecintosSigpacExcel } from './utils/exportExcel'
+import { exportarRecintosSigpacExcel, exportarPlanAbonado } from './utils/exportExcel'
+import { FUENTES_AGUA } from './data/sativum/fuentesAgua'
 
 const ESTADO = {
   IDLE:     'idle',
@@ -357,6 +358,34 @@ export default function App() {
     }
   }, [polygonsToExport])
 
+  // ── Exportar plan de abonado ───────────────────────────────────────────
+  const [exportingPlan, setExportingPlan] = useState(false)
+
+  const handleExportarPlan = useCallback(async () => {
+    if (!cultivo || !resultados.npk) return
+    setExportingPlan(true)
+    try {
+      const fuenteLabel = FUENTES_AGUA.find(f => f.id === riego.fuenteId)?.label
+      const baseName = cultivo.name
+        ? `fertipro_plan_${cultivo.name.toLowerCase().replace(/[^a-z0-9]+/g, '_')}`
+        : 'fertipro_plan_abonado'
+      await exportarPlanAbonado({
+        point,
+        recinto,
+        cultivo,
+        suelo,
+        cec,
+        riego: { ...riego, fuenteLabel },
+        calculo,
+        npk:          resultados.npk,
+        recomendacion: resultados.recomendacion,
+        baseName,
+      })
+    } finally {
+      setExportingPlan(false)
+    }
+  }, [cultivo, resultados, point, recinto, suelo, cec, riego, calculo])
+
   // ── Render ─────────────────────────────────────────────────────────────
   const cargando      = estado === ESTADO.CARGANDO
   const isCentroid    = activePolygonId != null
@@ -471,6 +500,24 @@ export default function App() {
             loading={resultados.loading}
             error={resultados.error}
           />
+
+          {/* Exportar plan */}
+          {resultados.npk && !resultados.loading && (
+            <div style={S.calcWrap}>
+              <button
+                onClick={handleExportarPlan}
+                disabled={exportingPlan}
+                style={{
+                  ...S.calcBtn,
+                  background: '#2e7d32',
+                  opacity: exportingPlan ? 0.6 : 1,
+                  cursor: exportingPlan ? 'not-allowed' : 'pointer',
+                }}
+              >
+                {exportingPlan ? '⏳ Exportando…' : '📥 Exportar plan Excel'}
+              </button>
+            </div>
+          )}
 
           <CultivoCard cultivo={cultivo} />
 
