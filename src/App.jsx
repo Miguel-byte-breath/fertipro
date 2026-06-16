@@ -25,6 +25,7 @@ import GeometryPanel    from './components/GeometryPanel'
 import { getSigpacRecinto } from './api/sigpac'
 import {
   centroide,
+  centroidesPorParte,
   generarNombreParcela,
   exportarGeoJSON,
   exportarSHP,
@@ -124,8 +125,13 @@ export default function App() {
       feature.properties?.NOMBRE ||
       generarNombreParcela(polygonCountRef.current)
 
-    const cent    = centroide(feature)
-    const newPoly = { id, nombre, feature, centroid: cent }
+    // Centroides por parte para multipart (Polygon con anillos disjuntos del
+    // parser shapefile o MultiPolygon con varias partes). El label principal
+    // se coloca en la primera parte; las restantes se renderizan como
+    // marcadores secundarios en MapPicker leyendo centroidsPorParte.
+    const parts  = centroidesPorParte(feature)
+    const cent   = parts.length > 0 ? parts[0] : centroide(feature)
+    const newPoly = { id, nombre, feature, centroid: cent, centroidsPorParte: parts }
 
     setPolygons(prev => [...prev, newPoly])
     setActivePolygonId(id)
@@ -137,10 +143,11 @@ export default function App() {
   // era la activa (individual o "todas"), refresca también la ficha SIGPAC
   // consultando el nuevo centroide.
   const handlePolygonUpdate = useCallback((id, feature) => {
-    const cent = centroide(feature)
+    const parts = centroidesPorParte(feature)
+    const cent  = parts.length > 0 ? parts[0] : centroide(feature)
     setPolygons(prev => {
       const next = prev.map(p =>
-        p.id === id ? { ...p, feature, centroid: cent } : p
+        p.id === id ? { ...p, feature, centroid: cent, centroidsPorParte: parts } : p
       )
       // Refresco condicional de SIGPAC: solo si la parcela editada afecta
       // al centroide que ahora mismo se está consultando.
@@ -275,6 +282,7 @@ export default function App() {
             onPolygonUpdate={handlePolygonUpdate}
             onPolygonClick={handlePolygonClick}
             activePolygonId={activePolygonId}
+            activePolygon={polygons.find(p => p.id === activePolygonId) || null}
             isCentroid={isCentroid}
           />
           {estado === ESTADO.IDLE && (

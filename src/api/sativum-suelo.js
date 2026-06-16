@@ -1,7 +1,7 @@
 /**
- * src/api/sativum.js — wrapper cliente de la API Sativum (ITACyL).
+ * src/api/sativum-suelo.js — wrapper cliente de la API Sativum (ITACyL).
  *
- * Llama al proxy serverless `/api/sativum` (que añade la apikey upstream).
+ * Llama al proxy serverless `/api/sativum-suelo` (que añade la apikey upstream).
  *
  * El upstream es un MapServer ArcGIS REST cuya operación `identify` devuelve
  * un objeto `{ results: [{ layerId, layerName, value, attributes, ... }, ...] }`
@@ -32,7 +32,7 @@ export async function identifySativum(lon, lat, opts = {}) {
   })
 
   try {
-    const res  = await fetch(`/api/sativum?${params.toString()}`)
+    const res  = await fetch(`/api/sativum-suelo?${params.toString()}`)
     const data = await res.json().catch(() => ({}))
     if (!res.ok) {
       // 503 stub: aún no configurado → degradación elegante, no rompemos la UI

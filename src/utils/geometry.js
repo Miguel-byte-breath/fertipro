@@ -12,47 +12,152 @@ import turfArea from '@turf/area'
 
 // ─── Centroide ────────────────────────────────────────────────────────────────
 
+// Ray-cast multi-anillo. Maneja Polygon simple, Polygon con agujero real,
+// Polygon multipart mal codificado (anillos disjuntos en lugar de MultiPolygon,
+// salida típica de muchos parsers shapefile) y MultiPolygon. Por paridad de
+// cruces se resuelven los cuatro casos sin código especial.
+function _ptInGeom(pt, geom) {
+  if (!geom) return false
+  const [x, y] = pt
+  let parts
+  if (geom.type === 'Polygon')           parts = [geom.coordinates]
+  else if (geom.type === 'MultiPolygon') parts = geom.coordinates
+  else return false
+  for (const rings of parts) {
+    let inside = false
+    for (const ring of rings) {
+      for (let i = 0, j = ring.length - 1; i < ring.length; j = i++) {
+        const [xi, yi] = ring[i]
+        const [xj, yj] = ring[j]
+        const intersect = ((yi > y) !== (yj > y)) &&
+          (x < (xj - xi) * (y - yi) / (yj - yi) + xi)
+        if (intersect) inside = !inside
+      }
+    }
+    if (inside) return true
+  }
+  return false
+}
+
+// Extrae las "partes" reales de una geometría. Distingue entre Polygon con
+// agujero real (anillos interiores contenidos en el exterior) y Polygon mal
+// codificado por el parser shapefile como anillos disjuntos (la "segunda
+// parte" no está dentro de la primera).
+//   Polygon 1 anillo                → [coords]
+//   Polygon con hole real           → [coords] (outer + hole queda como 1 parte)
+//   Polygon con anillos disjuntos   → [[ring0], [ring1], ...] (N partes)
+//   MultiPolygon                    → coords tal cual
+function _extraerPartes(geom) {
+  if (!geom) return []
+  if (geom.type === 'MultiPolygon') return geom.coordinates
+  if (geom.type !== 'Polygon')      return []
+  const coords = geom.coordinates
+  if (!coords?.length) return []
+  if (coords.length === 1) return [coords]
+  const outerGeom = { type: 'Polygon', coordinates: [coords[0]] }
+  const parteCero = [coords[0]]
+  const disjuntas = []
+  for (let i = 1; i < coords.length; i++) {
+    const ring = coords[i]
+    if (!ring?.length) continue
+    const testPt = ring[Math.floor(ring.length / 2)]
+    if (_ptInGeom(testPt, outerGeom)) parteCero.push(ring)
+    else                              disjuntas.push([ring])
+  }
+  return [parteCero, ...disjuntas]
+}
+
 /**
- * Calcula el centroide (media de vértices del anillo exterior) de un GeoJSON Feature.
- * Funciona con Polygon y MultiPolygon.
+ * Calcula un punto representativo dentro de un GeoJSON Feature, garantizando
+ * que el punto cae DENTRO de la geometría (asegura que la consulta SigPac
+ * devuelva un recinto coherente con la parcela).
+ *
+ * Estrategia híbrida en tres pasos:
+ *  1. Centroide global con @turf/center-of-mass.
+ *  2. Si el punto cae FUERA (caso multipart, ya sea MultiPolygon con varias
+ *     partes o Polygon mal codificado con anillos disjuntos), fallback a la
+ *     parte de mayor área.
+ *  3. Último recurso: media aritmética del primer anillo.
+ *
  * @param {GeoJSON.Feature} feature
  * @returns {{ lat: number, lon: number }}
  */
 export function centroide(feature) {
-  const geom = feature?.geometry
+  if (!feature?.geometry) return { lat: 0, lon: 0 }
+  const geom = feature.geometry
 
-  // Para MultiPolygon disjunto (parcela con varios trozos separados), el
-  // centroide global puede caer en hueco entre las partes. Para que el punto
-  // siempre caiga dentro de un trozo real (y la consulta SigPac devuelva un
-  // recinto coherente con la parcela), devolvemos el centroide del poligono
-  // de mayor area. Para Polygon simple o MultiPolygon de una sola parte,
-  // comportamiento sin cambio (@turf/centroid).
-  if (geom?.type === 'MultiPolygon' && geom.coordinates.length > 1) {
-    let bestIdx  = 0
-    let bestArea = -1
-    for (let i = 0; i < geom.coordinates.length; i++) {
-      const sub = {
-        type: 'Feature',
-        geometry: { type: 'Polygon', coordinates: geom.coordinates[i] },
-        properties: {},
-      }
-      const a = turfArea(sub)
-      if (a > bestArea) {
-        bestArea = a
-        bestIdx  = i
-      }
+  // 1) Centroide global
+  try {
+    const cGlobal = turfCentroid(feature).geometry.coordinates
+    if (_ptInGeom(cGlobal, geom)) {
+      return { lon: cGlobal[0], lat: cGlobal[1] }
     }
-    const largest = {
-      type: 'Feature',
-      geometry: { type: 'Polygon', coordinates: geom.coordinates[bestIdx] },
-      properties: {},
+  } catch { /* sigue al fallback */ }
+
+  // 2) Fallback: parte de mayor área (cubre MultiPolygon disjunto y Polygon
+  // con anillos disjuntos del parser shapefile)
+  const partes = _extraerPartes(geom)
+  if (partes.length >= 2) {
+    let bestSub = null, bestArea = -1
+    for (const parte of partes) {
+      try {
+        const sub = { type: 'Feature', geometry: { type: 'Polygon', coordinates: parte }, properties: {} }
+        const a = turfArea(sub)
+        if (a > bestArea) { bestArea = a; bestSub = sub }
+      } catch { /* parte inválida, saltar */ }
     }
-    const c = turfCentroid(largest).geometry.coordinates
-    return { lon: c[0], lat: c[1] }
+    if (bestSub) {
+      try {
+        const c = turfCentroid(bestSub).geometry.coordinates
+        return { lon: c[0], lat: c[1] }
+      } catch { /* sigue al último recurso */ }
+    }
   }
 
-  const c = turfCentroid(feature).geometry.coordinates
-  return { lon: c[0], lat: c[1] }
+  // 3) Último recurso: media aritmética del primer anillo
+  const ring = geom.type === 'MultiPolygon'
+    ? geom.coordinates[0]?.[0]
+    : geom.coordinates?.[0]
+  if (ring?.length) {
+    let lon = 0, lat = 0
+    for (const c of ring) { lon += c[0]; lat += c[1] }
+    return { lon: lon / ring.length, lat: lat / ring.length }
+  }
+  return { lat: 0, lon: 0 }
+}
+
+/**
+ * Devuelve un array con un punto representativo (interior) por cada parte de
+ * una parcela multipart. Reconoce dos formas de codificación:
+ *   - MultiPolygon con dos o más sub-polígonos.
+ *   - Polygon con anillos disjuntos (codificación del parser shapefile
+ *     casero — anillos que NO están contenidos en el exterior).
+ *
+ * Para Polygon simple o MultiPolygon de una sola parte, devuelve []
+ * (no hay nada que marcar como complemento al centroide principal).
+ *
+ * Útil para visualizar en el mapa todos los trozos de una parcela multipart
+ * con marcadores secundarios, además del label principal. Mirror del patrón
+ * de fertipro-zonas-normativas/utils/geometry.js.
+ *
+ * @param {GeoJSON.Feature} feature
+ * @returns {Array<{ lat: number, lon: number }>}
+ */
+export function centroidesPorParte(feature) {
+  if (!feature?.geometry) return []
+  const partes = _extraerPartes(feature.geometry)
+  if (partes.length < 2) return []
+  const result = []
+  for (const parte of partes) {
+    try {
+      const sub = { type: 'Feature', geometry: { type: 'Polygon', coordinates: parte }, properties: {} }
+      const c   = turfCentroid(sub).geometry.coordinates
+      result.push({ lon: c[0], lat: c[1] })
+    } catch {
+      /* parte inválida, saltar */
+    }
+  }
+  return result
 }
 
 /**

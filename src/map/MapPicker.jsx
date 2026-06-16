@@ -44,13 +44,14 @@ L.Icon.Default.mergeOptions({
 })
 
 const MapPicker = forwardRef(function MapPicker(
-  { onCoordSelect, selectedPoint, onPolygonAdd, onPolygonRemove, onPolygonUpdate, onPolygonClick, activePolygonId, isCentroid },
+  { onCoordSelect, selectedPoint, onPolygonAdd, onPolygonRemove, onPolygonUpdate, onPolygonClick, activePolygonId, activePolygon, isCentroid },
   ref
 ) {
   const mapRef       = useRef(null)
   const mapObj       = useRef(null)
-  const markerRef    = useRef(null)
-  const fileInputRef = useRef(null)
+  const markerRef       = useRef(null)
+  const partsMarkersRef = useRef([])   // marcadores secundarios para parcelas multipart
+  const fileInputRef    = useRef(null)
   const [coords, setCoords] = useState(null)
 
   // Estado de modo seleccion de recintos SIGPAC (paso 3 — construir hoja)
@@ -481,6 +482,30 @@ const MapPicker = forwardRef(function MapPicker(
       try { layer.setStyle(id === activePolygonId ? activeStyle : normalStyle) } catch {}
     })
   }, [activePolygonId])
+
+  // ── Marcadores secundarios por parte (parcelas multipart) ────────────────
+  // Cuando la parcela activa es multipart, su .centroidsPorParte tiene N>=2
+  // puntos. El centroide principal ya se renderiza por el flujo de
+  // selectedPoint; aquí pintamos un círculo pequeño en las partes 2..N para
+  // que el usuario vea visualmente que la parcela tiene más trozos. Espejo
+  // del patrón de fertipro-zonas-normativas/MapPicker.jsx.
+  useEffect(() => {
+    if (!mapObj.current) return
+    partsMarkersRef.current.forEach(m => m.remove())
+    partsMarkersRef.current = []
+    const parts = activePolygon?.centroidsPorParte
+    if (!Array.isArray(parts) || parts.length < 2) return
+    // Saltamos la parte 0 (ya cubierta por el marcador principal del centroide)
+    for (let i = 1; i < parts.length; i++) {
+      const { lat, lon } = parts[i]
+      const m = L.circleMarker([lat, lon], {
+        radius: 5, color: '#0d47a1', weight: 2,
+        fillColor: '#90caf9', fillOpacity: 0.85,
+      }).addTo(mapObj.current)
+      m.bindTooltip(`Parte ${i + 1}`, { permanent: false, direction: 'top' })
+      partsMarkersRef.current.push(m)
+    }
+  }, [activePolygon])
 
   // ── Marcador: pin (punto libre) o círculo (centroide) ────────────────────
   useEffect(() => {
