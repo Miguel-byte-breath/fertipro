@@ -102,11 +102,12 @@ export function calcularNAgua(no3MgL, dotacionM3) {
  */
 export function ensamblarPayloadAlgo(cultivos, suelo, opts = {}) {
   const {
-    strategy   = 'MAINTENANCE',
-    tillage    = false,
-    cec        = 220,
-    riego      = null,
-    nEcuacion  = {},
+    strategy      = 'MAINTENANCE',
+    tillage       = false,
+    cec           = 220,
+    riego         = null,
+    nEcuacion     = {},
+    algoOverrides = {},   // overrides opcionales de los ajustes del algoritmo
   } = opts
 
   const soilType = suelo.soilType ?? 'LOAM'
@@ -138,12 +139,12 @@ export function ensamblarPayloadAlgo(cultivos, suelo, opts = {}) {
       k_conc: suelo.kSoil        ?? null,
       cec,
     },
-    p_threshold:      { value: params.p_threshold },
-    k_threshold:      { value: params.k_threshold },
-    soil_effect:      { coeff: params.soil_effect },
-    efficiency_factor:{ factor: params.efficiency_factor },
-    max_p_rate:       { rate: MAX_P_RATE },
-    max_k_rate:       { rate: MAX_K_RATE },
+    p_threshold:       { value:  algoOverrides.pThreshold       ?? params.p_threshold },
+    k_threshold:       { value:  algoOverrides.kThreshold       ?? params.k_threshold },
+    soil_effect:       { coeff:  algoOverrides.soilEffect        ?? params.soil_effect },
+    efficiency_factor: { factor: algoOverrides.efficiencyFactor ?? params.efficiency_factor },
+    max_p_rate:        { rate:   algoOverrides.maxPRate         ?? MAX_P_RATE },
+    max_k_rate:        { rate:   algoOverrides.maxKRate         ?? MAX_K_RATE },
     n_equation_parameter: {
       ...N_EQUATION_DEFAULTS,
       n_other: nOther,

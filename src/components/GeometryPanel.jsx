@@ -108,10 +108,7 @@ function EmptyState() {
         <li style={S.option}>
           <span style={S.optionIcon}>🧩</span>
           <div>
-            <div style={S.optionTitle}>
-              Construir desde recintos SIGPAC
-              <span style={S.soonBadge}>Próximamente</span>
-            </div>
+            <div style={S.optionTitle}>Construir desde recintos SIGPAC</div>
             <div style={S.optionDesc}>Selecciona uno o varios recintos y FertiPRO los une</div>
           </div>
         </li>
