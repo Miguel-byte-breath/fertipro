@@ -95,5 +95,4 @@ git add .; git commit -m "..."; git push   # Despliegue a Vercel automático
 ## Backlog
 
 1. PDF exportación estilo "Plan de Nutrientes" de Sativum (ver PDF de referencia en uploads de sesión anterior)
-2. Favicon — colocar `public/favicon.png` (logo naranja hoja+F); `index.html` ya tiene el link
-3. Proxy catálogo: `api/sativum-fertilizers.js` línea 68 — forward query params al upstream
+2. Proxy catálogo: `api/sativum-fertilizers.js` línea 68 — forward query params al upstream
