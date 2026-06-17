@@ -180,8 +180,19 @@ export default function App() {
         return
       }
 
+      // Extraer N/P/K del objeto crudo — pueden estar en nivel raíz o dentro de recommendations[0]
+      const npkNorm = {
+        n: npkData.n ?? npkData.recommendations?.[0]?.n ?? 0,
+        p: npkData.p ?? npkData.recommendations?.[0]?.p ?? 0,
+        k: npkData.k ?? npkData.recommendations?.[0]?.k ?? 0,
+      }
+      console.debug('[NPK norm]', npkNorm)
+
       // Recomendación de fertilizantes
-      const recomData = await getRecomendacion(npkData)
+      const recomData = await getRecomendacion(npkNorm)
+      if (!recomData) {
+        console.warn('[recommendation] Sativum no devolvió recomendación. npkNorm:', npkNorm)
+      }
 
       setResultados({ npk: npkData, recomendacion: recomData, loading: false, error: null })
     } catch (err) {

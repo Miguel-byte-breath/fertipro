@@ -147,13 +147,19 @@ export default function ResultadosCard({ npk, recomendacion, cultivo, loading, e
       )}
 
       {/* ── Combinaciones de fertilizantes ────────────────────────────── */}
-      {recList.length > 0 && (
+      {recList.length > 0 ? (
         <>
           <div style={SR.sectionTitle}>Combinaciones recomendadas</div>
           {recList.map((rec, i) => (
             <RecomendacionItem key={i} rec={rec} index={i} />
           ))}
         </>
+      ) : (
+        <div style={SR.warnBox}>
+          {recomendacion === null
+            ? '⚠️ No se pudo obtener la recomendación de fertilizantes. Revisa la consola del navegador para más detalle.'
+            : '⚠️ Sativum no devolvió combinaciones de fertilizantes para estos valores NPK.'}
+        </div>
       )}
 
       {/* ── Observaciones ─────────────────────────────────────────────── */}
@@ -225,6 +231,13 @@ const SR = {
   recTotal: {
     marginTop: 4, fontSize: 10, color: '#2e7d32',
     background: '#e8f5e9', borderRadius: 3, padding: '2px 6px',
+  },
+
+  // Aviso sin recomendación
+  warnBox: {
+    marginTop: 6, fontSize: 11, color: '#b71c1c',
+    background: '#ffebee', border: '1px solid #ef9a9a',
+    borderRadius: 4, padding: '6px 8px',
   },
 
   // Observaciones
