@@ -50,6 +50,17 @@ const ESTADO = {
   ERROR:    'error',
 }
 
+// CEC por defecto según textura simplificada (valores Sativum, meq/kg)
+// El usuario puede editarlo manualmente en SueloCard si tiene analítica propia.
+const CEC_BY_SOIL_TYPE = {
+  SANDY:      30,
+  SANDY_LOAM: 75,
+  LOAM:       100,
+  SILTY_LOAM: 80,
+  CLAY_LOAM:  220,
+  CLAY:       300,
+}
+
 export default function App() {
   // ── Estado punto / recinto SIGPAC ──────────────────────────────────────
   const [estado,   setEstado]   = useState(ESTADO.IDLE)
@@ -108,6 +119,13 @@ export default function App() {
       abonoVerde:     false,
     }))
   }, [cultivo?.id])
+
+  // CEC por textura: se actualiza cuando carga el suelo ArcGIS.
+  // El usuario puede sobreescribir manualmente en SueloCard.
+  useEffect(() => {
+    if (!suelo?.soilType) return
+    setCec(CEC_BY_SOIL_TYPE[suelo.soilType] ?? 220)
+  }, [suelo?.soilType])
 
   // ── Estado resultados NPK ──────────────────────────────────────────────
   const [resultados, setResultados] = useState({
@@ -490,7 +508,39 @@ export default function App() {
               value={cultivo?.name ?? null}
               onChange={setCultivo}
             />
+
+            {/* ── Rendimiento esperado ── visible en cuanto hay cultivo ── */}
+            {cultivo && (
+              <div style={{ marginTop: 10 }}>
+                <div style={{ fontSize: 11, fontWeight: 700, textTransform: 'uppercase', letterSpacing: 0.5, color: '#546e7a', marginBottom: 6 }}>
+                  Rendimiento esperado
+                </div>
+                <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', fontSize: 12 }}>
+                  <span style={{ color: '#78909c' }}>Producción objetivo</span>
+                  <span style={{ display: 'flex', alignItems: 'center', gap: 4 }}>
+                    <input
+                      type="number"
+                      value={calculo.cropYield ?? ''}
+                      placeholder={cultivo.yieldMedium != null ? String(cultivo.yieldMedium) : '0'}
+                      min={0}
+                      step={100}
+                      onChange={e => setCalculo(prev => ({ ...prev, cropYield: e.target.value === '' ? null : Number(e.target.value) }))}
+                      style={{ width: 90, padding: '3px 6px', border: '1px solid #cfd8dc', borderRadius: 3, fontSize: 12, fontFamily: 'monospace', textAlign: 'right', color: '#263238' }}
+                    />
+                    <span style={{ color: '#90a4ae', fontSize: 10 }}>kg/ha</span>
+                  </span>
+                </div>
+                <div style={{ fontSize: 10, color: '#90a4ae', marginTop: 3 }}>
+                  Catálogo Sativum — mín: <strong>{cultivo.yieldLow ?? '—'}</strong> · med:{' '}
+                  <strong>{cultivo.yieldMedium ?? '—'}</strong> · máx:{' '}
+                  <strong>{cultivo.yieldHigh ?? '—'}</strong> kg/ha
+                </div>
+              </div>
+            )}
           </div>
+
+          {/* ── Ficha agronómica del cultivo ── */}
+          <CultivoCard cultivo={cultivo} />
 
           <GeometryPanel
             polygons={polygons}
@@ -603,8 +653,6 @@ export default function App() {
               </button>
             </div>
           )}
-
-          <CultivoCard cultivo={cultivo} />
 
           <div style={S.footer}>
             <strong>v0.2.0</strong> · FertiPRO × Sativum (ITACyL) · FertiliCalc (Villalobos et al. 2020)

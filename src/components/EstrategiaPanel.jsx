@@ -113,8 +113,6 @@ export default function EstrategiaPanel({ cultivo, params, onChange, soilType = 
     )
   }
 
-  const yieldPlaceholder = cultivo.yieldMedium != null ? String(cultivo.yieldMedium) : '0'
-
   return (
     <div style={SA.card}>
 
@@ -142,32 +140,6 @@ export default function EstrategiaPanel({ cultivo, params, onChange, soilType = 
             </button>
           )
         })}
-      </div>
-
-      {/* ── Rendimiento esperado ──────────────────────────────────────────── */}
-      <div style={SA.sectionTitle}>Rendimiento esperado</div>
-
-      <div style={SA.yieldRow}>
-        <span style={SA.lbl}>Producción objetivo</span>
-        <span style={{ display: 'flex', alignItems: 'center', gap: 4 }}>
-          <input
-            type="number"
-            value={params.cropYield ?? ''}
-            placeholder={yieldPlaceholder}
-            min={0}
-            step={0.1}
-            onChange={e => set({ cropYield: e.target.value === '' ? null : Number(e.target.value) })}
-            style={SA.numInput}
-          />
-          <span style={SA.unit}>kg/ha</span>
-        </span>
-      </div>
-
-      {/* Rango de referencia del catálogo */}
-      <div style={SA.yieldHint}>
-        Catálogo Sativum — mín: <strong>{cultivo.yieldLow ?? '—'}</strong> · med:{' '}
-        <strong>{cultivo.yieldMedium ?? '—'}</strong> · máx:{' '}
-        <strong>{cultivo.yieldHigh ?? '—'}</strong> kg/ha
       </div>
 
       {/* ── Accordion: parámetros N avanzados ────────────────────────────── */}

@@ -28,7 +28,7 @@ function grupoLabel(grupo) {
   return GRUPO_LABEL[grupo?.toUpperCase()] ?? grupo
 }
 
-export default function CultivoSelector({ value, onChange }) {
+export default function CultivoSelector({ value, onChange, label = 'Cultivo previsto en Campaña actual' }) {
   const [allCultivos, setAllCultivos] = useState([])
   const [grupos,      setGrupos]      = useState(new Map())
   const [loading,     setLoading]     = useState(true)
@@ -115,7 +115,7 @@ export default function CultivoSelector({ value, onChange }) {
   return (
     <div ref={wrapRef} style={S.wrap}>
       <label style={S.label}>
-        Cultivo
+        {label}
         <span style={S.count}>{total} disponibles</span>
       </label>
 
