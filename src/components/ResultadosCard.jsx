@@ -64,13 +64,15 @@ function NpkGrid({ n, p, k }) {
 }
 
 function FertilizerRow({ fert, index }) {
-  // Cada item en recommendations[i].fertilizers puede tener distintos shapes
-  // según la versión del API. Intentamos cubrir los campos más comunes.
-  const name  = fert.name ?? fert.fertilizer?.name ?? `Fertilizante ${index + 1}`
-  const dose  = fert.dose ?? fert.quantity ?? fert.appliedQuantity
-  const n     = fert.n    ?? fert.appliedN
-  const p     = fert.p    ?? fert.appliedP   // elemento puro
-  const k     = fert.k    ?? fert.appliedK
+  // Los fertilizantes de /recommendation tienen:
+  //   quantity  → dosis a aplicar (kg/ha)
+  //   n/p2o5/k2o → % de composición del producto
+  // El aporte real = composición% × dosis / 100
+  const name        = fert.name ?? fert.shortName ?? `Fertilizante ${index + 1}`
+  const dose        = fert.quantity
+  const appliedN    = dose != null ? fert.n    * dose / 100 : null
+  const appliedP2O5 = dose != null ? fert.p2o5 * dose / 100 : null
+  const appliedK2O  = dose != null ? fert.k2o  * dose / 100 : null
 
   return (
     <div style={SR.fertRow}>
@@ -78,7 +80,7 @@ function FertilizerRow({ fert, index }) {
       <div style={SR.fertNums}>
         {dose != null && <span style={SR.fertDose}>{Number(dose).toFixed(0)} kg/ha</span>}
         <span style={SR.fertNpk}>
-          N {kg(n, 0)} · P {kg(p, 0)} · K {kg(k, 0)}
+          N {kg(appliedN, 0)} · P₂O₅ {kg(appliedP2O5, 0)} · K₂O {kg(appliedK2O, 0)}
         </span>
       </div>
     </div>
@@ -86,26 +88,19 @@ function FertilizerRow({ fert, index }) {
 }
 
 function RecomendacionItem({ rec, index }) {
-  // 'unique' devuelve el fertilizante directamente (sin wrapper .fertilizers)
-  // estructura antigua esperada: { fertilizers: [...], totalApplied: {...} }
-  const fertilizers  = rec.fertilizers ?? [rec]
-  const totalApplied = rec.totalApplied ?? rec.total ?? null
-  const tipo         = rec.type ?? null
+  // La respuesta de /recommendation es un array de propuestas:
+  //   [ { unique: [ ...fertilizantes ], observations: "string|null" }, ... ]
+  // 'unique' = fertilizantes de esta propuesta (1 para simples, 2-3 para mezclas)
+  const fertilizers = rec.unique ?? []
+  const obs         = rec.observations ?? null
 
   return (
     <div style={SR.recItem}>
-      <div style={SR.recHeader}>
-        Opción {index + 1}
-        {tipo && <span style={SR.tipoBadge}>{tipo}</span>}
-      </div>
+      <div style={SR.recHeader}>Opción {index + 1}</div>
       {fertilizers.map((f, i) => (
         <FertilizerRow key={i} fert={f} index={i} />
       ))}
-      {totalApplied && (
-        <div style={SR.recTotal}>
-          Total aplicado — N: {kg(totalApplied.n)} · P₂O₅: {kg(pToOxide(totalApplied.p ?? 0))} · K₂O: {kg(kToOxide(totalApplied.k ?? 0))}
-        </div>
-      )}
+      {obs && <div style={SR.obsItem}>{obs}</div>}
     </div>
   )
 }
@@ -132,18 +127,9 @@ export default function ResultadosCard({ npk, recomendacion, adjustedNutrient = 
 
   if (!npk && !recomendacion) return null
 
-  const npkValues    = extraerNPK(npk)
-  // La API devuelve { unique: [...], observations: null }
-  // 'unique' = fertilizantes individuales que cubren el NPK objetivo
-  // Fallback a 'recommendations' por compatibilidad
-  const recList      = [
-    ...(recomendacion?.unique          ?? []),
-    ...(recomendacion?.simple          ?? []),
-    ...(recomendacion?.binary          ?? []),
-    ...(recomendacion?.ternary         ?? []),
-    ...(recomendacion?.recommendations ?? []),
-  ]
-  const observations = recomendacion?.observations ?? []
+  const npkValues = extraerNPK(npk)
+  // /recommendation devuelve un array de propuestas: [{ unique: [...], observations: "" }, ...]
+  const recList   = Array.isArray(recomendacion) ? recomendacion : []
 
   return (
     <div style={SR.card}>
@@ -180,18 +166,6 @@ export default function ResultadosCard({ npk, recomendacion, adjustedNutrient = 
             ? '⚠️ No se pudo obtener la recomendación de fertilizantes. Revisa la consola del navegador para más detalle.'
             : '⚠️ Sativum no devolvió combinaciones de fertilizantes para estos valores NPK.'}
         </div>
-      )}
-
-      {/* ── Observaciones ─────────────────────────────────────────────── */}
-      {observations.length > 0 && (
-        <>
-          <div style={SR.sectionTitle}>Observaciones</div>
-          {observations.map((obs, i) => (
-            <div key={i} style={SR.obsItem}>
-              {typeof obs === 'string' ? obs : obs.message ?? JSON.stringify(obs)}
-            </div>
-          ))}
-        </>
       )}
 
     </div>
