@@ -143,7 +143,7 @@ export default function App() {
         cultivosArr.push({
           cultivo:        cultivoAnterior,
           cropYield:      cultivoAnteriorParams.cropYield ?? cultivoAnterior.yieldMedium ?? 0,
-          cv:             cultivoAnterior.cv ?? 30,   // CV del catálogo; 30% = típico Med. semiárido
+          cv:             cultivoAnterior.cv ?? 0,    // CV = 0 default en Sativum; no afecta al cálculo actual
           recogeResiduos: cultivoAnteriorParams.recogeResiduos,
           quemaResiduos:  cultivoAnteriorParams.quemaResiduos,
         })
@@ -152,7 +152,7 @@ export default function App() {
       cultivosArr.push({
         cultivo,
         cropYield:      calculo.cropYield ?? cultivo.yieldMedium ?? 0,
-        cv:             cultivo.cv ?? 30,   // CV del catálogo; 30% = típico Med. semiárido
+        cv:             cultivo.cv ?? 0,    // CV = 0 default en Sativum; no afecta al cálculo actual
         recogeResiduos: calculo.recogeResiduos,
         quemaResiduos:  calculo.quemaResiduos,
       })
@@ -168,7 +168,7 @@ export default function App() {
 
       const npkData = await calcularNPK(cultivosArr, sueloEfectivo, {
         strategy:      calculo.strategy,
-        tillage:       calculo.tillage,
+        tillage:       cultivoAnteriorParams.laboreo,
         cec,
         riego:         riegoOpts,
         nEcuacion:     calculo.nEcuacion,

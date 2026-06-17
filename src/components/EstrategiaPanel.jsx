@@ -144,17 +144,6 @@ export default function EstrategiaPanel({ cultivo, params, onChange, soilType = 
         })}
       </div>
 
-      {/* ── Laboreo ───────────────────────────────────────────────────────── */}
-      <label style={SA.checkRow}>
-        <input
-          type="checkbox"
-          checked={params.tillage}
-          onChange={e => set({ tillage: e.target.checked })}
-          style={{ marginRight: 6 }}
-        />
-        <span style={SA.checkLabel}>Laboreo previo al abonado</span>
-      </label>
-
       {/* ── Rendimiento esperado ──────────────────────────────────────────── */}
       <div style={SA.sectionTitle}>Rendimiento esperado</div>
 

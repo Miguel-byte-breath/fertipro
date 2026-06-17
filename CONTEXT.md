@@ -1,6 +1,6 @@
 # FertiPRO × Sativum — Contexto de desarrollo (actualizar en cada sesión)
 
-> **Última actualización:** 2026-06-17  
+> **Última actualización:** 2026-06-17 (sesión 2)  
 > **Stack:** Vite 5 + React 18 + Leaflet + Geoman + Turf + SheetJS / Vercel serverless `/api/`  
 > **API base:** `https://gateway.api.itacyl.es/sativum` — header `apikey: SATIVUM_API_KEY` (env Vercel, NUNCA al cliente)  
 > **Repo:** GitHub privado Visual Nacert — git lo gestiona el usuario en PowerShell
@@ -43,7 +43,8 @@ handleCalcularNecesidades():
 | B8 | src/api/sativum-fertilizers.js | Conversiones antes de `/recommendation` | P×2.2914, K×1.2046 |
 | B-npk | src/App.jsx | NPK podía venir en `recommendations[0].n` no en top-level | `npkData.n ?? npkData.recommendations?.[0]?.n ?? 0` |
 | B-adj | src/App.jsx | `adjustedNutrient='N'` con N=0 → Sativum no genera combos | Auto-selección por mayor UF |
-| **B-stale** | **src/App.jsx** | **`cultivoAnterior` y `cultivoAnteriorParams` faltaban en deps del useCallback** → stale closure, cambios en cultivo anterior ignorados en cálculo | **Añadir ambos a deps array** ✅ sesión actual |
+| **B-stale** | **src/App.jsx** | **`cultivoAnterior` y `cultivoAnteriorParams` faltaban en deps del useCallback** → stale closure, cambios en cultivo anterior ignorados en cálculo | **Añadir ambos a deps array** ✅ |
+| **B-tillage** | **src/App.jsx + EstrategiaPanel.jsx** | **"Laboreo tras cosecha" (CultivoAnteriorPanel) nunca llegaba al payload; existían dos checks de laboreo redundantes** | **Eliminado "Laboreo previo al abonado" de EstrategiaPanel; `tillage: cultivoAnteriorParams.laboreo` en `handleCalcularNecesidades`** ✅ sesión 2 |
 
 ---
 
@@ -61,9 +62,9 @@ handleCalcularNecesidades():
 ```
 
 **`cv` = coeficiente de variación del rendimiento** (Villalobos et al. 2020).  
-Viene del catálogo de cultivos (`cultivo.cv`). Se usa para calcular N20/N80 (rango de necesidades en año malo/bueno).  
-- NO es hardcoded: usar `cultivo.cv ?? 30` (30% = típico zona semiárida mediterránea)  
-- El catálogo Sativum devuelve este campo: Veza ≈ 90, Ajo ≈ 60, Cebada ≈ 30 aprox.
+⚠️ **La UI de Sativum lo fija a 0 para todos los cultivos y el catálogo también devuelve 0.**  
+El campo existe en el schema pero **NO influye en el cálculo actual del endpoint** — es un parámetro reservado para el modo FAST (N20/N80, rango año bueno/malo) que no está operativo en la API ITACyL.  
+→ Dejar `cv: cultivo.cv ?? 0` (o simplemente `cv: 0`). No perder tiempo en esto.
 
 ### `green_manure`:
 **NO existe** en el schema oficial de `/fertilicalc/algo/`. Campo eliminado del payload. Pendiente verificar si Sativum lo soporta con otro nombre.
@@ -73,7 +74,25 @@ El array `rotation` tiene el cultivo **anterior primero**, el **actual al final*
 
 ---
 
-## 4. ⚠️ MOMENTO CRÍTICO: Prueba en producción (PENDIENTE)
+## 4. Metodología de debugging API Sativum
+
+La respuesta de `/fertilicalc/algo/` **echa de vuelta (echo) la configuración completa** que procesó, junto con el resultado N/P/K. Esto permite una técnica sistemática:
+
+**Variar un campo del request → observar qué cambia en el response.**
+
+Campos a verificar así (uno a uno, rest igual):
+- `rotation[0].crop_yield` → ¿cambia N del response? → confirma que el cultivo anterior opera
+- `collect_residues: true/false` → ¿cambia N? → confirma que la gestión de residuos opera
+- `burn_residues: true/false` → ¿cambia N?
+- `nfix_code: true/false` → ¿cambia N? → confirma fijación de N por leguminosas
+- `cv: 0 vs 90` → ¿cambia N? → confirma si CV está operativo en el endpoint actual
+- `green_manure: true` → ¿acepta el campo? ¿cambia N? → descubrir si existe y qué nombre tiene
+
+Esta metodología sirve para cualquier campo dudoso: si el response N no cambia al variar el campo, ese campo no opera en el cálculo actual (puede ser reservado para funcionalidad futura como FAST N20/N80).
+
+---
+
+## 5. ⚠️ MOMENTO CRÍTICO: Prueba en producción (PENDIENTE)
 
 Esta es la verificación que hay que hacer **tras el siguiente `git push` + redeploy en Vercel**:
 
@@ -108,7 +127,7 @@ src/
     sativum-fertilizers.js       ← getRecomendacion() + conversiones P/K
     sativum-suelo.js             ← identifySativum() + normalizarSuelo()
   components/
-    EstrategiaPanel.jsx          ← estrategia, laboreo, rendimiento, accordion N avanzado
+    EstrategiaPanel.jsx          ← estrategia, rendimiento, accordion N avanzado (laboreo eliminado)
     CultivoAnteriorPanel.jsx     ← cultivo precedente, producción, residuos
     ResultadosCard.jsx           ← NPK + combinaciones fertilizantes + observaciones
     SueloCard.jsx                ← análisis suelo ArcGIS (textura USDA + simplificada)
@@ -133,7 +152,6 @@ api/                             ← proxies serverless Vercel
 |---|-------|-----------|
 | B-cv-verify | Verificar en Network que `cultivo.cv` llega del catálogo (prueba producción §4) | 🔴 INMEDIATO |
 | B-warn | Tooltip/aviso en CultivoSelector y CultivoAnteriorPanel cuando `tieneRendimientoAnomalo()=true` (yieldMedium < yieldLow, bug catálogo Sativum) | 🟡 |
-| B-tillage | "Laboreo tras cosecha" en CultivoAnteriorPanel: se recoge en UI pero nunca llega al payload. Verificar campo exacto en API Sativum. | 🟡 |
 | B-green-manure | Verificar nombre correcto del campo `green_manure` (o equivalente) en la API. Existe en UI de Sativum pero no en el schema documentado. | 🟡 |
 | P5 | Conectar `soilTypeSimplified` (101-106) mapping completo en `normalizarSuelo` | 🟢 |
 | P6 | Detección y alerta de Zonas Vulnerables a Nitratos (ZVN) | 🟢 |
