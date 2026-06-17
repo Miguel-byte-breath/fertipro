@@ -504,6 +504,24 @@ export default function App() {
 
         <aside style={S.aside}>
           <div style={{ padding: 12 }}>
+
+            {/* ── Fecha del plan ── primer dato del formulario ── */}
+            <div style={{ marginBottom: 12 }}>
+              <label style={{ fontSize: 11, color: '#78909c', display: 'block', marginBottom: 2 }}>
+                Fecha del plan de abonado
+              </label>
+              <input
+                type="date"
+                value={fecha}
+                onChange={e => setFecha(e.target.value)}
+                style={{
+                  width: '100%', padding: '5px 7px', fontSize: 12,
+                  border: '1px solid #cfd8dc', borderRadius: 4,
+                  fontFamily: 'inherit', color: '#263238', boxSizing: 'border-box',
+                }}
+              />
+            </div>
+
             <CultivoSelector
               value={cultivo?.name ?? null}
               onChange={setCultivo}
@@ -584,23 +602,6 @@ export default function App() {
             onCultivoChange={setCultivoAnterior}
             onParamsChange={setCultivoAnteriorParams}
           />
-
-          {/* Fecha del plan */}
-          <div style={{ margin: '4px 12px 0' }}>
-            <label style={{ fontSize: 11, color: '#78909c', display: 'block', marginBottom: 2 }}>
-              Fecha del plan de abonado
-            </label>
-            <input
-              type="date"
-              value={fecha}
-              onChange={e => setFecha(e.target.value)}
-              style={{
-                width: '100%', padding: '5px 7px', fontSize: 12,
-                border: '1px solid #cfd8dc', borderRadius: 4,
-                fontFamily: 'inherit', color: '#263238', boxSizing: 'border-box',
-              }}
-            />
-          </div>
 
           <EstrategiaPanel
             cultivo={cultivo}

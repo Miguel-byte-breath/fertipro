@@ -13,53 +13,17 @@
  *   onCultivoChange  — (cultivo | null) => void
  *   onParamsChange   — (params) => void
  */
-import { useEffect, useState } from 'react'
-import { getCultivos, agruparPorGrupo, tieneRendimientoAnomalo } from '../api/sativum-crops'
-
-const GRUPO_LABEL = {
-  CEREALS:                 'Cereales',
-  FORAGE_NON_LEGUME:       'Forrajes no leguminosos',
-  FORAGE_LEGUME:           'Forrajes leguminosos',
-  FORAGE_MIX_LEGUME_GRASS: 'Mezclas forrajeras',
-  INDUSTRIAL:              'Cultivos industriales',
-  PULSES:                  'Leguminosas grano',
-  HORTICULTURAL:           'Hortícolas',
-  TUBERS_ROOT:             'Tubérculos y raíces',
-  TREES:                   'Leñosos',
-  OTHER:                   'Otros',
-}
+import { useState } from 'react'
+import CultivoSelector from '../cultivos/CultivoSelector'
 
 function esCereal(c) {
   return c?.plantSpeciesGroup?.toUpperCase() === 'CEREALS'
 }
-function tieneResidueRule(c) {
-  return esCereal(c) && c?.fres === 10
-}
 
 export default function CultivoAnteriorPanel({ cultivo, params, onCultivoChange, onParamsChange }) {
-  const [grupos,      setGrupos]      = useState([])
-  const [allCultivos, setAllCultivos] = useState([])
-  const [loading,     setLoading]     = useState(true)
-  const [open,        setOpen]        = useState(false)
-
-  useEffect(() => {
-    let cancelled = false
-    getCultivos().then(lista => {
-      if (cancelled) return
-      setAllCultivos(lista)
-      setGrupos(agruparPorGrupo(lista))
-      setLoading(false)
-    })
-    return () => { cancelled = true }
-  }, [])
+  const [open, setOpen] = useState(false)
 
   const set = patch => onParamsChange({ ...params, ...patch })
-
-  const handleSelect = e => {
-    const name = e.target.value
-    if (!name) { onCultivoChange(null); return }
-    onCultivoChange(allCultivos.find(c => c.name === name) ?? null)
-  }
 
   const mostrarResiduos = cultivo != null
 
@@ -81,25 +45,13 @@ export default function CultivoAnteriorPanel({ cultivo, params, onCultivoChange,
       {open && (
         <div style={{ paddingTop: 6 }}>
 
-          {/* Selector cultivo anterior */}
+          {/* Selector cultivo anterior — mismo combobox que cultivo actual */}
           <div style={SC.fieldGroup}>
-            <label style={SC.lbl}>Cultivo precedente</label>
-            {loading ? (
-              <div style={SC.hint}>Cargando catálogo…</div>
-            ) : (
-              <select value={cultivo?.name ?? ''} onChange={handleSelect} style={SC.select}>
-                <option value="">— Sin cultivo anterior —</option>
-                {[...grupos.entries()].map(([grupo, cultivos]) => (
-                  <optgroup key={grupo} label={GRUPO_LABEL[grupo?.toUpperCase()] ?? grupo}>
-                    {cultivos.map(c => (
-                      <option key={c.id} value={c.name}>
-                        {c.name}{tieneRendimientoAnomalo(c) ? ' ⚠️' : ''}
-                      </option>
-                    ))}
-                  </optgroup>
-                ))}
-              </select>
-            )}
+            <CultivoSelector
+              value={cultivo?.name ?? null}
+              onChange={onCultivoChange}
+              label="Cultivo precedente"
+            />
           </div>
 
           {cultivo && (
@@ -183,12 +135,6 @@ const SC = {
   opcional:{ fontSize: 10, fontWeight: 400, color: '#90a4ae', marginLeft: 4 },
   preview: { fontSize: 11, color: '#546e7a', marginTop: 3, fontStyle: 'italic' },
   fieldGroup: { marginBottom: 6 },
-  lbl:  { display: 'block', fontSize: 11, color: '#78909c', marginBottom: 2 },
-  select: {
-    width: '100%', padding: '5px 7px', fontSize: 12,
-    border: '1px solid #cfd8dc', borderRadius: 4,
-    background: '#fff', fontFamily: 'inherit', color: '#263238',
-  },
   row: {
     display: 'flex', justifyContent: 'space-between', alignItems: 'center',
     fontSize: 12, padding: '3px 0', borderBottom: '1px solid #f0f4f7',
