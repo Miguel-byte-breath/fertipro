@@ -25,13 +25,15 @@ function kg(v, dec = 1) {
   return `${Number(v).toFixed(dec)} kg/ha`
 }
 
-// Extrae n/p/k de la respuesta del algo, que puede venir en distintos niveles
+// Extrae n/p/k de la respuesta del algo.
+// La API devuelve recommendations[] con un item por cultivo de la rotación;
+// el ÚLTIMO siempre corresponde al cultivo actual (objetivo del plan).
 function extraerNPK(npkData) {
   if (!npkData) return null
-  // Intenta top-level primero; luego dentro de recommendations[0]
-  const n = npkData.n ?? npkData.recommendations?.[0]?.n
-  const p = npkData.p ?? npkData.recommendations?.[0]?.p
-  const k = npkData.k ?? npkData.recommendations?.[0]?.k
+  const lastRec = npkData.recommendations?.at(-1)
+  const n = npkData.n ?? lastRec?.n
+  const p = npkData.p ?? lastRec?.p
+  const k = npkData.k ?? lastRec?.k
   if (n == null && p == null && k == null) return null
   return { n: n ?? 0, p: p ?? 0, k: k ?? 0 }
 }

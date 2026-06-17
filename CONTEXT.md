@@ -46,6 +46,7 @@ handleCalcularNecesidades():
 | **B-stale** | **src/App.jsx** | **`cultivoAnterior` y `cultivoAnteriorParams` faltaban en deps del useCallback** → stale closure, cambios en cultivo anterior ignorados en cálculo | **Añadir ambos a deps array** ✅ |
 | **B-tillage** | **src/App.jsx + EstrategiaPanel.jsx** | **"Laboreo tras cosecha" (CultivoAnteriorPanel) nunca llegaba al payload; existían dos checks de laboreo redundantes** | **Eliminado "Laboreo previo al abonado" de EstrategiaPanel; `tillage: cultivoAnteriorParams.laboreo` en `handleCalcularNecesidades`** ✅ sesión 2 |
 | **B-recom** | **src/components/ResultadosCard.jsx** | **`/recommendation` devuelve `{ unique: [...] }` no `{ recommendations: [] }` — las combinaciones nunca se mostraban** | **`recList` ahora lee `unique \| simple \| binary \| ternary \| recommendations`; `RecomendacionItem` trata el item directo como fertilizante si no hay `.fertilizers`** ✅ sesión 3 |
+| **B-reco-index** | **src/App.jsx + ResultadosCard.jsx** | **`/algo/` devuelve `recommendations[]` con un item por cultivo de la rotación en el MISMO ORDEN (anterior, actual). Usábamos `[0]` → con cultivo anterior, N=0 (NPK del precedente, no del objetivo)** | **Usar `recommendations.at(-1)` — el último siempre es el cultivo actual** ✅ sesión 3 |
 
 ---
 

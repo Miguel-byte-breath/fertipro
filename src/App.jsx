@@ -180,11 +180,14 @@ export default function App() {
         return
       }
 
-      // Extraer N/P/K del objeto crudo — pueden estar en nivel raíz o dentro de recommendations[0]
+      // La API devuelve un item en recommendations[] por cada cultivo de la rotación,
+      // en el mismo orden: [cultivoAnterior?, cultivoActual].
+      // El último item SIEMPRE corresponde al cultivo actual (objetivo del plan).
+      const lastRec = npkData.recommendations?.at(-1)
       const npkNorm = {
-        n: npkData.n ?? npkData.recommendations?.[0]?.n ?? 0,
-        p: npkData.p ?? npkData.recommendations?.[0]?.p ?? 0,
-        k: npkData.k ?? npkData.recommendations?.[0]?.k ?? 0,
+        n: npkData.n ?? lastRec?.n ?? 0,
+        p: npkData.p ?? lastRec?.p ?? 0,
+        k: npkData.k ?? lastRec?.k ?? 0,
       }
       console.debug('[NPK norm]', npkNorm)
 
