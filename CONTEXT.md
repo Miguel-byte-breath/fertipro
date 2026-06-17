@@ -1,6 +1,6 @@
 # FertiPRO × Sativum — Contexto de desarrollo (actualizar en cada sesión)
 
-> **Última actualización:** 2026-06-17 (sesión 2)  
+> **Última actualización:** 2026-06-17 (sesión 3)  
 > **Stack:** Vite 5 + React 18 + Leaflet + Geoman + Turf + SheetJS / Vercel serverless `/api/`  
 > **API base:** `https://gateway.api.itacyl.es/sativum` — header `apikey: SATIVUM_API_KEY` (env Vercel, NUNCA al cliente)  
 > **Repo:** GitHub privado Visual Nacert — git lo gestiona el usuario en PowerShell
@@ -45,6 +45,7 @@ handleCalcularNecesidades():
 | B-adj | src/App.jsx | `adjustedNutrient='N'` con N=0 → Sativum no genera combos | Auto-selección por mayor UF |
 | **B-stale** | **src/App.jsx** | **`cultivoAnterior` y `cultivoAnteriorParams` faltaban en deps del useCallback** → stale closure, cambios en cultivo anterior ignorados en cálculo | **Añadir ambos a deps array** ✅ |
 | **B-tillage** | **src/App.jsx + EstrategiaPanel.jsx** | **"Laboreo tras cosecha" (CultivoAnteriorPanel) nunca llegaba al payload; existían dos checks de laboreo redundantes** | **Eliminado "Laboreo previo al abonado" de EstrategiaPanel; `tillage: cultivoAnteriorParams.laboreo` en `handleCalcularNecesidades`** ✅ sesión 2 |
+| **B-recom** | **src/components/ResultadosCard.jsx** | **`/recommendation` devuelve `{ unique: [...] }` no `{ recommendations: [] }` — las combinaciones nunca se mostraban** | **`recList` ahora lee `unique \| simple \| binary \| ternary \| recommendations`; `RecomendacionItem` trata el item directo como fertilizante si no hay `.fertilizers`** ✅ sesión 3 |
 
 ---
 

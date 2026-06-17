@@ -84,12 +84,18 @@ function FertilizerRow({ fert, index }) {
 }
 
 function RecomendacionItem({ rec, index }) {
-  const fertilizers   = rec.fertilizers ?? []
-  const totalApplied  = rec.totalApplied ?? rec.total ?? null
+  // 'unique' devuelve el fertilizante directamente (sin wrapper .fertilizers)
+  // estructura antigua esperada: { fertilizers: [...], totalApplied: {...} }
+  const fertilizers  = rec.fertilizers ?? [rec]
+  const totalApplied = rec.totalApplied ?? rec.total ?? null
+  const tipo         = rec.type ?? null
 
   return (
     <div style={SR.recItem}>
-      <div style={SR.recHeader}>Combinación {index + 1}</div>
+      <div style={SR.recHeader}>
+        Opción {index + 1}
+        {tipo && <span style={SR.tipoBadge}>{tipo}</span>}
+      </div>
       {fertilizers.map((f, i) => (
         <FertilizerRow key={i} fert={f} index={i} />
       ))}
@@ -125,8 +131,17 @@ export default function ResultadosCard({ npk, recomendacion, adjustedNutrient = 
   if (!npk && !recomendacion) return null
 
   const npkValues    = extraerNPK(npk)
-  const recList      = recomendacion?.recommendations ?? []
-  const observations = recomendacion?.observations    ?? []
+  // La API devuelve { unique: [...], observations: null }
+  // 'unique' = fertilizantes individuales que cubren el NPK objetivo
+  // Fallback a 'recommendations' por compatibilidad
+  const recList      = [
+    ...(recomendacion?.unique          ?? []),
+    ...(recomendacion?.simple          ?? []),
+    ...(recomendacion?.binary          ?? []),
+    ...(recomendacion?.ternary         ?? []),
+    ...(recomendacion?.recommendations ?? []),
+  ]
+  const observations = recomendacion?.observations ?? []
 
   return (
     <div style={SR.card}>
@@ -228,7 +243,8 @@ const SR = {
     padding: '6px 8px', marginBottom: 6,
     background: '#fafbff',
   },
-  recHeader: { fontSize: 11, fontWeight: 700, color: '#3949ab', marginBottom: 4 },
+  recHeader: { fontSize: 11, fontWeight: 700, color: '#3949ab', marginBottom: 4, display: 'flex', alignItems: 'center', gap: 6 },
+  tipoBadge: { fontSize: 9, fontWeight: 600, color: '#4a148c', background: '#f3e5f5', border: '1px solid #ce93d8', borderRadius: 8, padding: '1px 6px' },
   fertRow: {
     display: 'flex', justifyContent: 'space-between', alignItems: 'flex-start',
     padding: '2px 0', borderBottom: '1px solid #f0f4f7', fontSize: 11,
