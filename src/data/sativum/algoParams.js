@@ -34,7 +34,7 @@ export const ALGO_PARAMS = {
     SANDY_LOAM: { p_threshold: 12, k_threshold: 175, soil_effect: 1.56, bulk_density: 1.56, efficiency_factor: 1.4 },
     LOAM:       { p_threshold: 12, k_threshold: 175, soil_effect: 1.43, bulk_density: 1.43, efficiency_factor: 1.7 },
     SILTY_LOAM: { p_threshold: 12, k_threshold: 175, soil_effect: 1.41, bulk_density: 1.41, efficiency_factor: 1.7 },
-    CLAY_LOAM:  { p_threshold: 12, k_threshold: 175, soil_effect: 1.31, bulk_density: 1.31, efficiency_factor: 2.1 },
+    CLAY_LOAM:  { p_threshold: 12, k_threshold: 175, soil_effect: 1.31, bulk_density: 1.31, efficiency_factor: 2.0 },
     CLAY:       { p_threshold: 14, k_threshold: 225, soil_effect: 1.21, bulk_density: 1.21, efficiency_factor: 2.6 },
   },
   REDUCED: {

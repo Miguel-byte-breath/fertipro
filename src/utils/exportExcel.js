@@ -134,20 +134,33 @@ function num(v, dec = 2) {
 // Plan de Abonado completo
 // ─────────────────────────────────────────────────────────────────────────────
 
+// Etiquetas legibles para tipo de suelo (textura simplificada Sativum)
+const SOIL_TYPE_LABEL = {
+  SANDY:      'Arenosa',
+  SANDY_LOAM: 'Franco arenosa',
+  LOAM:       'Franca',
+  SILTY_LOAM: 'Franco limosa',
+  CLAY_LOAM:  'Franco arcillosa',
+  CLAY:       'Arcillosa',
+}
+
 /**
  * Descarga el plan de abonado completo en Excel (3 hojas).
  *
  * @param {object} opts
- * @param {object}  opts.point       — { lon, lat }
- * @param {object}  [opts.recinto]   — datos SIGPAC
- * @param {object}  opts.cultivo     — objeto catálogo Sativum
- * @param {object}  [opts.suelo]     — resultado normalizarSuelo()
- * @param {number}  opts.cec         — meq/kg
- * @param {object}  opts.riego       — { fuenteId, fuenteLabel, no3MgL, dotacionM3 }
- * @param {object}  opts.calculo     — { strategy, tillage, cropYield, recogeResiduos }
- * @param {string}  [opts.fecha]     — fecha del plan (YYYY-MM-DD)
- * @param {object}  opts.npk         — respuesta /algo/ con .n .p .k
- * @param {object}  [opts.recomendacion] — respuesta /recommendation
+ * @param {object}  opts.point                — { lon, lat }
+ * @param {object}  [opts.recinto]            — datos SIGPAC
+ * @param {object}  opts.cultivo              — objeto catálogo Sativum
+ * @param {object}  [opts.suelo]             — resultado normalizarSuelo()
+ * @param {number}  opts.cec                  — meq/kg
+ * @param {object}  opts.riego               — { fuenteId, fuenteLabel, no3MgL, dotacionM3 }
+ * @param {object}  opts.calculo             — { strategy, tillage, cropYield, recogeResiduos, quemaResiduos }
+ * @param {string}  [opts.fecha]             — fecha del plan (YYYY-MM-DD)
+ * @param {object}  opts.npk                  — respuesta bruta /algo/
+ * @param {object}  [opts.recomendacion]     — respuesta /recommendation (array)
+ * @param {string}  [opts.adjustedNutrient]  — 'N' | 'P' | 'K'
+ * @param {object}  [opts.cultivoAnterior]   — objeto cultivo precedente
+ * @param {object}  [opts.cultivoAnteriorParams] — { cropYield, laboreo, recogeResiduos, quemaResiduos }
  * @param {string}  [opts.baseName]
  */
 export async function exportarPlanAbonado({
@@ -161,6 +174,9 @@ export async function exportarPlanAbonado({
   fecha,
   npk,
   recomendacion,
+  adjustedNutrient = null,
+  cultivoAnterior = null,
+  cultivoAnteriorParams = null,
   baseName = 'fertipro_plan_abonado',
 }) {
   const mod  = await import('xlsx')
@@ -169,85 +185,132 @@ export async function exportarPlanAbonado({
   const P_TO_P2O5 = 2.2914
   const K_TO_K2O  = 1.2046
 
-  const n = num(npk?.n, 1)
-  const p = num(npk?.p, 1)
-  const k = num(npk?.k, 1)
+  // NPK: top-level con fallback al último item de recommendations (cultivo actual)
+  const lastRec = npk?.recommendations?.at(-1)
+  const nVal = npk?.n ?? lastRec?.n
+  const pVal = npk?.p ?? lastRec?.p
+  const kVal = npk?.k ?? lastRec?.k
+  const n = num(nVal, 1)
+  const p = num(pVal, 1)
+  const k = num(kVal, 1)
+
+  // N aportado por riego: NO₃ (mg/L) × dotación (m³/ha) → kg N/ha
+  // N = NO3_mgL × dotacion_m3ha / 1000 × (14/62)
+  const no3   = Number(riego?.no3MgL)    || 0
+  const dot   = Number(riego?.dotacionM3) || 0
+  const nRiego = (riego?.fuenteId !== 0 && no3 > 0 && dot > 0)
+    ? num(no3 * dot / 1000 * (14 / 62), 1)
+    : null
 
   // ── Hoja 1: Plan de Abonado ─────────────────────────────────────────────
   const plan = []
   const row = (campo, valor, unidad = '') => plan.push({ 'Campo': campo, 'Valor': valor ?? '—', 'Unidad': unidad })
 
-  row('Fecha',            fecha ? new Date(fecha + 'T00:00:00').toLocaleDateString('es-ES') : new Date().toLocaleDateString('es-ES'))
-  row('Longitud',         num(point?.lon, 5), '°')
-  row('Latitud',          num(point?.lat, 5), '°')
+  row('Fecha', fecha
+    ? new Date(fecha + 'T00:00:00').toLocaleDateString('es-ES')
+    : new Date().toLocaleDateString('es-ES'))
+  row('Longitud', num(point?.lon, 5), '°')
+  row('Latitud',  num(point?.lat, 5), '°')
   if (recinto) {
-    row('Municipio SIGPAC',  recinto.municipio ?? null)
-    row('Uso SIGPAC',        recinto.uso_sigpac ?? null)
-    row('Superficie recinto',num(recinto.superficie_ha, 4), 'ha')
+    row('Municipio SIGPAC',   recinto.municipio  ?? null)
+    row('Uso SIGPAC',         recinto.uso_sigpac ?? null)
+    row('Superficie recinto', num(recinto.superficie_ha, 4), 'ha')
   }
-  row('', null)   // spacer
-  row('Cultivo',           cultivo?.name)
-  row('Grupo',             cultivo?.plantSpeciesGroup)
-  row('Rendimiento objetivo', num(calculo?.cropYield ?? cultivo?.yieldMedium, 2), 'kg/ha')
-  row('Estrategia',        calculo?.strategy)
-  row('Laboreo',           calculo?.tillage ? 'Sí' : 'No')
-  row('Residuos recogidos',calculo?.recogeResiduos ? 'Sí' : 'No')
+
+  row('', null)  // spacer
+
+  row('Cultivo',               cultivo?.name)
+  row('Grupo',                 cultivo?.plantSpeciesGroup)
+  row('Rendimiento objetivo',  num(calculo?.cropYield ?? cultivo?.yieldMedium, 2), 'kg/ha')
+  row('Estrategia',            calculo?.strategy)
+  row('Laboreo',               calculo?.tillage          ? 'Sí' : 'No')
+  row('Residuos recogidos',    calculo?.recogeResiduos   ? 'Sí' : 'No')
+  if (calculo?.recogeResiduos) {
+    row('Quema residuos',      calculo?.quemaResiduos    ? 'Sí' : 'No')
+  }
+  if (adjustedNutrient) {
+    row('Nutriente ajustado',  adjustedNutrient)
+  }
+
   row('', null)
-  row('Tipo de suelo',     suelo?.soilType)
-  row('Materia orgánica',  num(suelo?.organicMatter, 2), '%')
-  row('pH',                num(suelo?.ph, 1))
-  row('P Olsen',           num(suelo?.pOlsen, 1), 'ppm')
-  row('K suelo',           num(suelo?.kSoil, 0), 'ppm')
-  row('CEC',               num(cec, 0), 'meq/kg')
+
+  // Cultivo anterior
+  if (cultivoAnterior) {
+    row('Cultivo precedente',         cultivoAnterior.name)
+    row('  Rendimiento precedente',   num(cultivoAnteriorParams?.cropYield ?? cultivoAnterior.yieldMedium, 2), 'kg/ha')
+    row('  Laboreo tras cosecha',     cultivoAnteriorParams?.laboreo        ? 'Sí' : 'No')
+    row('  Residuos precedente',      cultivoAnteriorParams?.recogeResiduos ? 'Recogidos' : 'Incorporados')
+    if (cultivoAnteriorParams?.recogeResiduos) {
+      row('  Quema residuos precedente', cultivoAnteriorParams?.quemaResiduos ? 'Sí' : 'No')
+    }
+    row('', null)
+  }
+
+  const soilLabel = suelo?.soilType
+    ? `${SOIL_TYPE_LABEL[suelo.soilType] ?? suelo.soilType} (${suelo.soilType})`
+    : null
+  row('Textura suelo',      soilLabel)
+  row('Materia orgánica',   num(suelo?.organicMatter, 2), '%')
+  row('pH',                 num(suelo?.ph, 1))
+  row('P Olsen',            num(suelo?.pOlsen, 1),  'ppm')
+  row('K suelo',            num(suelo?.kSoil, 0),   'ppm')
+  row('CEC',                num(cec, 0),             'meq/kg')
+
   row('', null)
+
   row('Fuente agua riego', riego?.fuenteLabel ?? (riego?.fuenteId === 0 ? 'Sin riego' : `Fuente ${riego?.fuenteId}`))
   if (riego?.fuenteId !== 0) {
-    row('NO₃ agua riego',   num(riego?.no3MgL, 1), 'mg/L')
-    row('Dotación riego',   num(riego?.dotacionM3, 0), 'm³/ha')
+    row('NO₃ agua riego',    num(riego?.no3MgL, 1),     'mg/L')
+    row('Dotación riego',    num(riego?.dotacionM3, 0),  'm³/ha')
+    if (suelo?.kIrrigation != null) {
+      row('K agua riego',    num(suelo.kIrrigation, 1),  'mg/L')
+    }
+    if (nRiego != null) {
+      row('N aportado riego', nRiego, 'kg N/ha')
+    }
   }
+
   row('', null)
-  row('N necesario',        n,                           'kg N/ha')
-  row('P necesario (puro)', p,                           'kg P/ha')
-  row('P₂O₅ necesario',    num(p * P_TO_P2O5, 1),       'kg P₂O₅/ha')
-  row('K necesario (puro)', k,                           'kg K/ha')
-  row('K₂O necesario',     num(k * K_TO_K2O, 1),        'kg K₂O/ha')
+
+  row('N necesario',       n,                         'kg N/ha')
+  row('P necesario',       p,                         'kg P/ha')
+  row('P₂O₅ necesario',   num(p * P_TO_P2O5, 1),     'kg P₂O₅/ha')
+  row('K necesario',       k,                         'kg K/ha')
+  row('K₂O necesario',    num(k * K_TO_K2O, 1),       'kg K₂O/ha')
 
   const wsPlan = XLSX.utils.json_to_sheet(plan)
-  wsPlan['!cols'] = [{ wch: 26 }, { wch: 22 }, { wch: 14 }]
+  wsPlan['!cols'] = [{ wch: 28 }, { wch: 24 }, { wch: 14 }]
 
   // ── Hoja 2: Fertilizantes ───────────────────────────────────────────────
+  // Estructura real de /recommendation: [{unique:[{name,n,p2o5,k2o,quantity,...}], observations:""}]
   const fertRows = []
-  const recs = recomendacion?.recommendations ?? []
-  recs.forEach((rec, ri) => {
-    const ferts = rec.fertilizers ?? []
+  const recList = Array.isArray(recomendacion) ? recomendacion : []
+  recList.forEach((rec, ri) => {
+    const ferts = rec.unique ?? []
     ferts.forEach(f => {
-      const dose   = f.dose ?? f.quantity ?? f.appliedQuantity
-      const fn     = f.n  ?? f.appliedN
-      const fp     = f.p  ?? f.appliedP
-      const fk     = f.k  ?? f.appliedK
+      const dose  = f.quantity
+      const fn    = dose != null ? f.n    * dose / 100 : null
+      const fp2o5 = dose != null ? f.p2o5 * dose / 100 : null
+      const fk2o  = dose != null ? f.k2o  * dose / 100 : null
       fertRows.push({
-        'Combinación':     ri + 1,
-        'Fertilizante':    f.name ?? f.fertilizer?.name ?? `Fert. ${ri + 1}`,
-        'Dosis (kg/ha)':   num(dose, 0),
-        'N aportado':      num(fn, 1),
-        'P aportado (puro)': num(fp, 1),
-        'P₂O₅ aportado':  num(fp != null ? fp * P_TO_P2O5 : null, 1),
-        'K aportado (puro)': num(fk, 1),
-        'K₂O aportado':   num(fk != null ? fk * K_TO_K2O : null, 1),
+        'Combinación':           ri + 1,
+        'Fertilizante':          f.name ?? `Fert. ${ri + 1}`,
+        '% N':                   num(f.n,    1),
+        '% P₂O₅':               num(f.p2o5, 1),
+        '% K₂O':                num(f.k2o,  1),
+        'Dosis (kg/ha)':         num(dose, 0),
+        'N aportado (kg/ha)':    num(fn,    1),
+        'P₂O₅ aportado (kg/ha)':num(fp2o5, 1),
+        'K₂O aportado (kg/ha)': num(fk2o,  1),
       })
     })
-    // Total
-    const tot = rec.totalApplied ?? rec.total
-    if (tot) {
+    if (rec.observations) {
       fertRows.push({
-        'Combinación': ri + 1,
-        'Fertilizante': '— TOTAL —',
+        'Combinación':           ri + 1,
+        'Fertilizante':          `Observación: ${rec.observations}`,
+        '% N': null, '% P₂O₅': null, '% K₂O': null,
         'Dosis (kg/ha)': null,
-        'N aportado':    num(tot.n, 1),
-        'P aportado (puro)': num(tot.p, 1),
-        'P₂O₅ aportado':  num(tot.p != null ? tot.p * P_TO_P2O5 : null, 1),
-        'K aportado (puro)': num(tot.k, 1),
-        'K₂O aportado':  num(tot.k != null ? tot.k * K_TO_K2O : null, 1),
+        'N aportado (kg/ha)': null, 'P₂O₅ aportado (kg/ha)': null, 'K₂O aportado (kg/ha)': null,
       })
     }
   })
@@ -256,19 +319,21 @@ export async function exportarPlanAbonado({
     fertRows.length > 0 ? fertRows : [{ 'Info': 'No hay recomendaciones de fertilizantes disponibles.' }]
   )
   wsFert['!cols'] = [
-    { wch: 12 }, { wch: 28 }, { wch: 14 }, { wch: 14 }, { wch: 18 }, { wch: 16 }, { wch: 18 }, { wch: 14 },
+    { wch: 12 }, { wch: 30 }, { wch:  8 }, { wch:  9 }, { wch:  9 },
+    { wch: 14 }, { wch: 22 }, { wch: 24 }, { wch: 22 },
   ]
 
   // ── Hoja 3: Notas ───────────────────────────────────────────────────────
   const notas = [
-    { 'Campo': 'Aplicación',          'Valor': 'FertiPRO' },
-    { 'Campo': 'Motor de cálculo',    'Valor': 'FertiliCalc (Villalobos et al. 2020) vía API Sativum (ITACyL)' },
-    { 'Campo': 'Fuente suelo',        'Valor': 'ArcGIS MapServer Sativum / ITACyL' },
-    { 'Campo': 'Fuente recintos',     'Valor': 'SIGPAC (FEGA) · OGC API · CC BY 4.0' },
-    { 'Campo': 'Fecha generación',    'Valor': new Date().toISOString() },
-    { 'Campo': 'Unidades NPK',        'Valor': 'kg/ha (elemento puro); P₂O₅ y K₂O son formas de óxido' },
-    { 'Campo': 'Conversión P→P₂O₅',  'Valor': '× 2.2914' },
-    { 'Campo': 'Conversión K→K₂O',   'Valor': '× 1.2046' },
+    { 'Campo': 'Aplicación',         'Valor': 'FertiPRO' },
+    { 'Campo': 'Motor de cálculo',   'Valor': 'FertiliCalc (Villalobos et al. 2020) vía API Sativum (ITACyL)' },
+    { 'Campo': 'Fuente suelo',       'Valor': 'ArcGIS MapServer Sativum / ITACyL' },
+    { 'Campo': 'Fuente recintos',    'Valor': 'SIGPAC (FEGA) · OGC API · CC BY 4.0' },
+    { 'Campo': 'Fecha generación',   'Valor': new Date().toISOString() },
+    { 'Campo': 'Unidades NPK',       'Valor': 'kg/ha — N en elemento puro; P y K en forma óxido (P₂O₅, K₂O)' },
+    { 'Campo': 'Conversión P→P₂O₅', 'Valor': '× 2.2914' },
+    { 'Campo': 'Conversión K→K₂O',  'Valor': '× 1.2046' },
+    { 'Campo': 'N aportado riego',   'Valor': 'NO₃ (mg/L) × dotación (m³/ha) / 1000 × (14/62) = kg N/ha' },
   ]
   const wsNotas = XLSX.utils.json_to_sheet(notas)
   wsNotas['!cols'] = [{ wch: 22 }, { wch: 60 }]

@@ -454,8 +454,11 @@ export default function App() {
         riego: { ...riego, fuenteLabel },
         calculo,
         fecha,
-        npk:          resultados.npk,
-        recomendacion: resultados.recomendacion,
+        npk:                  resultados.npk,
+        recomendacion:        resultados.recomendacion,
+        adjustedNutrient:     resultados.adjustedNutrient,
+        cultivoAnterior,
+        cultivoAnteriorParams,
         baseName,
       })
     } finally {
