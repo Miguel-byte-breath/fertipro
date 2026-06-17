@@ -119,14 +119,17 @@ export function ensamblarPayloadAlgo(cultivos, suelo, opts = {}) {
   // n_other = deposición atmosférica (10) + N del agua de riego
   const nOther = (N_EQUATION_DEFAULTS.n_other + nAgua)
 
-  const rotation = cultivos.map(({ cultivo, cropYield, cv = 0, recogeResiduos = false, quemaResiduos = false, abonoVerde = false }) => ({
+  const rotation = cultivos.map(({ cultivo, cropYield, cv = 0, recogeResiduos = false, quemaResiduos = false }) => ({
     crop_yield:       cropYield,
     cv:               cv,
     collect_residues: recogeResiduos,
     burn_residues:    quemaResiduos,
-    green_manure:     abonoVerde,
+    // green_manure: pendiente verificar nombre exacto del campo en API Sativum
     crop_features:    cultivoToCropFeatures(cultivo, { recogeResiduos, quemaResiduos }),
   }))
+
+  console.debug('[algo payload] rotation:', JSON.stringify(rotation))
+  console.debug('[algo payload] n_equation_parameter:', { ...N_EQUATION_DEFAULTS, n_other: nOther, ...nEcuacion })
 
   return {
     rotation,
