@@ -111,10 +111,11 @@ export default function App() {
 
   // ── Estado resultados NPK ──────────────────────────────────────────────
   const [resultados, setResultados] = useState({
-    npk:           null,
-    recomendacion: null,
-    loading:       false,
-    error:         null,
+    npk:              null,
+    recomendacion:    null,
+    adjustedNutrient: 'N',
+    loading:          false,
+    error:            null,
   })
 
   // ── Cálculo NPK ────────────────────────────────────────────────────────
@@ -142,7 +143,7 @@ export default function App() {
         cultivosArr.push({
           cultivo:        cultivoAnterior,
           cropYield:      cultivoAnteriorParams.cropYield ?? cultivoAnterior.yieldMedium ?? 0,
-          cv:             30,
+          cv:             cultivoAnterior.cv ?? 30,   // CV del catálogo; 30% = típico Med. semiárido
           recogeResiduos: cultivoAnteriorParams.recogeResiduos,
           quemaResiduos:  cultivoAnteriorParams.quemaResiduos,
         })
@@ -151,10 +152,9 @@ export default function App() {
       cultivosArr.push({
         cultivo,
         cropYield:      calculo.cropYield ?? cultivo.yieldMedium ?? 0,
-        cv:             0,
+        cv:             cultivo.cv ?? 30,   // CV del catálogo; 30% = típico Med. semiárido
         recogeResiduos: calculo.recogeResiduos,
         quemaResiduos:  calculo.quemaResiduos,
-        abonoVerde:     calculo.abonoVerde ?? false,
       })
 
       // Suelo mínimo si no hay datos ArcGIS
@@ -188,17 +188,31 @@ export default function App() {
       }
       console.debug('[NPK norm]', npkNorm)
 
+      // Elegir adjustedNutrient: el elemento con mayor necesidad no nula
+      // (si N=0 — p.ej. leguminosa anterior cubre todo el N — Sativum no puede
+      //  generar combinaciones con adjustedNutrient='N')
+      const adjNutrient = (() => {
+        const { n, p, k } = npkNorm
+        const pOx = p * 2.2914   // comparar en UF estándar
+        const kOx = k * 1.2046
+        if (n  >= pOx && n  >= kOx && n  > 0) return 'N'
+        if (pOx >= n  && pOx >= kOx && pOx > 0) return 'P'
+        if (kOx > 0)                            return 'K'
+        return 'N'   // fallback (todos cero — Sativum devolverá observación)
+      })()
+      console.debug('[adjustedNutrient]', adjNutrient, 'npkNorm:', npkNorm)
+
       // Recomendación de fertilizantes
-      const recomData = await getRecomendacion(npkNorm)
+      const recomData = await getRecomendacion(npkNorm, { adjustedNutrient: adjNutrient })
       if (!recomData) {
-        console.warn('[recommendation] Sativum no devolvió recomendación. npkNorm:', npkNorm)
+        console.warn('[recommendation] Sativum no devolvió recomendación. npkNorm:', npkNorm, 'adj:', adjNutrient)
       }
 
-      setResultados({ npk: npkData, recomendacion: recomData, loading: false, error: null })
+      setResultados({ npk: npkData, recomendacion: recomData, adjustedNutrient: adjNutrient, loading: false, error: null })
     } catch (err) {
       setResultados({ npk: null, recomendacion: null, loading: false, error: err.message || 'Error en el cálculo.' })
     }
-  }, [cultivo, suelo, cec, riego, calculo])
+  }, [cultivo, suelo, cec, riego, calculo, cultivoAnterior, cultivoAnteriorParams])
 
   // ── Estado generación informe Excel SIGPAC ─────────────────────────────
   const [loadingExcel, setLoadingExcel] = useState(false)
@@ -563,6 +577,7 @@ export default function App() {
           <ResultadosCard
             npk={resultados.npk}
             recomendacion={resultados.recomendacion}
+            adjustedNutrient={resultados.adjustedNutrient}
             cultivo={cultivo}
             loading={resultados.loading}
             error={resultados.error}

@@ -68,7 +68,7 @@ export default function CultivoAnteriorPanel({ cultivo, params, onCultivoChange,
 
       {/* ── Cabecera colapsable ──────────────────────────────────────────── */}
       <button onClick={() => setOpen(v => !v)} style={SC.header}>
-        <span style={SC.title}>🌾 Campaña anterior <span style={SC.opcional}>(opcional)</span></span>
+        <span style={SC.title}>🌾 Campaña anterior</span>
         <span style={{ fontSize: 10 }}>{open ? '▲' : '▼'}</span>
       </button>
 

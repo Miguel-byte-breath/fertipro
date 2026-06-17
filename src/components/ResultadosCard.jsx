@@ -104,7 +104,7 @@ function RecomendacionItem({ rec, index }) {
 
 // ── componente principal ──────────────────────────────────────────────────────
 
-export default function ResultadosCard({ npk, recomendacion, cultivo, loading, error }) {
+export default function ResultadosCard({ npk, recomendacion, adjustedNutrient = 'N', cultivo, loading, error }) {
 
   if (loading) {
     return (
@@ -149,7 +149,10 @@ export default function ResultadosCard({ npk, recomendacion, cultivo, loading, e
       {/* ── Combinaciones de fertilizantes ────────────────────────────── */}
       {recList.length > 0 ? (
         <>
-          <div style={SR.sectionTitle}>Combinaciones recomendadas</div>
+          <div style={SR.sectionTitle}>
+            Combinaciones recomendadas
+            <span style={SR.adjBadge}>ajustado a {adjustedNutrient} al 100%</span>
+          </div>
           {recList.map((rec, i) => (
             <RecomendacionItem key={i} rec={rec} index={i} />
           ))}
@@ -193,8 +196,14 @@ const SR = {
   title:       { fontSize: 12, fontWeight: 700, color: '#1a237e' },
   cultivoLabel:{ fontSize: 11, color: '#78909c', fontStyle: 'italic' },
   sectionTitle: {
+    display: 'flex', alignItems: 'center', gap: 6,
     fontSize: 11, fontWeight: 700, textTransform: 'uppercase',
     letterSpacing: 0.5, color: '#546e7a', margin: '10px 0 5px',
+  },
+  adjBadge: {
+    fontSize: 9, fontWeight: 600, textTransform: 'none', letterSpacing: 0,
+    color: '#1565c0', background: '#e3f2fd', border: '1px solid #bbdefb',
+    borderRadius: 8, padding: '1px 6px',
   },
   note: {
     margin: 12, padding: '8px 12px',

@@ -181,46 +181,6 @@ export default function EstrategiaPanel({ cultivo, params, onChange, soilType = 
         <strong>{cultivo.yieldHigh ?? '—'}</strong> kg/ha
       </div>
 
-      {/* ── Residuos (para todos los cultivos) ───────────────────────────── */}
-      <div style={SA.sectionTitle}>Gestión de residuos</div>
-      <label style={SA.checkRow}>
-        <input
-          type="checkbox"
-          checked={params.recogeResiduos}
-          onChange={e => set({ recogeResiduos: e.target.checked, quemaResiduos: false })}
-          style={{ marginRight: 6 }}
-        />
-        <span style={SA.checkLabel}>Recoge la paja del campo</span>
-      </label>
-      {params.recogeResiduos && (
-        <label style={{ ...SA.checkRow, marginLeft: 20 }}>
-          <input
-            type="checkbox"
-            checked={params.quemaResiduos}
-            onChange={e => set({ quemaResiduos: e.target.checked })}
-            style={{ marginRight: 6 }}
-          />
-          <span style={SA.checkLabel}>Quema los residuos</span>
-        </label>
-      )}
-      {/* Regla B7: solo cereales con fres=10 */}
-      {esCereal(cultivo) && cultivo?.fres === 10 && !params.recogeResiduos && (
-        <div style={SA.ruleBox}>
-          Paja incorporada → <code>f_res = 100</code> (regla Sativum)
-        </div>
-      )}
-
-      {/* ── Abono verde ───────────────────────────────────────────────────── */}
-      <label style={SA.checkRow}>
-        <input
-          type="checkbox"
-          checked={params.abonoVerde ?? false}
-          onChange={e => set({ abonoVerde: e.target.checked })}
-          style={{ marginRight: 6 }}
-        />
-        <span style={SA.checkLabel}>¿Abono verde? (incorporar el cultivo al suelo)</span>
-      </label>
-
       {/* ── Accordion: parámetros N avanzados ────────────────────────────── */}
       <button
         onClick={() => setOpenAvanzado(v => !v)}
