@@ -194,13 +194,20 @@ export async function exportarPlanAbonado({
   const p = num(pVal, 1)
   const k = num(kVal, 1)
 
-  // N aportado por riego: NO₃ (mg/L) × dotación (m³/ha) → kg N/ha
-  // N = NO3_mgL × dotacion_m3ha / 1000 × (14/62)
-  const no3   = Number(riego?.no3MgL)    || 0
-  const dot   = Number(riego?.dotacionM3) || 0
-  const nRiego = (riego?.fuenteId !== 0 && no3 > 0 && dot > 0)
-    ? num(no3 * dot / 1000 * (14 / 62), 1)
-    : null
+  // Aportaciones por riego (kg elemento/ha)
+  const no3 = Number(riego?.no3MgL)    || 0
+  const dot = Number(riego?.dotacionM3) || 0
+  const p_r = Number(riego?.pMgL)      || 0
+  const k_r = Number(riego?.kMgL)      || 0
+  const tieneRiego = riego?.fuenteId !== 0 && dot > 0
+
+  const nRiego  = tieneRiego && no3 > 0 ? num(no3 * dot / 1000 * (14 / 62), 1) : null
+  const pRiego  = tieneRiego && p_r > 0 ? p_r * dot / 1000 : 0   // kg P/ha
+  const kRiego  = tieneRiego && k_r > 0 ? k_r * dot / 1000 : 0   // kg K/ha
+
+  // NPK neto = bruto - riego (floor 0)
+  const pNeto = Math.max(0, (pVal ?? 0) - pRiego)
+  const kNeto = Math.max(0, (kVal ?? 0) - kRiego)
 
   // ── Hoja 1: Plan de Abonado ─────────────────────────────────────────────
   const plan = []
@@ -261,22 +268,44 @@ export async function exportarPlanAbonado({
   row('Fuente agua riego', riego?.fuenteLabel ?? (riego?.fuenteId === 0 ? 'Sin riego' : `Fuente ${riego?.fuenteId}`))
   if (riego?.fuenteId !== 0) {
     row('NO₃ agua riego',    num(riego?.no3MgL, 1),     'mg/L')
+    row('P agua riego',      num(riego?.pMgL,   1),     'mg/L')
+    row('K agua riego',      num(riego?.kMgL,   1),     'mg/L')
     row('Dotación riego',    num(riego?.dotacionM3, 0),  'm³/ha')
     if (suelo?.kIrrigation != null) {
-      row('K agua riego',    num(suelo.kIrrigation, 1),  'mg/L')
+      row('K riego (ArcGIS)', num(suelo.kIrrigation, 1), 'mg/L')
     }
-    if (nRiego != null) {
-      row('N aportado riego', nRiego, 'kg N/ha')
+    if (nRiego != null || pRiego > 0 || kRiego > 0) {
+      if (nRiego != null) row('N aportado riego',    nRiego,                            'kg N/ha')
+      if (pRiego  > 0)    row('P₂O₅ aportado riego', num(pRiego * P_TO_P2O5, 1),       'kg P₂O₅/ha')
+      if (kRiego  > 0)    row('K₂O aportado riego',  num(kRiego * K_TO_K2O,  1),       'kg K₂O/ha')
     }
   }
 
   row('', null)
 
-  row('N necesario',       n,                         'kg N/ha')
-  row('P necesario',       p,                         'kg P/ha')
-  row('P₂O₅ necesario',   num(p * P_TO_P2O5, 1),     'kg P₂O₅/ha')
-  row('K necesario',       k,                         'kg K/ha')
-  row('K₂O necesario',    num(k * K_TO_K2O, 1),       'kg K₂O/ha')
+  // Bloque NPK: bruto (motor) → cubierto riego → neto (fertilizante)
+  row('— Necesidades brutas (motor Sativum) —', null)
+  row('N bruto',    n,                          'kg N/ha')
+  row('P₂O₅ bruto', num(p * P_TO_P2O5, 1),     'kg P₂O₅/ha')
+  row('P bruto',    p,                          'kg P/ha')
+  row('K₂O bruto',  num(k * K_TO_K2O,  1),     'kg K₂O/ha')
+  row('K bruto',    k,                          'kg K/ha')
+
+  if (pRiego > 0 || kRiego > 0) {
+    row('', null)
+    row('— Cubierto por riego —', null)
+    if (nRiego != null) row('N por riego',    nRiego,                           'kg N/ha')
+    if (pRiego  > 0)    row('P₂O₅ por riego', num(pRiego * P_TO_P2O5, 1),      'kg P₂O₅/ha')
+    if (kRiego  > 0)    row('K₂O por riego',  num(kRiego * K_TO_K2O,  1),      'kg K₂O/ha')
+
+    row('', null)
+    row('— A cubrir con fertilizante (neto) —', null)
+    row('N neto',    n,                                  'kg N/ha')
+    row('P₂O₅ neto', num(pNeto * P_TO_P2O5, 1),         'kg P₂O₅/ha')
+    row('P neto',    num(pNeto, 1),                      'kg P/ha')
+    row('K₂O neto',  num(kNeto * K_TO_K2O,  1),         'kg K₂O/ha')
+    row('K neto',    num(kNeto, 1),                      'kg K/ha')
+  }
 
   const wsPlan = XLSX.utils.json_to_sheet(plan)
   wsPlan['!cols'] = [{ wch: 28 }, { wch: 24 }, { wch: 14 }]

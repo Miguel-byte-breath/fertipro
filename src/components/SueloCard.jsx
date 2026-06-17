@@ -130,7 +130,7 @@ export default function SueloCard({ suelo, loading, cec, onCecChange, riego, onR
         <span style={S.lbl}>Fuente SIEX</span>
         <select
           value={fuenteId}
-          onChange={e => onRiegoChange({ ...riego, fuenteId: Number(e.target.value), no3MgL: '', dotacionM3: '' })}
+          onChange={e => onRiegoChange({ ...riego, fuenteId: Number(e.target.value), no3MgL: '', dotacionM3: '', pMgL: '', kMgL: '' })}
           style={S.select}
         >
           {FUENTES_AGUA.map(f => (
@@ -187,15 +187,55 @@ export default function SueloCard({ suelo, loading, cec, onCecChange, riego, onR
             </span>
           </div>
 
-          {/* N agua calculado (informativo) */}
+          {/* P agua riego */}
+          <div style={S.row}>
+            <span style={S.lbl}>P agua riego</span>
+            <span style={{ display: 'flex', alignItems: 'center', gap: 4 }}>
+              <input
+                type="number"
+                value={riego?.pMgL ?? ''}
+                min={0} step={0.1}
+                placeholder="0.0"
+                onChange={e => onRiegoChange({ ...riego, pMgL: e.target.value === '' ? '' : Number(e.target.value) })}
+                style={S.numInput}
+              />
+              <span style={S.unit}>mg/L</span>
+            </span>
+          </div>
+
+          {/* K agua riego */}
+          <div style={S.row}>
+            <span style={S.lbl}>K agua riego</span>
+            <span style={{ display: 'flex', alignItems: 'center', gap: 4 }}>
+              <input
+                type="number"
+                value={riego?.kMgL ?? ''}
+                min={0} step={0.1}
+                placeholder="0.0"
+                onChange={e => onRiegoChange({ ...riego, kMgL: e.target.value === '' ? '' : Number(e.target.value) })}
+                style={S.numInput}
+              />
+              <span style={S.unit}>mg/L</span>
+            </span>
+          </div>
+
+          {/* N/P₂O₅/K₂O aportados por riego (informativo) */}
           {(() => {
-            const no3  = esSubterr ? suelo?.no3Irrigation : riego?.no3MgL
-            const dot  = riego?.dotacionM3
-            if (!no3 || !dot) return null
-            const nAgua = (Number(no3) * Number(dot) * 0.001 * (14 / 62)).toFixed(1)
+            const no3 = esSubterr ? suelo?.no3Irrigation : riego?.no3MgL
+            const dot = Number(riego?.dotacionM3) || 0
+            const p   = Number(riego?.pMgL)       || 0
+            const k   = Number(riego?.kMgL)       || 0
+            if (!dot) return null
+            const nAgua = no3 && dot ? (Number(no3) * dot * 0.001 * (14 / 62)).toFixed(1) : null
+            const p2o5  = p   && dot ? (p   * dot * 0.001 * 2.2914).toFixed(1)            : null
+            const k2o   = k   && dot ? (k   * dot * 0.001 * 1.2046).toFixed(1)            : null
+            if (!nAgua && !p2o5 && !k2o) return null
             return (
               <div style={S.infoBox}>
-                N aportado por riego: <strong>{nAgua} kg N/ha</strong>
+                <span style={{ fontWeight: 600 }}>Aportado por riego:</span>
+                {nAgua && <span> N <strong>{nAgua} kg/ha</strong></span>}
+                {p2o5  && <span>{nAgua ? ' ·' : ''} P₂O₅ <strong>{p2o5} kg/ha</strong></span>}
+                {k2o   && <span>{(nAgua || p2o5) ? ' ·' : ''} K₂O <strong>{k2o} kg/ha</strong></span>}
               </div>
             )
           })()}

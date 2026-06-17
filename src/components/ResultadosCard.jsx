@@ -41,21 +41,21 @@ function extraerNPK(npkData) {
 // ── componentes internos ──────────────────────────────────────────────────────
 
 function NpkGrid({ n, p, k }) {
+  // Primario: N (kg N/ha), P₂O₅ (kg P₂O₅/ha), K₂O (kg K₂O/ha) — estándar sectorial
+  // Secundario (gris): P puro, K puro — referencia técnica
   const rows = [
-    { label: 'N',    puro: n,    oxide: null,         unit: 'kg N/ha' },
-    { label: 'P',    puro: p,    oxide: pToOxide(p),  unit: 'kg P/ha' },
-    { label: 'K',    puro: k,    oxide: kToOxide(k),  unit: 'kg K/ha' },
+    { label: 'N',     primary: n,              puro: null,  puroLabel: null },
+    { label: 'P₂O₅', primary: pToOxide(p),    puro: p,     puroLabel: 'P' },
+    { label: 'K₂O',  primary: kToOxide(k),    puro: k,     puroLabel: 'K' },
   ]
   return (
     <div style={SR.npkGrid}>
       {rows.map(r => (
         <div key={r.label} style={SR.npkCell}>
           <div style={SR.npkElement}>{r.label}</div>
-          <div style={SR.npkPuro}>{kg(r.puro)}</div>
-          {r.oxide != null && (
-            <div style={SR.npkOxide}>
-              {r.label === 'P' ? 'P₂O₅' : 'K₂O'}: {kg(r.oxide)}
-            </div>
+          <div style={SR.npkPuro}>{kg(r.primary)}</div>
+          {r.puro != null && (
+            <div style={SR.npkOxide}>{r.puroLabel}: {kg(r.puro)}</div>
           )}
         </div>
       ))}
@@ -107,7 +107,7 @@ function RecomendacionItem({ rec, index }) {
 
 // ── componente principal ──────────────────────────────────────────────────────
 
-export default function ResultadosCard({ npk, recomendacion, adjustedNutrient = 'N', cultivo, loading, error }) {
+export default function ResultadosCard({ npk, recomendacion, adjustedNutrient = 'N', pRiego = 0, kRiego = 0, cultivo, loading, error }) {
 
   if (loading) {
     return (
@@ -142,7 +142,16 @@ export default function ResultadosCard({ npk, recomendacion, adjustedNutrient = 
 
       {/* ── NPK necesario ─────────────────────────────────────────────── */}
       {npkValues ? (
-        <NpkGrid {...npkValues} />
+        <>
+          <NpkGrid {...npkValues} />
+          {(pRiego > 0 || kRiego > 0) && (
+            <div style={SR.riegoBox}>
+              💧 Cubierto por riego:{' '}
+              {pRiego > 0 && <span>P₂O₅ <strong>{(pRiego * 2.2914).toFixed(1)} kg/ha</strong></span>}
+              {kRiego > 0 && <span>{pRiego > 0 ? ' · ' : ''}K₂O <strong>{(kRiego * 1.2046).toFixed(1)} kg/ha</strong></span>}
+            </div>
+          )}
+        </>
       ) : (
         <div style={{ fontSize: 11, color: '#90a4ae', padding: '4px 0' }}>
           No se obtuvieron datos NPK del motor.
@@ -232,6 +241,13 @@ const SR = {
   recTotal: {
     marginTop: 4, fontSize: 10, color: '#2e7d32',
     background: '#e8f5e9', borderRadius: 3, padding: '2px 6px',
+  },
+
+  // Cobertura riego
+  riegoBox: {
+    fontSize: 11, color: '#01579b',
+    background: '#e1f5fe', border: '1px solid #b3e5fc',
+    borderRadius: 4, padding: '4px 8px', marginBottom: 6,
   },
 
   // Aviso sin recomendación
