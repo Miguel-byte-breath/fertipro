@@ -28,7 +28,7 @@ import SueloCard        from './components/SueloCard'
 import EstrategiaPanel       from './components/EstrategiaPanel'
 import CultivoAnteriorPanel  from './components/CultivoAnteriorPanel'
 import ResultadosCard   from './components/ResultadosCard'
-import { calcularNPK }  from './api/sativum-algo'
+import { calcularNPK, calcularNAgua }  from './api/sativum-algo'
 import { getRecomendacion } from './api/sativum-fertilizers'
 import { FUENTE_SUBTERRANEA, FUENTE_SIN_RIEGO } from './data/sativum/fuentesAgua'
 import {
@@ -132,6 +132,7 @@ export default function App() {
     npk:              null,
     recomendacion:    null,
     adjustedNutrient: 'N',
+    nRiego:           0,
     pRiego:           0,
     kRiego:           0,
     loading:          false,
@@ -141,7 +142,7 @@ export default function App() {
   // ── Cálculo NPK ────────────────────────────────────────────────────────
   const handleCalcularNecesidades = useCallback(async () => {
     if (!cultivo) return
-    setResultados({ npk: null, recomendacion: null, adjustedNutrient: 'N', pRiego: 0, kRiego: 0, loading: true, error: null })
+    setResultados({ npk: null, recomendacion: null, adjustedNutrient: 'N', nRiego: 0, pRiego: 0, kRiego: 0, loading: true, error: null })
 
     try {
       // Riego efectivo según fuente SIEX
@@ -196,7 +197,7 @@ export default function App() {
       })
 
       if (!npkData) {
-        setResultados({ npk: null, recomendacion: null, adjustedNutrient: 'N', pRiego: 0, kRiego: 0, loading: false, error: 'No se obtuvo respuesta del motor Sativum.' })
+        setResultados({ npk: null, recomendacion: null, adjustedNutrient: 'N', nRiego: 0, pRiego: 0, kRiego: 0, loading: false, error: 'No se obtuvo respuesta del motor Sativum.' })
         return
       }
 
@@ -211,8 +212,12 @@ export default function App() {
       }
       console.debug('[NPK norm]', npkNorm)
 
-      // P y K aportados por riego (client-side — /algo/ no tiene parámetro equivalente)
+      // N/P/K aportados por riego (client-side — /algo/ solo acepta N via n_other)
       const dotEf  = Number(riego.dotacionM3) || 0
+      // nRiego: la API ya lo descontó via n_other; lo calculamos para mostrarlo en display
+      const nRiego = riego.fuenteId !== FUENTE_SIN_RIEGO
+        ? calcularNAgua(Number(riego.no3MgL) || 0, dotEf)
+        : 0
       const pRiego = (riego.fuenteId !== FUENTE_SIN_RIEGO && riego.pMgL && dotEf)
         ? Number(riego.pMgL) * dotEf / 1000
         : 0
@@ -248,9 +253,9 @@ export default function App() {
         console.warn('[recommendation] Sativum no devolvió recomendación. npkParaRec:', npkParaRec, 'adj:', adjNutrient)
       }
 
-      setResultados({ npk: npkData, recomendacion: recomData, adjustedNutrient: adjNutrient, pRiego, kRiego, loading: false, error: null })
+      setResultados({ npk: npkData, recomendacion: recomData, adjustedNutrient: adjNutrient, nRiego, pRiego, kRiego, loading: false, error: null })
     } catch (err) {
-      setResultados({ npk: null, recomendacion: null, adjustedNutrient: 'N', pRiego: 0, kRiego: 0, loading: false, error: err.message || 'Error en el cálculo.' })
+      setResultados({ npk: null, recomendacion: null, adjustedNutrient: 'N', nRiego: 0, pRiego: 0, kRiego: 0, loading: false, error: err.message || 'Error en el cálculo.' })
     }
   }, [cultivo, suelo, cec, riego, calculo, cultivoAnterior, cultivoAnteriorParams])
 
@@ -654,6 +659,7 @@ export default function App() {
             npk={resultados.npk}
             recomendacion={resultados.recomendacion}
             adjustedNutrient={resultados.adjustedNutrient}
+            nRiego={resultados.nRiego}
             pRiego={resultados.pRiego}
             kRiego={resultados.kRiego}
             cultivo={cultivo}

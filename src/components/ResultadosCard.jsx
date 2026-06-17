@@ -40,13 +40,14 @@ function extraerNPK(npkData) {
 
 // ── componentes internos ──────────────────────────────────────────────────────
 
-function NpkGrid({ n, p, k }) {
-  // Primario: N (kg N/ha), P₂O₅ (kg P₂O₅/ha), K₂O (kg K₂O/ha) — estándar sectorial
-  // Secundario (gris): P puro, K puro — referencia técnica
+function NpkGrid({ n, p, k, nRiego = 0 }) {
+  // N bruto = N_motor (neto) + N_riego (el motor ya descontó el N del riego via n_other)
+  // P₂O₅ y K₂O ya son brutos (el motor los devuelve sin descontar riego)
+  const nBruto = (n ?? 0) + nRiego
   const rows = [
-    { label: 'N',     primary: n,              puro: null,  puroLabel: null },
-    { label: 'P₂O₅', primary: pToOxide(p),    puro: p,     puroLabel: 'P' },
-    { label: 'K₂O',  primary: kToOxide(k),    puro: k,     puroLabel: 'K' },
+    { label: 'N',     primary: nBruto,          puro: null, puroLabel: null },
+    { label: 'P₂O₅', primary: pToOxide(p),      puro: p,   puroLabel: 'P' },
+    { label: 'K₂O',  primary: kToOxide(k),      puro: k,   puroLabel: 'K' },
   ]
   return (
     <div style={SR.npkGrid}>
@@ -107,7 +108,7 @@ function RecomendacionItem({ rec, index }) {
 
 // ── componente principal ──────────────────────────────────────────────────────
 
-export default function ResultadosCard({ npk, recomendacion, adjustedNutrient = 'N', pRiego = 0, kRiego = 0, cultivo, loading, error }) {
+export default function ResultadosCard({ npk, recomendacion, adjustedNutrient = 'N', nRiego = 0, pRiego = 0, kRiego = 0, cultivo, loading, error }) {
 
   if (loading) {
     return (
@@ -143,12 +144,13 @@ export default function ResultadosCard({ npk, recomendacion, adjustedNutrient = 
       {/* ── NPK necesario ─────────────────────────────────────────────── */}
       {npkValues ? (
         <>
-          <NpkGrid {...npkValues} />
-          {(pRiego > 0 || kRiego > 0) && (
+          <NpkGrid {...npkValues} nRiego={nRiego} />
+          {(nRiego > 0 || pRiego > 0 || kRiego > 0) && (
             <div style={SR.riegoBox}>
               💧 Cubierto por riego:{' '}
-              {pRiego > 0 && <span>P₂O₅ <strong>{(pRiego * 2.2914).toFixed(1)} kg/ha</strong></span>}
-              {kRiego > 0 && <span>{pRiego > 0 ? ' · ' : ''}K₂O <strong>{(kRiego * 1.2046).toFixed(1)} kg/ha</strong></span>}
+              {nRiego > 0 && <span>N <strong>{nRiego.toFixed(1)} kg/ha</strong></span>}
+              {pRiego > 0 && <span>{nRiego > 0 ? ' · ' : ''}P₂O₅ <strong>{(pRiego * 2.2914).toFixed(1)} kg/ha</strong></span>}
+              {kRiego > 0 && <span>{(nRiego > 0 || pRiego > 0) ? ' · ' : ''}K₂O <strong>{(kRiego * 1.2046).toFixed(1)} kg/ha</strong></span>}
             </div>
           )}
         </>

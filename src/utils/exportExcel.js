@@ -201,7 +201,10 @@ export async function exportarPlanAbonado({
   const k_r = Number(riego?.kMgL)      || 0
   const tieneRiego = riego?.fuenteId !== 0 && dot > 0
 
-  const nRiego  = tieneRiego && no3 > 0 ? num(no3 * dot / 1000 * (14 / 62), 1) : null
+  const nRiegoVal = tieneRiego && no3 > 0 ? no3 * dot / 1000 * (14 / 62) : 0
+  const nRiego    = nRiegoVal > 0 ? num(nRiegoVal, 1) : null
+  // N bruto = N_motor (ya neto, el motor lo descontó via n_other) + N_riego
+  const nBruto    = num((nVal ?? 0) + nRiegoVal, 1)
   const pRiego  = tieneRiego && p_r > 0 ? p_r * dot / 1000 : 0   // kg P/ha
   const kRiego  = tieneRiego && k_r > 0 ? k_r * dot / 1000 : 0   // kg K/ha
 
@@ -283,28 +286,29 @@ export async function exportarPlanAbonado({
 
   row('', null)
 
-  // Bloque NPK: bruto (motor) → cubierto riego → neto (fertilizante)
-  row('— Necesidades brutas (motor Sativum) —', null)
-  row('N bruto',    n,                          'kg N/ha')
-  row('P₂O₅ bruto', num(p * P_TO_P2O5, 1),     'kg P₂O₅/ha')
-  row('P bruto',    p,                          'kg P/ha')
-  row('K₂O bruto',  num(k * K_TO_K2O,  1),     'kg K₂O/ha')
-  row('K bruto',    k,                          'kg K/ha')
+  // Bloque NPK: bruto (necesidad total cultivo) → cubierto riego → neto (fertilizante)
+  // N bruto = N_motor + N_riego (el motor ya descontó el N del riego via n_other)
+  row('— Necesidades brutas (cultivo) —', null)
+  row('N bruto',    nBruto,                       'kg N/ha')
+  row('P₂O₅ bruto', num(p * P_TO_P2O5, 1),       'kg P₂O₅/ha')
+  row('P bruto',    p,                            'kg P/ha')
+  row('K₂O bruto',  num(k * K_TO_K2O,  1),       'kg K₂O/ha')
+  row('K bruto',    k,                            'kg K/ha')
 
-  if (pRiego > 0 || kRiego > 0) {
+  if (nRiegoVal > 0 || pRiego > 0 || kRiego > 0) {
     row('', null)
     row('— Cubierto por riego —', null)
-    if (nRiego != null) row('N por riego',    nRiego,                           'kg N/ha')
-    if (pRiego  > 0)    row('P₂O₅ por riego', num(pRiego * P_TO_P2O5, 1),      'kg P₂O₅/ha')
-    if (kRiego  > 0)    row('K₂O por riego',  num(kRiego * K_TO_K2O,  1),      'kg K₂O/ha')
+    if (nRiego  != null) row('N por riego',     nRiego,                          'kg N/ha')
+    if (pRiego  > 0)     row('P₂O₅ por riego',  num(pRiego * P_TO_P2O5, 1),     'kg P₂O₅/ha')
+    if (kRiego  > 0)     row('K₂O por riego',   num(kRiego * K_TO_K2O,  1),     'kg K₂O/ha')
 
     row('', null)
     row('— A cubrir con fertilizante (neto) —', null)
-    row('N neto',    n,                                  'kg N/ha')
-    row('P₂O₅ neto', num(pNeto * P_TO_P2O5, 1),         'kg P₂O₅/ha')
-    row('P neto',    num(pNeto, 1),                      'kg P/ha')
-    row('K₂O neto',  num(kNeto * K_TO_K2O,  1),         'kg K₂O/ha')
-    row('K neto',    num(kNeto, 1),                      'kg K/ha')
+    row('N neto',    n,                                   'kg N/ha')   // = N_motor (ya neto)
+    row('P₂O₅ neto', num(pNeto * P_TO_P2O5, 1),          'kg P₂O₅/ha')
+    row('P neto',    num(pNeto, 1),                       'kg P/ha')
+    row('K₂O neto',  num(kNeto * K_TO_K2O,  1),          'kg K₂O/ha')
+    row('K neto',    num(kNeto, 1),                       'kg K/ha')
   }
 
   const wsPlan = XLSX.utils.json_to_sheet(plan)
