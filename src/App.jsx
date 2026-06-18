@@ -16,6 +16,7 @@
  * conectando a medida que se incorporen los análisis de suelo y agua.
  */
 import { useCallback, useEffect, useRef, useState } from 'react'
+import turfArea from '@turf/area'
 import MapPicker        from './map/MapPicker'
 import CultivoSelector  from './cultivos/CultivoSelector'
 import CultivoCard      from './cultivos/CultivoCard'
@@ -41,6 +42,7 @@ import {
 import { slugify } from './utils/slugify'
 import { interseccionRecintos, detectarTipoParcela } from './utils/recintosInterseccion'
 import { exportarRecintosSigpacExcel, exportarPlanAbonado } from './utils/exportExcel'
+import { exportarPlanAbonadoPdf } from './utils/exportPdf'
 import { FUENTES_AGUA } from './data/sativum/fuentesAgua'
 
 const ESTADO = {
@@ -490,6 +492,74 @@ export default function App() {
     }
   }, [cultivo, resultados, point, recinto, suelo, cec, riego, calculo, fecha])
 
+  // ── Exportar plan de abonado PDF ──────────────────────────────────────
+  const [exportingPlanPdf, setExportingPlanPdf] = useState(false)
+  const [pdfError, setPdfError] = useState(null)
+
+  const handleExportarPlanPdf = useCallback(async () => {
+    if (!cultivo || !resultados.npk) return
+    setExportingPlanPdf(true)
+    setPdfError(null)
+    try {
+      const fuenteLabel = FUENTES_AGUA.find(f => f.id === riego.fuenteId)?.label
+
+      // Calcular recintos intersectados y superficie total de las parcelas activas
+      const sel = polygonsToExport()
+      let recintosList = []
+      let supTotalHa   = null
+
+      if (sel?.features?.length > 0) {
+        const parcelasConRecintos = await Promise.all(
+          sel.features.map(async p => ({
+            feature:  p.feature,
+            recintos: await interseccionRecintos(p.feature),
+          }))
+        )
+
+        // Lista plana de recintos únicos (evitar duplicados por solape de parcelas)
+        const vistos = new Set()
+        for (const { feature, recintos } of parcelasConRecintos) {
+          for (const r of recintos) {
+            const key = `${r.provincia}-${r.municipio}-${r.poligono}-${r.parcela}-${r.recinto}`
+            if (!vistos.has(key)) {
+              vistos.add(key)
+              recintosList.push(r)
+            }
+          }
+          supTotalHa = (supTotalHa ?? 0) + turfArea(feature) / 10000
+        }
+      } else if (recinto) {
+        // Fallback: usar el recinto de punto activo si no hay polígonos
+        recintosList = [recinto]
+      }
+
+      const baseName = cultivo.name
+        ? `fertipro_plan_${cultivo.name.toLowerCase().replace(/[^a-z0-9]+/g, '_')}`
+        : 'fertipro_plan_nutrientes'
+
+      await exportarPlanAbonadoPdf({
+        cultivo,
+        cultivoAnterior,
+        cultivoAnteriorParams,
+        calculo,
+        fecha,
+        recintos:    recintosList,
+        supTotalHa,
+        riego:       { ...riego, fuenteLabel },
+        npk:         resultados.npk,
+        recomendacion: resultados.recomendacion,
+        nRiego:      resultados.nRiego,
+        pRiego:      resultados.pRiego,
+        kRiego:      resultados.kRiego,
+        baseName,
+      })
+    } catch (err) {
+      setPdfError(err.message || 'Error generando el PDF.')
+    } finally {
+      setExportingPlanPdf(false)
+    }
+  }, [cultivo, resultados, recinto, riego, calculo, fecha, cultivoAnterior, cultivoAnteriorParams, polygonsToExport])
+
   // ── Render ─────────────────────────────────────────────────────────────
   const cargando      = estado === ESTADO.CARGANDO
   const isCentroid    = activePolygonId != null
@@ -670,18 +740,39 @@ export default function App() {
           {/* Exportar plan */}
           {resultados.npk && !resultados.loading && (
             <div style={S.calcWrap}>
-              <button
-                onClick={handleExportarPlan}
-                disabled={exportingPlan}
-                style={{
-                  ...S.calcBtn,
-                  background: '#2e7d32',
-                  opacity: exportingPlan ? 0.6 : 1,
-                  cursor: exportingPlan ? 'not-allowed' : 'pointer',
-                }}
-              >
-                {exportingPlan ? '⏳ Exportando…' : '📥 Exportar plan Excel'}
-              </button>
+              <div style={{ display: 'flex', gap: 6 }}>
+                <button
+                  onClick={handleExportarPlan}
+                  disabled={exportingPlan}
+                  style={{
+                    ...S.calcBtn,
+                    flex: 1,
+                    background: '#2e7d32',
+                    opacity: exportingPlan ? 0.6 : 1,
+                    cursor: exportingPlan ? 'not-allowed' : 'pointer',
+                  }}
+                >
+                  {exportingPlan ? '⏳ Exportando…' : '📊 Excel'}
+                </button>
+                <button
+                  onClick={handleExportarPlanPdf}
+                  disabled={exportingPlanPdf}
+                  style={{
+                    ...S.calcBtn,
+                    flex: 1,
+                    background: '#c62828',
+                    opacity: exportingPlanPdf ? 0.6 : 1,
+                    cursor: exportingPlanPdf ? 'not-allowed' : 'pointer',
+                  }}
+                >
+                  {exportingPlanPdf ? '⏳ Generando…' : '📄 PDF'}
+                </button>
+              </div>
+              {pdfError && (
+                <div style={{ fontSize: 10, color: '#c62828', marginTop: 4, padding: '3px 6px', background: '#ffebee', borderRadius: 3 }}>
+                  ⚠️ {pdfError}
+                </div>
+              )}
             </div>
           )}
 

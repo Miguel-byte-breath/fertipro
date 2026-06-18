@@ -17,6 +17,8 @@
     "@turf/centroid": "^7.3.4",
     "@turf/helpers": "^6.5.0",
     "@turf/intersect": "^7.3.5",
+    "jspdf": "^4.2.1",
+    "jspdf-autotable": "^5.0.8",
     "jszip": "^3.10.1",
     "leaflet": "^1.9.4",
     "react": "^18.3.1",
