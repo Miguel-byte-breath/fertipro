@@ -364,7 +364,7 @@ export async function exportarPlanAbonadoPdf({
     const dotTotal = sup != null ? dotHa * sup : null
     tableRows.push({
       _type:     'riego',
-      nombre:    (riego.fuenteLabel ?? 'Agua de riego').toUpperCase(),
+      nombre:    `AGUA DE RIEGO ${(riego.fuenteLabel ?? 'OTROS ORÍGENES').toUpperCase()}`,
       cantHa:    `${fmtNum(dotHa, 0)} m³/ha`,
       cantTotal: dotTotal != null ? `${fmtNum(dotTotal, 0)} m³` : '—',
       ufn:       nRiegoPct  != null ? fmt(nRiegoPct, 1)   : '—',
