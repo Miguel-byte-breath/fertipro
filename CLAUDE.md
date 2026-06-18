@@ -48,12 +48,15 @@ src/
                                persiste en localStorage('fertipro_asesor')
                                auto-expande si localStorage ya tiene datos; badge con nombre si colapsado
                                props: asesor, onChange(obj)
-    FertilizanteManualPanel.jsx — panel colapsable selección manual fertilizantes ✅ (pendiente refinamiento)
+    FertilizanteManualPanel.jsx — panel colapsable "Recomendación asesor" ✅
+                               1º selector obligatorio: tipoSIEX (24 tipos RD 1051/2022)
                                carga lazy catálogo Sativum (1253 items) al primer open
-                               filtros: Tipo (Sativum) + Fabricante + combobox búsqueda (debounce 300ms)
-                               toggle PERSONALIZADO → inputs N%/P₂O₅%/K₂O% (checkbox actual — pendiente refinar)
-                               tabla items con dosis, fecha, aporte NPK por producto
+                               filtro Fabricante + combobox búsqueda (debounce 300ms)
+                               sentinel PERSONALIZADO (morado) → inputs N%/P2O5%/K2O%
+                               esPersonalizado es derived (no state): productoSeleccionado?.esPersonalizado
+                               tabla items con dosis, fecha, aporte NPK; badge tipoSIEX (morado/azul)
                                barras cobertura NPK acumulada vs. necesidad (verde ≥100% / ámbar ≥70% / rojo <70%)
+                               fallback npm run dev: "Catálogo no disponible. Selecciona tipo SIEX + PERSONALIZADO"
                                props: fertilizadoresManuales, onChange, npk, nRiego, pRiego, kRiego
   cultivos/
     CultivoSelector.jsx      — combobox con búsqueda contra /nutrients/crops
@@ -124,12 +127,17 @@ queryCoords({ lon, lat, feature? })
    + si hay asesor: "Asesor responsable del plan: Nombre Apellidos | REGFER: XXX" + NIF
 3. Tabla recintos SIGPAC: referencia PP-MM-AA-ZZ-PPP-PPP-R | Sup. (ha) | % | Uso | Coef.reg | ZVN  
    → celda ZVN="SI" en rojo si `r.enZvn`
-4. Recuadro NPK: 5 círculos (N · P₂O₅ · P · K₂O · K) + superficie parcela
-5. Tabla "OPCIONES PROPUESTAS — API SATIVUM": fila agua de riego + opciones
-6. Tabla "RECOMENDACIÓN PERSONALIZADA DEL ASESOR" (si hay fertilizadoresManuales):
-   columnas Fecha | Producto | Tipo | Dosis | N | P₂O₅ | K₂O | ΣN | ΣP₂O₅ | ΣK₂O (acumulados)
+4. Recuadro NPK: 5 círculos (N · P2O5 · P · K2O · K) + superficie parcela
+5. Tabla "APORTE DEL AGUA DE RIEGO" (si riego activo): fuente | dotación/ha | dotación total | UF N | UF P2O5 | UF K2O
+   → sección standalone con cabecera azul (40,100,140); se renderiza solo si fuenteId≠0 y dotación>0
+6. Tabla "OPCIONES PROPUESTAS — API SATIVUM": columnas UF N / UF P2O5 / UF K2O (kg/ha)
+7. Tabla "RECOMENDACIÓN DEL ASESOR" (si hay fertilizadoresManuales):
+   columnas Fecha | Producto | Tipo | Dosis | N | P2O5 | K2O | N acum. | P2O5 acum. | K2O acum.
    fila TOTAL + fila cobertura %
-7. Pie: paginación `X/N` + fecha generación
+8. Pie: paginación `X/N` + fecha generación
+
+**⚠ jsPDF + Helvetica = WinAnsi only** — NO soporta Unicode: ₂ (U+2082), ₅ (U+2085), Σ (U+03A3).
+Usar siempre equivalentes ASCII: P2O5, K2O, "N acum.", "P2O5 acum.", "K2O acum.".
 
 ## Flujo exportación Excel
 
@@ -222,8 +230,22 @@ git add .; git commit -m "..."; git push   # Despliegue a Vercel automático
 
 **Nota PowerShell:** usar `;` como separador, no `&&`.  
 **Nota vercel dev:** el token caduca. Si falla, ejecutar `npx vercel login` primero.  
-**Nota edición archivos largos:** usar Python en bash para edits de archivos >100 líneas; verificar `tail -5` antes de dar el commit. Nunca sobreescribir archivos largos con Write directamente.  
+**Nota edición archivos largos:** usar siempre la herramienta Edit sobre rutas Windows (`C:\work\...`). El mount Linux (`/sessions/.../mnt/`) puede estar desincronizado con el disco real → Python/bash sobre esa ruta edita una versión obsoleta sin error aparente. Nunca sobreescribir archivos largos con Write directamente.  
 **Git workflow:** Claude edita archivos, el usuario ejecuta todos los comandos git desde PowerShell.
+
+## ⚠ Regla de cierre de sesión — CRÍTICO
+
+**Vercel despliega desde git, no desde disco.** Un archivo editado en local pero no commitido NO llega a producción.
+
+Al finalizar cada sesión de trabajo, ejecutar siempre:
+
+```powershell
+git status
+```
+
+Y commitir **todo** lo que aparezca como modificado (`M`) o nuevo (`??`) antes de dar la sesión por cerrada. Si hay archivos sin commitir, la producción no refleja el trabajo hecho.
+
+**Incidente 2026-06-18:** AsesoramientoPanel.jsx, tiposMaterialFertilizante.js, App.jsx, exportExcel.js, exportPdf.js, SueloCard.jsx, ResultadosCard.jsx y MapPicker.jsx fueron editados en sesión pero nunca commitidos. Resultado: ninguna feature de esa sesión llegó a producción hasta que se detectó manualmente.
 
 ## App.jsx — estado global ampliado
 
@@ -244,15 +266,19 @@ useEffect(() => { localStorage.setItem('fertipro_asesor', JSON.stringify(asesor)
 ## Commits recientes (2026-06-18)
 
 ```
+(pendiente hash) fix: PDF — agua riego sección propia, UF P2O5/K2O, sin Unicode; panel → Recomendación asesor
+        — exportPdf.js: agua riego como tabla standalone (sección 5), cabeceras UF P2O5/UF K2O,
+          eliminados todos los caracteres Unicode (P2O5, K2O, "N acum.", "P2O5 acum.", "K2O acum.")
+        — FertilizanteManualPanel.jsx: header renombrado a "Recomendación asesor"
 849dc53 feat: PERSONALIZADO vinculado a tipo SIEX (RD 1051/2022) en FertilizanteManualPanel
         — tipoSIEX state, esPersonalizado derived, sentinel morado en dropdown, badge tipoSIEX
-feat: data/sativum/tiposMaterialFertilizante.js — 24 tipos SIEX RD 1051/2022
-feat: AsesoramientoPanel.jsx (REGFER) + FertilizanteManualPanel.jsx (selección manual)
-feat: App.jsx — estado asesor (localStorage) + fertilizadoresManuales
-feat: exportPdf.js — bloque asesor en metadatos + tabla RECOMENDACIÓN PERSONALIZADA
-feat: exportExcel.js — filas asesor + sección "Selección personalizada" con acumulados
-fix: ZVN en PDF muestra SI/NO en lugar de emoji ⚠ (jsPDF no soporta Unicode)
-feat: ZVN por recinto — proxy sigpac-zvn.js, ParcelaInfoCard, tabla PDF, columna Excel
+(anterior) feat: data/sativum/tiposMaterialFertilizante.js — 24 tipos SIEX RD 1051/2022
+(anterior) feat: AsesoramientoPanel.jsx (REGFER) + FertilizanteManualPanel.jsx (selección manual)
+(anterior) feat: App.jsx — estado asesor (localStorage) + fertilizadoresManuales
+(anterior) feat: exportPdf.js — bloque asesor en metadatos + tabla RECOMENDACIÓN PERSONALIZADA
+(anterior) feat: exportExcel.js — filas asesor + sección "Selección personalizada" con acumulados
+(anterior) fix: ZVN en PDF muestra SI/NO en lugar de emoji ⚠ (jsPDF no soporta Unicode)
+(anterior) feat: ZVN por recinto — proxy sigpac-zvn.js, ParcelaInfoCard, tabla PDF, columna Excel
 09917a2 feat: fechas inicio/fin de ciclo en panel, Excel y PDF
 ad8c2a3 feat: uso_sigpac + coef_regadio via servicio REST SIGPAC recinfo
 ```
@@ -270,7 +296,15 @@ ad8c2a3 feat: uso_sigpac + coef_regadio via servicio REST SIGPAC recinfo
 
 3. **CEC dinámico** — Cuando ITACyL publique capa ArcGIS de CEC, reemplazar valores por textura.
 
-### Completados (2026-06-18)
+### Completados (2026-06-18, sesión 2)
+
+- ✅ **PDF — caracteres legibles + agua riego como sección propia** — `src/utils/exportPdf.js`.
+  Eliminados todos los Unicode (P2O5, K2O, "N acum.", "P2O5 acum.", "K2O acum.").
+  Agua de riego extraída de la tabla Sativum → tabla standalone con cabecera azul (sección 5).
+  Cabeceras UF P2O5 / UF K2O (nomenclatura química correcta).
+- ✅ **FertilizanteManualPanel: "Recomendación asesor"** — renombrado header del panel.
+
+### Completados (2026-06-18, sesión 1)
 
 - ✅ **AsesoramientoPanel (REGFER)** — `src/components/AsesoramientoPanel.jsx`. Panel colapsable
   con datos del asesor. Persiste en `localStorage('fertipro_asesor')`. Badge con nombre colapsado.
