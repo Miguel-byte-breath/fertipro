@@ -255,7 +255,7 @@ export default function FertilizanteManualPanel({
       <button type="button" onClick={() => setOpen(o => !o)} style={S.header}>
         <span style={S.headerLabel}>
           <span style={{ fontSize: 13 }}>🌱</span>
-          Recomendación personalizada
+          Recomendación asesor
         </span>
         <span style={{ display: 'flex', alignItems: 'center', gap: 6 }}>
           {nItems > 0 && (

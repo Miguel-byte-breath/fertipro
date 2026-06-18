@@ -391,9 +391,9 @@ export async function exportarPlanAbonadoPdf({
   // Círculos NPK
   const badges = [
     { label: 'N',     value: fmt(nBruto, 1) },
-    { label: 'P₂O₅', value: fmt(p2o5, 1) },
+    { label: 'P2O5', value: fmt(p2o5, 1) },
     { label: 'P',     value: fmt(p, 1) },
-    { label: 'K₂O',  value: fmt(k2o, 1) },
+    { label: 'K2O',  value: fmt(k2o, 1) },
     { label: 'K',     value: fmt(k, 1) },
   ]
 
@@ -429,7 +429,56 @@ export async function exportarPlanAbonadoPdf({
 
   y = boxY + boxH + 6
 
-  // ── 6. TABLA FERTILIZANTES — OPCIONES PROPUESTAS (API SATIVUM) ───────────
+  // ── 6. APORTE DEL AGUA DE RIEGO ──────────────────────────────────────────
+  const tieneAguaRiego = riego?.fuenteId !== 0 && Number(riego?.dotacionM3) > 0
+  if (tieneAguaRiego) {
+    const dotHa    = Number(riego.dotacionM3)
+    const dotTotal = sup != null ? dotHa * sup : null
+
+    doc.setFontSize(8.5)
+    doc.setFont('helvetica', 'bold')
+    doc.setTextColor(40, 100, 140)
+    doc.text('APORTE DEL AGUA DE RIEGO', ML, y)
+    y += 5
+
+    autoTable(doc, {
+      startY: y,
+      head: [['FUENTE DE AGUA', 'DOTACION/HA', 'DOTACION TOTAL', 'UF N (kg/ha)', 'UF P2O5 (kg/ha)', 'UF K2O (kg/ha)']],
+      body: [[
+        (riego.fuenteLabel ?? 'OTROS ORIGENES').toUpperCase(),
+        `${fmtNum(dotHa, 0)} m³/ha`,
+        dotTotal != null ? `${fmtNum(dotTotal, 0)} m³` : '—',
+        nRiegoPct  != null ? fmt(nRiegoPct, 1)  : '—',
+        p2o5Riego  != null ? fmt(p2o5Riego, 1)  : '—',
+        k2oRiego   != null ? fmt(k2oRiego, 1)   : '—',
+      ]],
+      margin:     { left: ML, right: MR },
+      tableWidth: CW,
+      styles: {
+        fontSize:    8.5,
+        cellPadding: { top: 2.5, bottom: 2.5, left: 3, right: 3 },
+        lineColor:   C_BORDER, lineWidth: 0.2,
+        font:        'helvetica', textColor: C_LABEL, valign: 'middle',
+        fillColor:   C_RIEGO, fontStyle: 'bold',
+      },
+      headStyles: {
+        fillColor: [40, 100, 140],
+        textColor: [255, 255, 255],
+        fontStyle: 'bold', fontSize: 8.5, halign: 'center',
+      },
+      columnStyles: {
+        0: { cellWidth: 58, halign: 'left'  },
+        1: { cellWidth: 28, halign: 'right' },
+        2: { cellWidth: 30, halign: 'right' },
+        3: { cellWidth: 19, halign: 'right' },
+        4: { cellWidth: 19, halign: 'right' },
+        5: { cellWidth: 20, halign: 'right' },
+      },
+    })
+    y = doc.lastAutoTable.finalY + 6
+  }
+
+  // ── 7. TABLA FERTILIZANTES — OPCIONES PROPUESTAS (API SATIVUM) ───────────
   // Título de sección
   doc.setFontSize(8.5)
   doc.setFont('helvetica', 'bold')
@@ -439,22 +488,6 @@ export async function exportarPlanAbonadoPdf({
 
   // Construir filas
   const tableRows = []
-
-  // Fila agua de riego (si hay)
-  const tieneAguaRiego = riego?.fuenteId !== 0 && Number(riego?.dotacionM3) > 0
-  if (tieneAguaRiego) {
-    const dotHa    = Number(riego.dotacionM3)
-    const dotTotal = sup != null ? dotHa * sup : null
-    tableRows.push({
-      _type:     'riego',
-      nombre:    `AGUA DE RIEGO ${(riego.fuenteLabel ?? 'OTROS ORÍGENES').toUpperCase()}`,
-      cantHa:    `${fmtNum(dotHa, 0)} m³/ha`,
-      cantTotal: dotTotal != null ? `${fmtNum(dotTotal, 0)} m³` : '—',
-      ufn:       nRiegoPct  != null ? fmt(nRiegoPct, 1)   : '—',
-      ufp:       p2o5Riego  != null ? fmt(p2o5Riego, 1)   : '—',
-      ufk:       k2oRiego   != null ? fmt(k2oRiego, 1)    : '—',
-    })
-  }
 
   // Filas fertilizantes de /recommendation
   const recList = Array.isArray(recomendacion) ? recomendacion : []
@@ -486,7 +519,7 @@ export async function exportarPlanAbonadoPdf({
   })
 
   // Convertir a array de arrays para autoTable
-  const head = [['FERTILIZANTE', 'CANTIDAD/HA', 'CANTIDAD TOTAL', 'UFN (kg/ha)', 'UFP (kg/ha)', 'UFK (kg/ha)']]
+  const head = [['FERTILIZANTE', 'CANTIDAD/HA', 'CANTIDAD TOTAL', 'UF N (kg/ha)', 'UF P2O5 (kg/ha)', 'UF K2O (kg/ha)']]
   const body = tableRows.map(r => {
     if (r._type === 'opcion') {
       return [{ content: r.label, colSpan: 6, styles: { fontStyle: 'bold', fillColor: [220, 237, 233], textColor: C_TEAL } }]
@@ -532,16 +565,6 @@ export async function exportarPlanAbonadoPdf({
       5: { cellWidth: 20,  halign: 'right'  },
     },
     alternateRowStyles: { fillColor: C_TEAL_LT },
-    didParseCell(data) {
-      // Fila de riego: fondo azul claro
-      if (data.section === 'body') {
-        const row = tableRows[data.row.index]
-        if (row?._type === 'riego') {
-          data.cell.styles.fillColor = C_RIEGO
-          data.cell.styles.fontStyle = 'bold'
-        }
-      }
-    },
   })
 
   // ── 7. TABLA FERTILIZANTES — RECOMENDACIÓN PERSONALIZADA DEL ASESOR ──────
@@ -558,8 +581,8 @@ export async function exportarPlanAbonadoPdf({
     // Cabecera y body con acumulados corrientes (running totals)
     const manHead = [[
       'Fecha', 'Producto / Fertilizante', 'Tipo',
-      'Dosis\n(kg/ha)', 'N\n(kg/ha)', 'P₂O₅\n(kg/ha)', 'K₂O\n(kg/ha)',
-      'ΣN\n(kg/ha)', 'ΣP₂O₅\n(kg/ha)', 'ΣK₂O\n(kg/ha)',
+      'Dosis\n(kg/ha)', 'N\n(kg/ha)', 'P2O5\n(kg/ha)', 'K2O\n(kg/ha)',
+      'N acum.\n(kg/ha)', 'P2O5\nacum.(kg/ha)', 'K2O\nacum.(kg/ha)',
     ]]
 
     let sumN = 0; let sumP2o5 = 0; let sumK2o = 0
@@ -606,7 +629,7 @@ export async function exportarPlanAbonadoPdf({
       const covK    = k2o    > 0 ? Math.round((sumK2o  / k2o)    * 100) : null
       manBody.push([
         {
-          content: `Cobertura s/ necesidad bruta: N ${covN != null ? covN + '%' : '—'} · P₂O₅ ${covP != null ? covP + '%' : '—'} · K₂O ${covK != null ? covK + '%' : '—'}`,
+          content: `Cobertura s/ necesidad bruta: N ${covN != null ? covN + '%' : '—'} · P2O5 ${covP != null ? covP + '%' : '—'} · K2O ${covK != null ? covK + '%' : '—'}`,
           colSpan: 10,
           styles: { fontStyle: 'italic', fontSize: 7.5, fillColor: C_WARN_BG, textColor: [120, 90, 0] },
         },
