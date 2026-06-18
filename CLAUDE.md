@@ -4,15 +4,15 @@ Briefing técnico para arrancar una sesión de trabajo sin contexto previo.
 
 ## Qué es esto
 
-Aplicación web de planificación de abonado para agricultores españoles. Calcula necesidades NPK usando el motor FertiliCalc (Villalobos et al. 2020) a través de la API Sativum (ITACyL). Desplegada en Vercel.
+Aplicación web de planificación de abonado para agricultores españoles. Calcula necesidades NPK usando el motor FertiliCalc (Villalobos et al. 2020) a través de la API Sativum (ITACyL). Desplegada en Vercel (https://fertipro.vercel.app).
 
 ## Stack
 
 - **Frontend:** Vite 5 + React 18, sin framework CSS
 - **Mapa:** Leaflet + leaflet-geoman (dibujo de parcelas) + Turf (geometría)
 - **Backend:** Vercel serverless functions en `/api/` (proxies a Sativum)
-- **Exportación:** SheetJS (Excel) — PDF pendiente implementar
-- **SIGPAC:** OGC API Features (FEGA) para recintos
+- **Exportación:** SheetJS (Excel) + jsPDF/jsPDF-AutoTable (PDF)
+- **SIGPAC:** OGC API Features (FEGA HubCloud) para recintos
 
 ## Seguridad — regla inamovible
 
@@ -23,6 +23,7 @@ Aplicación web de planificación de abonado para agricultores españoles. Calcu
 ```
 src/
   App.jsx                    — raíz, estado global, handleCalcularNecesidades
+                               handleExportarPlan (Excel) · handleExportarPlanPdf (PDF)
   api/
     sativum-algo.js          — ensamblarPayloadAlgo + calcularNPK + calcularNAgua
     sativum-fertilizers.js   — getRecomendacion, pToOxide, kToOxide
@@ -38,13 +39,18 @@ src/
   data/sativum/
     algoParams.js            — tabla efficiency_factor/p_threshold/k_threshold por estrategia×textura
     soilTypesSimpl.json      — mapeo pixel ArcGIS → SANDY/LOAM/CLAY_LOAM etc.
+    fuentesAgua.js           — catálogo SIEX fuentes de agua (ids 0-6)
   utils/
     exportExcel.js           — exportarPlanAbonado + exportarRecintosSigpacExcel
+    exportPdf.js             — exportarPlanAbonadoPdf (jsPDF + AutoTable)
+    recintosInterseccion.js  — interseccionRecintos(feature) → lista recintos con sup/pct
+    geometry.js              — centroide, exportarGeoJSON, exportarSHP, etc.
 api/
   sativum-algo.js            — proxy POST /fertilicalc/algo/
-  sativum-fertilizers.js     — proxy GET /nutrients/fertilizers/recommendation
+  sativum-fertilizers.js     — proxy GET+POST /nutrients/fertilizers (lista, detalle, recomendación)
   sativum-crops.js           — proxy GET /nutrients/crops
-  sigpac-punto.js            — proxy SIGPAC OGC
+  sigpac-punto.js            — proxy SIGPAC OGC punto
+  sigpac-bbox.js             — proxy SIGPAC OGC bbox (usado por interseccionRecintos)
 ```
 
 ## Flujo de cálculo (orden estricto)
@@ -55,6 +61,26 @@ api/
 4. `nRiego = calcularNAgua(no3MgL, dotacionM3)` — solo para display (el motor ya lo descuenta via `n_other`)
 5. `getRecomendacion(npkParaRec, { adjustedNutrient })` → POST `/api/sativum-fertilizers`
 6. Display: N bruto = `N_motor + nRiego`, P₂O₅/K₂O brutos directos del motor
+
+## Flujo exportación PDF
+
+`handleExportarPlanPdf` en App.jsx:
+1. Llama `interseccionRecintos(feature)` para cada parcela activa → lista plana deduplicada de recintos
+2. Suma superficie total (`@turf/area`) de las parcelas
+3. Llama `exportarPlanAbonadoPdf({ cultivo, recintos, supTotalHa, npk, recomendacion, ... })`
+
+`exportPdf.js` genera:
+- Cabecera: logo `public/fertipro.png` + créditos motor
+- Metadatos: cultivo actual/anterior, refs SIGPAC formato `PP-MM-AA-ZZ-PPP-PPP-R`, fecha
+- Recuadro NPK: 5 círculos (N · P₂O₅ · P · K₂O · K) + superficie parcela
+- Tabla FERTILIZANTES: fila agua de riego + todas las opciones de `/recommendation` agrupadas
+- Pie: paginación `X/N` + fecha generación
+
+**Pendiente en PDF:** tabla de recintos SIGPAC con superficie intersectada (ver Backlog #1).
+
+## Flujo exportación Excel
+
+`handleExportarPlan` en App.jsx pasa actualmente solo `recinto` (punto). **Pendiente** refactorizar igual que el PDF para pasar lista intersectada completa (Backlog #1).
 
 ## Reglas críticas de la API (bugs documentados)
 
@@ -85,14 +111,33 @@ Cubierto por riego: `N 2.8 · P₂O₅ 1.7 · K₂O 28.6` — todo coincide con 
 
 ```powershell
 cd C:\work\fertipro-api-sativum
-npm run dev          # Vite dev server (localhost:5173)
-npx vercel dev       # Simula serverless functions en local
+npm run dev          # Vite dev server (localhost:5173) — sin serverless functions
+npx vercel dev       # Con serverless functions (requiere vercel login vigente)
+npm run build        # Verificar build antes de push
 git add .; git commit -m "..."; git push   # Despliegue a Vercel automático
 ```
 
-**Nota PowerShell:** usar `;` como separador, no `&&`.
+**Nota PowerShell:** usar `;` como separador, no `&&`.  
+**Nota vercel dev:** el token caduca. Si falla, ejecutar `npx vercel login` primero.
 
 ## Backlog
 
-1. PDF exportación estilo "Plan de Nutrientes" de Sativum (ver PDF de referencia en uploads de sesión anterior)
-2. Proxy catálogo: `api/sativum-fertilizers.js` línea 68 — forward query params al upstream
+### Activo
+
+1. **Recintos SIGPAC en Excel y PDF** — Mostrar superficie intersectada por recinto.
+   - *Excel:* refactorizar `handleExportarPlan` para calcular `interseccionRecintos()` (igual que ya hace `handleExportarPlanPdf`); pasar `recintos` + `supTotalHa` a `exportarPlanAbonado()`; añadir hoja "Recintos SIGPAC" con ref/uso/sup_recinto/sup_intersección/pct_ocupado.
+   - *PDF:* añadir tabla de recintos tras el bloque NPK con las mismas columnas. Los datos ya llegan en el parámetro `recintos` de `exportarPlanAbonadoPdf`.
+
+2. **Fechas de ciclo del cultivo** — Inputs de fecha inicio y fin de ciclo justo debajo de la fecha del plan en el panel lateral. Incluir en Excel (Hoja 1) y PDF (metadatos). Pendiente confirmar si la API Sativum devuelve estas fechas por cultivo o son siempre manuales.
+
+3. **ZVN — Zonas Vulnerables a Nitratos** — Comprobar intersección de la/s geometría/s con la capa ZVN del OGC API SIGPAC (FEGA HubCloud). Badge de aviso en UI (ResultadosCard) + bloque de alerta en PDF. Relevante para RD 1051/2022. Requiere nuevo proxy `/api/sigpac-zvn.js` + turf.intersect. Investigar endpoint exacto en FEGA.
+
+4. **Selección manual de fertilizantes del catálogo** — Además de las 5 mejores propuestas automáticas, permitir que el asesor/productor añada su propia combinación seleccionando del catálogo Sativum (1.253 productos). Prerequisito técnico: activar forward de query params en `api/sativum-fertilizers.js` GET lista.
+
+### En espera
+
+5. **CEC dinámico** — Cuando ITACyL publique capa ArcGIS de CEC, reemplazar valores por textura por dato real.
+
+### Ideas futuras
+
+6. **Proxy catálogo fertilizantes** — `api/sativum-fertilizers.js` GET lista: forward query params al upstream para filtrado/paginación. Prerequisito del ítem 4.
