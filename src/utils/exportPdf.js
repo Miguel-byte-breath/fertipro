@@ -123,13 +123,15 @@ export async function exportarPlanAbonadoPdf({
   // ── Logo FertiPRO (intenta cargar favicon.png) ────────────────────────────
   let logoDataUrl = null
   try {
-    const res  = await fetch('/favicon.png')
-    const blob = await res.blob()
-    logoDataUrl = await new Promise(resolve => {
-      const reader = new FileReader()
-      reader.onload = () => resolve(reader.result)
-      reader.readAsDataURL(blob)
-    })
+    const res = await fetch('/fertipro.png')
+    if (res.ok) {
+      const blob = await res.blob()
+      logoDataUrl = await new Promise(resolve => {
+        const reader = new FileReader()
+        reader.onload = () => resolve(reader.result)
+        reader.readAsDataURL(blob)
+      })
+    }
   } catch {
     // Sin logo — se muestra solo texto
   }
