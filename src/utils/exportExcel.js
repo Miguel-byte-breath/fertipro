@@ -269,6 +269,7 @@ export async function exportarPlanAbonado({
   row('', null)
 
   row('Fuente agua riego', riego?.fuenteLabel ?? (riego?.fuenteId === 0 ? 'Sin riego' : `Fuente ${riego?.fuenteId}`))
+  row('Sistema de explotación', riego?.fuenteId !== 0 ? 'Regadío' : 'Secano')
   if (riego?.fuenteId !== 0) {
     row('NO₃ agua riego',    num(riego?.no3MgL, 1),     'mg/L')
     row('P agua riego',      num(riego?.pMgL,   1),     'mg/L')
@@ -375,7 +376,4 @@ export async function exportarPlanAbonado({
   const wb = XLSX.utils.book_new()
   XLSX.utils.book_append_sheet(wb, wsPlan,  'Plan de Abonado')
   XLSX.utils.book_append_sheet(wb, wsFert,  'Fertilizantes')
-  XLSX.utils.book_append_sheet(wb, wsNotas, 'Notas')
-
-  XLSX.writeFile(wb, `${baseName}.xlsx`)
-}
+  XLSX.utils.book

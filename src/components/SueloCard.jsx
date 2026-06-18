@@ -139,6 +139,9 @@ export default function SueloCard({ suelo, loading, cec, onCecChange, riego, onR
         </select>
       </div>
 
+      {/* Sistema de explotación (derivado de fuente) */}
+      <Row label="Sistema de explotación" value={tieneRiego ? 'Regadío' : 'Secano'} />
+
       {/* Campos condicionales */}
       {tieneRiego && (
         <>
@@ -296,8 +299,4 @@ const S = {
     fontSize: 12, color: '#827717',
   },
   infoBox: {
-    marginTop: 4, fontSize: 11, color: '#1565c0',
-    background: '#e3f2fd', border: '1px solid #bbdefb',
-    borderRadius: 4, padding: '4px 8px',
-  },
-}
+    m
