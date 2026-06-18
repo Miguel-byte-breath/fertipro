@@ -541,9 +541,20 @@ export default function App() {
       const baseName = cultivo.name
         ? `fertipro_plan_${cultivo.name.toLowerCase().replace(/[^a-z0-9]+/g, '_')}`
         : 'fertipro_plan_abonado'
+      // Usar recinto enriquecido (recinfo) si está disponible en la lista
+      const recintoEnriquecido = recinto && recintos
+        ? (recintos.find(r =>
+            r.provincia === recinto.provincia &&
+            r.municipio  === recinto.municipio &&
+            r.poligono   === recinto.poligono  &&
+            r.parcela    === recinto.parcela   &&
+            r.recinto    === recinto.recinto
+          ) ?? recinto)
+        : recinto
+
       await exportarPlanAbonado({
         point,
-        recinto,
+        recinto: recintoEnriquecido,
         cultivo,
         suelo,
         cec,
@@ -564,7 +575,7 @@ export default function App() {
     } finally {
       setExportingPlan(false)
     }
-  }, [cultivo, resultados, point, recinto, suelo, cec, riego, calculo, fecha, fechaInicioCiclo, fechaFinCiclo, asesor, fertilizadoresManuales])
+  }, [cultivo, resultados, point, recinto, recintos, suelo, cec, riego, calculo, fecha, fechaInicioCiclo, fechaFinCiclo, asesor, fertilizadoresManuales])
 
   // ── Exportar plan de abonado PDF ──────────────────────────────────────
   const [exportingPlanPdf, setExportingPlanPdf] = useState(false)

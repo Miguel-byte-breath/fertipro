@@ -287,14 +287,19 @@ ad8c2a3 feat: uso_sigpac + coef_regadio via servicio REST SIGPAC recinfo
 
 ### Activo (próxima sesión)
 
-1. **Recintos SIGPAC en Excel (refactor)** — `handleExportarPlan` pasa solo recinto-punto.
-   Refactorizar para pasar lista `recintos` del estado (ya calculada, igual que PDF).
-   La hoja "Recintos SIGPAC" ya existe pero recibe datos incompletos; añadir sup_recinto,
-   sup_intersección, pct_ocupado desde la lista enriquecida.
+_Sin ítems activos._
 
 ### En espera
 
 3. **CEC dinámico** — Cuando ITACyL publique capa ArcGIS de CEC, reemplazar valores por textura.
+
+### Completados (2026-06-18, sesión 3)
+
+- ✅ **Superficie recinto en Excel plan abonado** — `exportarPlanAbonado` usaba `recinto.superficie_ha`
+  (campo OGC, frecuentemente null). Ahora `handleExportarPlan` pasa el recinto enriquecido (buscando
+  en la lista `recintos` por clave pr/mu/po/pa/re) y `exportarPlanAbonado` añade fallback
+  `superficie_total_ha ?? superficie_ha`. Backlog anterior "Recintos SIGPAC en Excel" cerrado como
+  no aplica: flujo de dos ficheros (geometría + plan) es suficiente para el expediente del asesor.
 
 ### Completados (2026-06-18, sesión 2)
 

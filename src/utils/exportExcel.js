@@ -244,7 +244,7 @@ export async function exportarPlanAbonado({
   if (recinto) {
     row('Municipio SIGPAC',   recinto.municipio  ?? null)
     row('Uso SIGPAC',         recinto.uso_sigpac ?? null)
-    row('Superficie recinto', num(recinto.superficie_ha, 4), 'ha')
+    row('Superficie recinto', num(recinto.superficie_total_ha ?? recinto.superficie_ha, 4), 'ha')
   }
 
   row('', null)  // spacer
