@@ -270,7 +270,7 @@ export async function exportarPlanAbonadoPdf({
       const pct    = r.pct_ocupado
       const uso    = r.uso_sigpac ?? '—'
       const coef   = r.coef_regadio != null ? `${Number(r.coef_regadio).toFixed(0)} %` : '—'
-      const zvn    = r.enZvn === true ? '⚠ S' : (r.enZvn === false ? 'N' : '—')
+      const zvn    = r.enZvn === true ? 'SI' : (r.enZvn === false ? 'NO' : '—')
       return [
         ref,
         supHa != null ? fmt(supHa, 4) : '—',
