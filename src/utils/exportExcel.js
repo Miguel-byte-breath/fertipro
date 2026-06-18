@@ -376,4 +376,7 @@ export async function exportarPlanAbonado({
   const wb = XLSX.utils.book_new()
   XLSX.utils.book_append_sheet(wb, wsPlan,  'Plan de Abonado')
   XLSX.utils.book_append_sheet(wb, wsFert,  'Fertilizantes')
-  XLSX.utils.book
+  XLSX.utils.book_append_sheet(wb, wsNotas, 'Notas')
+
+  XLSX.writeFile(wb, `${baseName}.xlsx`)
+}

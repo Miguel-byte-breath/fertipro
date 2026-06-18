@@ -299,4 +299,8 @@ const S = {
     fontSize: 12, color: '#827717',
   },
   infoBox: {
-    m
+    marginTop: 4, fontSize: 11, color: '#1565c0',
+    background: '#e3f2fd', border: '1px solid #bbdefb',
+    borderRadius: 4, padding: '4px 8px',
+  },
+}
