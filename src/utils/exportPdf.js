@@ -498,4 +498,6 @@ export async function exportarPlanAbonadoPdf({
     )
   }
 
-  // ── 7. DESCARGA ───────────────────────────────────────────────────
+  // ── 7. DESCARGA ───────────────────────────────────────────────────────────
+  doc.save(`${baseName}.pdf`)
+}
