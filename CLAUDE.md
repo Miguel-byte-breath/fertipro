@@ -22,35 +22,58 @@ Aplicación web de planificación de abonado para agricultores españoles. Calcu
 
 ```
 src/
-  App.jsx                    — raíz, estado global, handleCalcularNecesidades
-                               handleExportarPlan (Excel) · handleExportarPlanPdf (PDF)
+  App.jsx                    — raíz, estado global
                                estado: recinto, suelo, cec, riego, calculo, resultados,
-                                       fechaInicioCiclo, fechaFinCiclo
+                                       fechaInicioCiclo, fechaFinCiclo,
+                                       recintos (lista enriquecida), recintosLoading
+                               handleCalcularNecesidades
+                               handleExportarPlan (Excel) · handleExportarPlanPdf (PDF)
+                               queryCoords({ lon, lat, feature? }) — punto o polígono
+                               toRecintoItem(rec) — normaliza recinto-punto al formato lista
   api/
     sativum-algo.js          — ensamblarPayloadAlgo + calcularNPK + calcularNAgua
-    sativum-fertilizers.js   — getRecomendacion, pToOxide, kToOxide
+    sativum-fertilizers.js   — getRecomendacion, pToOxide, kToOxide, getFertilizadores
     sigpac.js                — getSigpacRecinto
     sativum-suelo.js         — identifySativum, normalizarSuelo
   components/
-    ResultadosCard.jsx       — display NPK + combinaciones fertilizantes
-    SueloCard.jsx            — análisis suelo ArcGIS + agua de riego (NO₃/P/K/dotación)
-                               + Sistema de explotación (Secano/Regadío, derivado de fuenteId)
+    ParcelaInfoCard.jsx      — tabla recintos SIGPAC (referencia, sup, uso, ZVN)
+                               muestra badge "⚠ ZVN" y alerta si algún recinto en ZVN
+                               se renderiza tanto para polígono como para punto
+    ResultadosCard.jsx       — display NPK + "Opciones propuestas (API Sativum)"
+    SueloCard.jsx            — análisis suelo ArcGIS + agua de riego + Sistema explotación
     EstrategiaPanel.jsx      — estrategia, laboreo, params N avanzados
     CultivoAnteriorPanel.jsx — cultivo precedente en la rotación
+    AsesoramientoPanel.jsx   — panel colapsable datos asesor REGFER ✅
+                               campos: nRegfer, nombre, apellidos, nif (req) + telefono, email (opt)
+                               persiste en localStorage('fertipro_asesor')
+                               auto-expande si localStorage ya tiene datos; badge con nombre si colapsado
+                               props: asesor, onChange(obj)
+    FertilizanteManualPanel.jsx — panel colapsable selección manual fertilizantes ✅ (pendiente refinamiento)
+                               carga lazy catálogo Sativum (1253 items) al primer open
+                               filtros: Tipo (Sativum) + Fabricante + combobox búsqueda (debounce 300ms)
+                               toggle PERSONALIZADO → inputs N%/P₂O₅%/K₂O% (checkbox actual — pendiente refinar)
+                               tabla items con dosis, fecha, aporte NPK por producto
+                               barras cobertura NPK acumulada vs. necesidad (verde ≥100% / ámbar ≥70% / rojo <70%)
+                               props: fertilizadoresManuales, onChange, npk, nRiego, pRiego, kRiego
   cultivos/
     CultivoSelector.jsx      — combobox con búsqueda contra /nutrients/crops
   data/sativum/
     algoParams.js            — tabla efficiency_factor/p_threshold/k_threshold por estrategia×textura
     soilTypesSimpl.json      — mapeo pixel ArcGIS → SANDY/LOAM/CLAY_LOAM etc.
     fuentesAgua.js           — catálogo SIEX fuentes de agua (ids 0-6)
+    tiposMaterialFertilizante.js — 24 tipos SIEX de material fertilizante ✅ (RD 1051/2022)
+                               { codigo, nombre } — usado por FertilizanteManualPanel para PERSONALIZADO
   utils/
     exportExcel.js           — exportarPlanAbonado + exportarRecintosSigpacExcel
-                               acepta: fechaInicioCiclo, fechaFinCiclo
-                               hoja "Recintos SIGPAC": uso_sigpac + coef_regadio incluidos
+                               acepta: fechaInicioCiclo, fechaFinCiclo, recintos (con enZvn)
+                               hoja "Recintos SIGPAC": uso_sigpac + coef_regadio + ZVN (S/N)
     exportPdf.js             — exportarPlanAbonadoPdf (jsPDF + AutoTable)
-                               acepta: fechaInicioCiclo, fechaFinCiclo
-    recintosInterseccion.js  — interseccionRecintos(feature) → lista recintos con sup/pct
-                               _enrichConRecinfo() → enriquece uso_sigpac + coef_regadio en paralelo
+                               acepta: fechaInicioCiclo, fechaFinCiclo, recintos (con enZvn)
+                               tabla recintos SIGPAC con columna ZVN (SI/NO, rojo si SI)
+    recintosInterseccion.js  — interseccionRecintos(feature) → lista recintos enriquecidos
+                               enrichRecintos(lista) → enriquece lista de recintos de punto
+                               _enrichConRecinfo() → uso_sigpac, coef_regadio (paralelo)
+                               _enrichConZvn()     → enZvn: bool (paralelo, no bloquea)
     geometry.js              — centroide, exportarGeoJSON, exportarSHP, etc.
 api/
   sativum-algo.js            — proxy POST /fertilicalc/algo/
@@ -60,6 +83,9 @@ api/
   sigpac-bbox.js             — proxy SIGPAC OGC bbox (usado por interseccionRecintos)
   sigpac-recinfo.js          — proxy REST recinfo: uso_sigpac, coef_regadio, superficie, pendiente
                                GET /api/sigpac-recinfo?pr=&mu=&po=&pa=&re=[&ag=&zo=]
+  sigpac-zvn.js              — proxy REST nitratos: comprueba ZVN por recinto
+                               GET /api/sigpac-zvn?pr=&mu=&po=&pa=&re=[&ag=&zo=]
+                               Devuelve [] (sin ZVN) o [{surface_intersection,surface_tpc}]
 ```
 
 ## Flujo de cálculo (orden estricto)
@@ -71,25 +97,48 @@ api/
 5. `getRecomendacion(npkParaRec, { adjustedNutrient })` → POST `/api/sativum-fertilizers`
 6. Display: N bruto = `N_motor + nRiego`, P₂O₅/K₂O brutos directos del motor
 
+## Flujo de recintos SIGPAC (queryCoords)
+
+```
+queryCoords({ lon, lat, feature? })
+  ├── getSigpacRecinto(lon, lat)        → rec (punto)
+  ├── SI feature (polígono)
+  │     interseccionRecintos(feature)   → lista recintos geométrica
+  │       └── _enrichConRecinfo() → _enrichConZvn()
+  └── SI solo punto
+        enrichRecintos([toRecintoItem(rec)])
+          └── _enrichConRecinfo() → _enrichConZvn()
+→ setRecintos(recList) → ParcelaInfoCard renderiza tabla
+```
+
 ## Flujo exportación PDF
 
 `handleExportarPlanPdf` en App.jsx:
-1. Llama `interseccionRecintos(feature)` para cada parcela activa → lista plana deduplicada de recintos
-2. Suma superficie total (`@turf/area`) de las parcelas
-3. Llama `exportarPlanAbonadoPdf({ cultivo, recintos, supTotalHa, npk, recomendacion, fechaInicioCiclo, fechaFinCiclo, ... })`
+1. Usa `recintos` del estado (ya enriquecidos con ZVN)
+2. Suma superficie total (`@turf/area`) de las parcelas activas
+3. Llama `exportarPlanAbonadoPdf({ cultivo, recintos, supTotalHa, npk, recomendacion, fechaInicioCiclo, fechaFinCiclo, asesor, fertilizadoresManuales })`
 
-`exportPdf.js` genera:
-- Cabecera: logo `public/fertipro.png` + créditos motor
-- Metadatos: cultivo actual/anterior, refs SIGPAC formato `PP-MM-AA-ZZ-PPP-PPP-R`, fecha, inicio/fin de ciclo
-- Recuadro NPK: 5 círculos (N · P₂O₅ · P · K₂O · K) + superficie parcela
-- Tabla FERTILIZANTES: fila agua de riego + todas las opciones de `/recommendation` agrupadas
-- Pie: paginación `X/N` + fecha generación
-
-**Pendiente en PDF:** tabla de recintos SIGPAC con superficie intersectada (ver Backlog #3).
+`exportPdf.js` genera (secciones en orden):
+1. Cabecera: logo `public/fertipro.png` + créditos motor
+2. Metadatos: cultivo actual/anterior, fecha, inicio/fin ciclo  
+   + si hay asesor: "Asesor responsable del plan: Nombre Apellidos | REGFER: XXX" + NIF
+3. Tabla recintos SIGPAC: referencia PP-MM-AA-ZZ-PPP-PPP-R | Sup. (ha) | % | Uso | Coef.reg | ZVN  
+   → celda ZVN="SI" en rojo si `r.enZvn`
+4. Recuadro NPK: 5 círculos (N · P₂O₅ · P · K₂O · K) + superficie parcela
+5. Tabla "OPCIONES PROPUESTAS — API SATIVUM": fila agua de riego + opciones
+6. Tabla "RECOMENDACIÓN PERSONALIZADA DEL ASESOR" (si hay fertilizadoresManuales):
+   columnas Fecha | Producto | Tipo | Dosis | N | P₂O₅ | K₂O | ΣN | ΣP₂O₅ | ΣK₂O (acumulados)
+   fila TOTAL + fila cobertura %
+7. Pie: paginación `X/N` + fecha generación
 
 ## Flujo exportación Excel
 
-`handleExportarPlan` en App.jsx pasa actualmente solo `recinto` (punto). **Pendiente** refactorizar igual que el PDF para pasar lista intersectada completa (Backlog #3).
+`handleExportarPlan` en App.jsx — acepta `asesor`, `fertilizadoresManuales`:
+- **Pendiente refactorizar:** actualmente pasa solo `recinto` (punto) → debe pasar lista `recintos` del estado
+- Hoja principal y "Notas": filas con datos del asesor (si los hay)
+- Hoja "Recintos SIGPAC": columnas uso_sigpac, coef_regadio, ZVN (S/N/null)
+- Hoja "Fertilizantes": columna `Origen` distingue "Propuesta API Sativum" vs. manual
+  sección manual incluye ΣN, ΣP₂O₅, ΣK₂O acumulados por fila
 
 ## SIGPAC HubCloud — endpoints y arquitectura
 
@@ -109,19 +158,32 @@ GET /servicioconsultassigpac/query/recinfo/{pr}/{mu}/{ag}/{zo}/{po}/{pa}/{re}.js
 - `ag` y `zo` pueden ser `0` si no se conocen.
 - Devuelve: `{ uso_sigpac, coef_regadio, superficie, pendiente_media, admisibilidad, region }`.
 - **Proxy:** `api/sigpac-recinfo.js`.
-- **Patrón de uso:** `_enrichConRecinfo()` en `recintosInterseccion.js` — llamadas paralelas con `Promise.allSettled`, aplicado en Caso A (SIGPAC intacta) y Caso B (bbox + turf). Si falla alguna, el recinto se devuelve sin modificar.
 
 #### intersection nitratos — ZVN por recinto
 ```
 GET /servicioconsultassigpac/intersection/nitratos/{pr}/{mu}/{ag}/{zo}/{po}/{pa}/{re}.json
 ```
-- Devuelve `[{ surface_intersection: <m²>, surface_tpc: <float 0–100> }]`.
-- Devuelve `[]` si el recinto **no** intersecta ninguna Zona Vulnerable a Nitratos (ZVN).
-- **Pendiente:** proxy `api/sigpac-zvn.js` (Backlog #1).
+- Devuelve `[{ surface_intersection: <m²>, surface_tpc: <float 0–100> }]` si hay ZVN.
+- Devuelve `[]` si el recinto **no** intersecta ninguna ZVN.
+- **Proxy:** `api/sigpac-zvn.js` ✅ implementado.
 
 ### Parámetros de ruta SIGPAC
 `pr`=provincia · `mu`=municipio · `ag`=agregado · `zo`=zona · `po`=polígono · `pa`=parcela · `re`=recinto  
 Todos disponibles en el objeto `recinto` que devuelve `getSigpacRecinto()`.
+
+## Catálogo de fertilizantes Sativum — estructura
+
+`GET /nutrients/fertilizers` devuelve array de 1253 items. Campos por item:
+```json
+{ "id": 0, "name": "05-08-18 de GENÉRICO", "type": "TERNARIO NPK",
+  "n": 5, "p2o5": 8, "k2o": 18, "cao": 0, "links": [{"href":"..."}] }
+```
+- **`type`** — tipo químico: `"TERNARIO NPK"`, `"BINARIO PK"`, `"BINARIO NP"`, `"BINARIO NK"` (y más)
+- **Fabricante** — NO existe como campo separado; está embebido en `name` tras `" de "`:  
+  `"05-08-18 de GENÉRICO"` → fabricante = `"GENÉRICO"`
+- **Filtrado:** cliente carga los 1253 una vez (cache proxy 30 min), filtra en memoria.
+- **ID real:** en lista `id=0`; extraer de `links[0].href` último segmento (ver `extractFertilizerId()`).
+- **Asimetría lista/detalle:** lista usa `cao`; detalle usa `ca/mg/s/na`.
 
 ## Reglas críticas de la API (bugs documentados)
 
@@ -160,46 +222,69 @@ git add .; git commit -m "..."; git push   # Despliegue a Vercel automático
 
 **Nota PowerShell:** usar `;` como separador, no `&&`.  
 **Nota vercel dev:** el token caduca. Si falla, ejecutar `npx vercel login` primero.  
-**Nota edición archivos largos:** usar Python en `/tmp` para edits de archivos >100 líneas; verificar `tail -5` antes de dar el commit. Nunca sobreescribir archivos largos con Write directamente.  
+**Nota edición archivos largos:** usar Python en bash para edits de archivos >100 líneas; verificar `tail -5` antes de dar el commit. Nunca sobreescribir archivos largos con Write directamente.  
 **Git workflow:** Claude edita archivos, el usuario ejecuta todos los comandos git desde PowerShell.
+
+## App.jsx — estado global ampliado
+
+```js
+// añadido en sesión 2026-06-18
+const [asesor, setAsesor] = useState(() => JSON.parse(localStorage.getItem('fertipro_asesor') || 'null') || { nRegfer:'', nombre:'', apellidos:'', nif:'', telefono:'', email:'' })
+const [fertilizadoresManuales, setFertilizadoresManuales] = useState([])
+useEffect(() => { localStorage.setItem('fertipro_asesor', JSON.stringify(asesor)) }, [asesor])
+```
+`fertilizadoresManuales` — array de items:
+```js
+{ id: Date.now(), nombre, tipo, tipoSIEX?, n, p2o5, k2o, cantidad, fechaAplicacion, esPersonalizado }
+```
+- `tipo` — tipo Sativum ("TERNARIO NPK"…) para catálogo; nombre SIEX para personalizado
+- `tipoSIEX` — nombre SIEX (string), presente siempre (obligatorio desde 2026-06-18)
+- `esPersonalizado` — bool; cuando true, composición NPK fue introducida manualmente (derived en el panel, almacenado en el item)
 
 ## Commits recientes (2026-06-18)
 
 ```
-8ee32a2 fix: exportPdf.js truncado — restaurar fechas ciclo sin cortar el archivo
+849dc53 feat: PERSONALIZADO vinculado a tipo SIEX (RD 1051/2022) en FertilizanteManualPanel
+        — tipoSIEX state, esPersonalizado derived, sentinel morado en dropdown, badge tipoSIEX
+feat: data/sativum/tiposMaterialFertilizante.js — 24 tipos SIEX RD 1051/2022
+feat: AsesoramientoPanel.jsx (REGFER) + FertilizanteManualPanel.jsx (selección manual)
+feat: App.jsx — estado asesor (localStorage) + fertilizadoresManuales
+feat: exportPdf.js — bloque asesor en metadatos + tabla RECOMENDACIÓN PERSONALIZADA
+feat: exportExcel.js — filas asesor + sección "Selección personalizada" con acumulados
+fix: ZVN en PDF muestra SI/NO en lugar de emoji ⚠ (jsPDF no soporta Unicode)
+feat: ZVN por recinto — proxy sigpac-zvn.js, ParcelaInfoCard, tabla PDF, columna Excel
 09917a2 feat: fechas inicio/fin de ciclo en panel, Excel y PDF
 ad8c2a3 feat: uso_sigpac + coef_regadio via servicio REST SIGPAC recinfo
-ae490f8 fix: sistema de explotación en Excel y panel (encoding correcto)
-ee41039 feat: añadir sistema de explotación (Secano/Regadío) en panel y Excel
 ```
 
 ## Backlog
 
-### Activo
+### Activo (próxima sesión)
 
-1. **ZVN — Zonas Vulnerables a Nitratos** — Comprobar si el `recinto` activo intersecta alguna ZVN (RD 1051/2022).
-   - **Endpoint disponible:** `GET /servicioconsultassigpac/intersection/nitratos/{pr}/{mu}/{ag}/{zo}/{po}/{pa}/{re}.json`
-   - Devuelve `[{ surface_intersection, surface_tpc }]` o `[]` si no hay intersección.
-   - **Archivos a crear/tocar:**
-     - `api/sigpac-zvn.js` — proxy nuevo (misma estructura que `sigpac-recinfo.js`)
-     - `App.jsx` — estado `zvn`, llamar en `queryCoords` tras `setRecinto(rec)`
-     - `src/components/ResultadosCard.jsx` — badge rojo "⚠ ZVN" si `zvn.enZvn`
-     - `src/utils/exportPdf.js` — bloque de alerta amarillo en metadatos
-   - El objeto `recinto` de `getSigpacRecinto()` tiene todos los campos necesarios: `provincia`, `municipio`, `agregado`, `zona`, `poligono`, `parcela`, `recinto`.
-
-2. **Selección manual de fertilizantes del catálogo** — Además de las 5 mejores propuestas automáticas, permitir añadir combinación propia desde el catálogo Sativum (1.253 productos). Prerequisito: ítem 2a.
-   - 2a. **Proxy catálogo fertilizantes** — `api/sativum-fertilizers.js` GET lista: forward query params al upstream para filtrado/paginación.
-
-3. **Recintos SIGPAC en Excel y PDF** — Tabla de recintos con superficie intersectada.
-   - *Excel:* refactorizar `handleExportarPlan` para calcular `interseccionRecintos()` (igual que `handleExportarPlanPdf`); la hoja "Recintos SIGPAC" ya existe con columnas uso/coef pero recibe solo el recinto de punto; añadir sup_recinto/sup_intersección/pct_ocupado.
-   - *PDF:* añadir tabla de recintos tras el bloque NPK. Los datos ya llegan en `recintos` de `exportarPlanAbonadoPdf`.
+1. **Recintos SIGPAC en Excel (refactor)** — `handleExportarPlan` pasa solo recinto-punto.
+   Refactorizar para pasar lista `recintos` del estado (ya calculada, igual que PDF).
+   La hoja "Recintos SIGPAC" ya existe pero recibe datos incompletos; añadir sup_recinto,
+   sup_intersección, pct_ocupado desde la lista enriquecida.
 
 ### En espera
 
-4. **CEC dinámico** — Cuando ITACyL publique capa ArcGIS de CEC, reemplazar valores por textura por dato real.
+3. **CEC dinámico** — Cuando ITACyL publique capa ArcGIS de CEC, reemplazar valores por textura.
 
 ### Completados (2026-06-18)
 
-- ✅ **Sistema de explotación** — Badge Secano/Regadío en `SueloCard.jsx` + fila en Excel, derivado de `riego.fuenteId`.
-- ✅ **uso_sigpac + coef_regadio** — Proxy `api/sigpac-recinfo.js`; `_enrichConRecinfo()` enriquece todos los recintos (Caso A y B). Hoja "Recintos SIGPAC" en Excel incluye ambas columnas.
-- ✅ **Fechas de ciclo** — `fechaInicioCiclo` / `fechaFinCiclo` en App.jsx, inputs de fecha en panel, incluidos en Excel y PDF.
+- ✅ **AsesoramientoPanel (REGFER)** — `src/components/AsesoramientoPanel.jsx`. Panel colapsable
+  con datos del asesor. Persiste en `localStorage('fertipro_asesor')`. Badge con nombre colapsado.
+  Integrado en App.jsx (estado `asesor`), exportPdf.js (metadatos) y exportExcel.js.
+- ✅ **FertilizanteManualPanel (selección manual + SIEX)** — `src/components/FertilizanteManualPanel.jsx`.
+  Carga lazy catálogo Sativum (1253 items). Selector tipo SIEX (24 tipos RD 1051/2022) como primer
+  selector obligatorio. Filtro fabricante + búsqueda debounce 300ms. PERSONALIZADO como primera opción
+  del dropdown (morado) cuando tipoSIEX está seleccionado. esPersonalizado derived. Badge tipoSIEX en
+  lista items. Integrado en App.jsx, exportPdf.js y exportExcel.js.
+- ✅ **tiposMaterialFertilizante.js** — Data file con 24 tipos SIEX (RD 1051/2022). Pendiente
+  integrarlo en FertilizanteManualPanel (backlog ítem 1 de próxima sesión).
+- ✅ **ZVN** — `api/sigpac-zvn.js` + `_enrichConZvn()` + `enrichRecintos()` + `ParcelaInfoCard`
+  + columna ZVN en Excel + tabla recintos con ZVN en PDF. Funciona para punto y polígono.
+- ✅ **Panel lateral reordenado** — GeometryPanel y ParcelaInfoCard suben al primer bloque.
+- ✅ **Sistema de explotación** — Badge Secano/Regadío en `SueloCard.jsx` + fila en Excel.
+- ✅ **uso_sigpac + coef_regadio** — Proxy `api/sigpac-recinfo.js`; `_enrichConRecinfo()`.
+- ✅ **Fechas de ciclo** — `fechaInicioCiclo` / `fechaFinCiclo` en App.jsx, Excel y PDF.
