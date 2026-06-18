@@ -68,6 +68,7 @@ export async function exportarRecintosSigpacExcel(parcelas, baseName = 'fertipro
         'Recinto':                r.recinto   ?? null,
         'Ref. completa':          ref || null,
         'Uso SIGPAC':             r.uso_sigpac ?? null,
+        'Coef. regadío (%)':      r.coef_regadio ?? null,
         'Sup. recinto (ha)':      num(r.superficie_total_ha, 4),
         'Sup. intersección (ha)': num(r.superficie_interseccion_ha, 4),
         '% recinto ocupado':      num(r.pct_ocupado, 1),
@@ -96,6 +97,7 @@ export async function exportarRecintosSigpacExcel(parcelas, baseName = 'fertipro
     { wch:  9 }, // Recinto
     { wch: 20 }, // Ref. completa
     { wch: 11 }, // Uso SIGPAC
+    { wch: 18 }, // Coef. regadío
     { wch: 18 }, // Sup. recinto
     { wch: 22 }, // Sup. intersección
     { wch: 17 }, // % recinto ocupado

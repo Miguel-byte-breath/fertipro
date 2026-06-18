@@ -563,6 +563,7 @@ const MapPicker = forwardRef(function MapPicker(
         parcela:         p.parcela,
         recinto:         p.recinto,
         uso_sigpac:      p.uso_sigpac ?? null,
+        coef_regadio:    p.coef_regadio ?? null,
         // Datos agronomicos directos del OGC API (sin enriquecimiento extra)
         superficie_ha:   p.superficie_ha != null ? Number(p.superficie_ha)   : null,
         pendiente_media: p.pendiente_media != null ? Number(p.pendiente_media) : null,

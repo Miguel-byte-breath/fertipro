@@ -94,13 +94,14 @@ export async function interseccionRecintos(feature) {
   // Caso A: SIGPAC intacta → cada recinto al 100 %, no se llama al servicio.
   if (tipo === 'SIGPAC') {
     const origen = feature.properties.recintos_origen
-    return origen.map(r => ({
+    const base = origen.map(r => ({
       provincia: r.provincia,
       municipio: r.municipio,
       poligono:  r.poligono,
       parcela:   r.parcela,
       recinto:   r.recinto,
       uso_sigpac:      r.uso_sigpac ?? null,
+      coef_regadio:    r.coef_regadio ?? null,
       pendiente_media: r.pendiente_media != null ? Number(r.pendiente_media) : null,
       altitud:         r.altitud != null ? Number(r.altitud) : null,
       superficie_total_ha:        Number(r.superficie_ha) || 0,
@@ -108,6 +109,7 @@ export async function interseccionRecintos(feature) {
       pct_ocupado:                100,
       observacion:                'Completo',
     }))
+    return await _enrichConRecinfo(base)
   }
 
   // Caso B: hay que consultar SIGPAC y recortar al polígono real.
@@ -179,6 +181,7 @@ async function _interseccionDesdeBbox(feature, editada) {
         parcela:   Number(props.parcela),
         recinto:   Number(props.recinto),
         uso_sigpac:      props.uso_sigpac ?? props.uso ?? props.cod_uso ?? null,
+        coef_regadio:    null,  // se rellena en _enrichConRecinfo
         pendiente_media: props.pendiente_media != null ? Number(props.pendiente_media) : null,
         altitud:         props.altitud != null ? Number(props.altitud) : null,
         superficie_total_ha:        supTotal,
@@ -195,5 +198,31 @@ async function _interseccionDesdeBbox(feature, editada) {
 
   // Ordenar por superficie de intersección descendente (los más relevantes primero)
   resultado.sort((a, b) => b.superficie_interseccion_ha - a.superficie_interseccion_ha)
-  return resultado
+  return await _enrichConRecinfo(resultado)
+}
+
+/**
+ * Enriquece una lista de recintos con uso_sigpac y coef_regadio desde
+ * el servicio REST SIGPAC (/api/sigpac-recinfo). Las llamadas se hacen
+ * en paralelo; si alguna falla, el recinto se devuelve sin modificar.
+ */
+async function _enrichConRecinfo(recintos) {
+  const results = await Promise.allSettled(
+    recintos.map(async r => {
+      try {
+        const url = `/api/sigpac-recinfo?pr=${r.provincia}&mu=${r.municipio}&po=${r.poligono}&pa=${r.parcela}&re=${r.recinto}`
+        const res = await fetch(url)
+        if (!res.ok) return r
+        const data = await res.json()
+        return {
+          ...r,
+          uso_sigpac:   r.uso_sigpac   ?? data.uso_sigpac   ?? null,
+          coef_regadio: data.coef_regadio ?? null,
+        }
+      } catch {
+        return r
+      }
+    })
+  )
+  return results.map((e, i) => e.status === 'fulfilled' ? e.value : recintos[i])
 }
