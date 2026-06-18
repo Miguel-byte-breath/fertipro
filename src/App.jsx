@@ -98,6 +98,8 @@ export default function App() {
 
   // ── Estado fecha del plan ─────────────────────────────────────────────
   const [fecha, setFecha] = useState(() => new Date().toISOString().slice(0, 10))
+  const [fechaInicioCiclo, setFechaInicioCiclo] = useState('')
+  const [fechaFinCiclo,    setFechaFinCiclo]    = useState('')
 
   // ── Estado estrategia + parámetros de cálculo ──────────────────────────
   const [calculo, setCalculo] = useState({
@@ -480,6 +482,8 @@ export default function App() {
         riego: { ...riego, fuenteLabel },
         calculo,
         fecha,
+        fechaInicioCiclo,
+        fechaFinCiclo,
         npk:                  resultados.npk,
         recomendacion:        resultados.recomendacion,
         adjustedNutrient:     resultados.adjustedNutrient,
@@ -490,7 +494,7 @@ export default function App() {
     } finally {
       setExportingPlan(false)
     }
-  }, [cultivo, resultados, point, recinto, suelo, cec, riego, calculo, fecha])
+  }, [cultivo, resultados, point, recinto, suelo, cec, riego, calculo, fecha, fechaInicioCiclo, fechaFinCiclo])
 
   // ── Exportar plan de abonado PDF ──────────────────────────────────────
   const [exportingPlanPdf, setExportingPlanPdf] = useState(false)
@@ -543,6 +547,8 @@ export default function App() {
         cultivoAnteriorParams,
         calculo,
         fecha,
+        fechaInicioCiclo,
+        fechaFinCiclo,
         recintos:    recintosList,
         supTotalHa,
         riego:       { ...riego, fuenteLabel },
@@ -558,7 +564,7 @@ export default function App() {
     } finally {
       setExportingPlanPdf(false)
     }
-  }, [cultivo, resultados, recinto, riego, calculo, fecha, cultivoAnterior, cultivoAnteriorParams, polygonsToExport])
+  }, [cultivo, resultados, recinto, riego, calculo, fecha, fechaInicioCiclo, fechaFinCiclo, cultivoAnterior, cultivoAnteriorParams, polygonsToExport])
 
   // ── Render ─────────────────────────────────────────────────────────────
   const cargando      = estado === ESTADO.CARGANDO
@@ -617,6 +623,40 @@ export default function App() {
                   fontFamily: 'inherit', color: '#263238', boxSizing: 'border-box',
                 }}
               />
+            </div>
+
+            {/* ── Fechas de ciclo ── */}
+            <div style={{ display: 'flex', gap: 8, marginBottom: 12 }}>
+              <div style={{ flex: 1 }}>
+                <label style={{ fontSize: 11, color: '#78909c', display: 'block', marginBottom: 2 }}>
+                  Inicio de ciclo
+                </label>
+                <input
+                  type="date"
+                  value={fechaInicioCiclo}
+                  onChange={e => setFechaInicioCiclo(e.target.value)}
+                  style={{
+                    width: '100%', padding: '5px 7px', fontSize: 12,
+                    border: '1px solid #cfd8dc', borderRadius: 4,
+                    fontFamily: 'inherit', color: '#263238', boxSizing: 'border-box',
+                  }}
+                />
+              </div>
+              <div style={{ flex: 1 }}>
+                <label style={{ fontSize: 11, color: '#78909c', display: 'block', marginBottom: 2 }}>
+                  Fin de ciclo
+                </label>
+                <input
+                  type="date"
+                  value={fechaFinCiclo}
+                  onChange={e => setFechaFinCiclo(e.target.value)}
+                  style={{
+                    width: '100%', padding: '5px 7px', fontSize: 12,
+                    border: '1px solid #cfd8dc', borderRadius: 4,
+                    fontFamily: 'inherit', color: '#263238', boxSizing: 'border-box',
+                  }}
+                />
+              </div>
             </div>
 
             <CultivoSelector

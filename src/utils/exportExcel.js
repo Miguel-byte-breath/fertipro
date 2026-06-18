@@ -174,6 +174,8 @@ export async function exportarPlanAbonado({
   riego,
   calculo,
   fecha,
+  fechaInicioCiclo = null,
+  fechaFinCiclo    = null,
   npk,
   recomendacion,
   adjustedNutrient = null,
@@ -221,6 +223,8 @@ export async function exportarPlanAbonado({
   row('Fecha', fecha
     ? new Date(fecha + 'T00:00:00').toLocaleDateString('es-ES')
     : new Date().toLocaleDateString('es-ES'))
+  if (fechaInicioCiclo) row('Inicio de ciclo', new Date(fechaInicioCiclo + 'T00:00:00').toLocaleDateString('es-ES'))
+  if (fechaFinCiclo)    row('Fin de ciclo',    new Date(fechaFinCiclo    + 'T00:00:00').toLocaleDateString('es-ES'))
   row('Longitud', num(point?.lon, 5), '°')
   row('Latitud',  num(point?.lat, 5), '°')
   if (recinto) {

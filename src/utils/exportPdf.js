@@ -102,6 +102,8 @@ export async function exportarPlanAbonadoPdf({
   cultivoAnteriorParams = null,
   calculo,
   fecha,
+  fechaInicioCiclo     = null,
+  fechaFinCiclo        = null,
   recintos             = [],   // lista plana de todos los recintos intersectados
   supTotalHa           = null, // superficie total ha (suma parcelas)
   riego,
@@ -257,6 +259,14 @@ export async function exportarPlanAbonadoPdf({
   }
 
   metaRow('Fecha del plan de nutrientes', fechaFmt)
+  if (fechaInicioCiclo) {
+    const fmtInicio = new Date(fechaInicioCiclo + 'T00:00:00').toLocaleDateString('es-ES', { day: '2-digit', month: 'long', year: 'numeric' })
+    metaRow('Inicio de ciclo', fmtInicio)
+  }
+  if (fechaFinCiclo) {
+    const fmtFin = new Date(fechaFinCiclo + 'T00:00:00').toLocaleDateString('es-ES', { day: '2-digit', month: 'long', year: 'numeric' })
+    metaRow('Fin de ciclo', fmtFin)
+  }
 
   y += 4
 
@@ -488,6 +498,4 @@ export async function exportarPlanAbonadoPdf({
     )
   }
 
-  // ── 7. DESCARGA ───────────────────────────────────────────────────────────
-  doc.save(`${baseName}.pdf`)
-}
+  // ── 7. DESCARGA ───────────────────────────────────────────────────
