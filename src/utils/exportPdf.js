@@ -112,6 +112,8 @@ export async function exportarPlanAbonadoPdf({
   nRiego               = 0,
   pRiego               = 0,
   kRiego               = 0,
+  asesor               = null,
+  fertilizadoresManuales = [],
   baseName             = 'fertipro_plan_nutrientes',
 }) {
   // ── Carga dinámica de jsPDF ───────────────────────────────────────────────
@@ -248,6 +250,14 @@ export async function exportarPlanAbonadoPdf({
   if (fechaFinCiclo) {
     const fmtFin = new Date(fechaFinCiclo + 'T00:00:00').toLocaleDateString('es-ES', { day: '2-digit', month: 'long', year: 'numeric' })
     metaRow('Fin de ciclo', fmtFin)
+  }
+
+  // Asesor responsable del plan
+  if (asesor?.nombre || asesor?.regfer) {
+    const nombreCompleto = [asesor.nombre, asesor.apellidos].filter(Boolean).join(' ')
+    const regferStr = asesor.regfer ? `  |  REGFER: ${asesor.regfer}` : ''
+    metaRow('Asesor responsable del plan', nombreCompleto + regferStr)
+    if (asesor.nif) metaRow('NIF asesor', asesor.nif)
   }
 
   y += 4
@@ -419,7 +429,14 @@ export async function exportarPlanAbonadoPdf({
 
   y = boxY + boxH + 6
 
-  // ── 6. TABLA FERTILIZANTES ────────────────────────────────────────────────
+  // ── 6. TABLA FERTILIZANTES — OPCIONES PROPUESTAS (API SATIVUM) ───────────
+  // Título de sección
+  doc.setFontSize(8.5)
+  doc.setFont('helvetica', 'bold')
+  doc.setTextColor(...C_TEAL)
+  doc.text('OPCIONES PROPUESTAS — API SATIVUM', ML, y)
+  y += 5
+
   // Construir filas
   const tableRows = []
 
@@ -527,7 +544,108 @@ export async function exportarPlanAbonadoPdf({
     },
   })
 
-  // ── 7. PIE DE PÁGINA (paginación X/N) ─────────────────────────────────────
+  // ── 7. TABLA FERTILIZANTES — RECOMENDACIÓN PERSONALIZADA DEL ASESOR ──────
+  if (Array.isArray(fertilizadoresManuales) && fertilizadoresManuales.length > 0) {
+    y = doc.lastAutoTable.finalY + 8
+
+    // Título de sección
+    doc.setFontSize(8.5)
+    doc.setFont('helvetica', 'bold')
+    doc.setTextColor(...C_TITLE)
+    doc.text('RECOMENDACIÓN PERSONALIZADA DEL ASESOR', ML, y)
+    y += 5
+
+    // Cabecera y body con acumulados corrientes (running totals)
+    const manHead = [[
+      'Fecha', 'Producto / Fertilizante', 'Tipo',
+      'Dosis\n(kg/ha)', 'N\n(kg/ha)', 'P₂O₅\n(kg/ha)', 'K₂O\n(kg/ha)',
+      'ΣN\n(kg/ha)', 'ΣP₂O₅\n(kg/ha)', 'ΣK₂O\n(kg/ha)',
+    ]]
+
+    let sumN = 0; let sumP2o5 = 0; let sumK2o = 0
+    const manBody = fertilizadoresManuales.map(item => {
+      const dose  = Number(item.cantidad) || 0
+      const aN    = (item.n    ?? 0) * dose / 100
+      const aP2o5 = (item.p2o5 ?? 0) * dose / 100
+      const aK2o  = (item.k2o  ?? 0) * dose / 100
+      sumN    += aN
+      sumP2o5 += aP2o5
+      sumK2o  += aK2o
+      const fechaStr = item.fechaAplicacion
+        ? new Date(item.fechaAplicacion + 'T00:00:00').toLocaleDateString('es-ES', { day: '2-digit', month: '2-digit', year: '2-digit' })
+        : '—'
+      return [
+        fechaStr,
+        item.nombre ?? '—',
+        item.tipo   ?? '—',
+        fmt(dose, 0),
+        fmt(aN,    1),
+        fmt(aP2o5, 1),
+        fmt(aK2o,  1),
+        fmt(sumN,    1),
+        fmt(sumP2o5, 1),
+        fmt(sumK2o,  1),
+      ]
+    })
+
+    // Fila TOTAL al final
+    manBody.push([
+      { content: 'TOTAL', colSpan: 4, styles: { fontStyle: 'bold', fillColor: [232, 245, 242], textColor: C_TEAL } },
+      { content: fmt(sumN,    1), styles: { fontStyle: 'bold', fillColor: [232, 245, 242], textColor: C_TEAL } },
+      { content: fmt(sumP2o5, 1), styles: { fontStyle: 'bold', fillColor: [232, 245, 242], textColor: C_TEAL } },
+      { content: fmt(sumK2o,  1), styles: { fontStyle: 'bold', fillColor: [232, 245, 242], textColor: C_TEAL } },
+      { content: '',  styles: { fillColor: [232, 245, 242] } },
+      { content: '',  styles: { fillColor: [232, 245, 242] } },
+      { content: '',  styles: { fillColor: [232, 245, 242] } },
+    ])
+
+    // Fila de cobertura (si hay NPK disponible)
+    if (nBruto > 0 || p2o5 > 0 || k2o > 0) {
+      const covN    = nBruto > 0 ? Math.round((sumN    / nBruto) * 100) : null
+      const covP    = p2o5   > 0 ? Math.round((sumP2o5 / p2o5)   * 100) : null
+      const covK    = k2o    > 0 ? Math.round((sumK2o  / k2o)    * 100) : null
+      manBody.push([
+        {
+          content: `Cobertura s/ necesidad bruta: N ${covN != null ? covN + '%' : '—'} · P₂O₅ ${covP != null ? covP + '%' : '—'} · K₂O ${covK != null ? covK + '%' : '—'}`,
+          colSpan: 10,
+          styles: { fontStyle: 'italic', fontSize: 7.5, fillColor: C_WARN_BG, textColor: [120, 90, 0] },
+        },
+      ])
+    }
+
+    autoTable(doc, {
+      startY:     y,
+      head:       manHead,
+      body:       manBody,
+      margin:     { left: ML, right: MR },
+      tableWidth: CW,
+      styles: {
+        fontSize:    7,
+        cellPadding: { top: 1.5, bottom: 1.5, left: 2, right: 2 },
+        lineColor:   C_BORDER, lineWidth: 0.2,
+        font:        'helvetica', textColor: C_LABEL, valign: 'middle',
+      },
+      headStyles: {
+        fillColor: C_TITLE, textColor: [255, 255, 255],
+        fontStyle: 'bold', fontSize: 7, halign: 'center',
+      },
+      columnStyles: {
+        0: { cellWidth: 14, halign: 'center' },
+        1: { cellWidth: 46, halign: 'left'   },
+        2: { cellWidth: 22, halign: 'center' },
+        3: { cellWidth: 15, halign: 'right'  },
+        4: { cellWidth: 13, halign: 'right'  },
+        5: { cellWidth: 15, halign: 'right'  },
+        6: { cellWidth: 13, halign: 'right'  },
+        7: { cellWidth: 13, halign: 'right', fontStyle: 'bold' },
+        8: { cellWidth: 15, halign: 'right', fontStyle: 'bold' },
+        9: { cellWidth: 13, halign: 'right', fontStyle: 'bold' },
+      },
+      alternateRowStyles: { fillColor: [250, 252, 255] },
+    })
+  }
+
+  // ── 8. PIE DE PÁGINA (paginación X/N) ─────────────────────────────────────
   const totalPages = doc.internal.getNumberOfPages()
   for (let i = 1; i <= totalPages; i++) {
     doc.setPage(i)

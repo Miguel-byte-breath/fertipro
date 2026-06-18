@@ -27,7 +27,9 @@ import { identifySativum, normalizarSuelo } from './api/sativum-suelo'
 import SueloCard        from './components/SueloCard'
 import EstrategiaPanel       from './components/EstrategiaPanel'
 import CultivoAnteriorPanel  from './components/CultivoAnteriorPanel'
-import ResultadosCard   from './components/ResultadosCard'
+import ResultadosCard        from './components/ResultadosCard'
+import AsesoramientoPanel        from './components/AsesoramientoPanel'
+import FertilizanteManualPanel   from './components/FertilizanteManualPanel'
 import { calcularNPK, calcularNAgua }  from './api/sativum-algo'
 import { getRecomendacion } from './api/sativum-fertilizers'
 import { FUENTE_SUBTERRANEA, FUENTE_SIN_RIEGO } from './data/sativum/fuentesAgua'
@@ -95,6 +97,19 @@ export default function App() {
     quemaResiduos:  false,
   })
 
+  // ── Estado asesor responsable (REGFER) — persiste en localStorage ─────
+  const [asesor, setAsesor] = useState(() => {
+    try {
+      const saved = localStorage.getItem('fertipro_asesor')
+      return saved ? JSON.parse(saved) : { regfer: '', nombre: '', apellidos: '', nif: '', telefono: '', email: '' }
+    } catch {
+      return { regfer: '', nombre: '', apellidos: '', nif: '', telefono: '', email: '' }
+    }
+  })
+  useEffect(() => {
+    try { localStorage.setItem('fertipro_asesor', JSON.stringify(asesor)) } catch { /* noop */ }
+  }, [asesor])
+
   // ── Estado fecha del plan ─────────────────────────────────────────────
   const [fecha, setFecha] = useState(() => new Date().toISOString().slice(0, 10))
   const [fechaInicioCiclo, setFechaInicioCiclo] = useState('')
@@ -129,6 +144,9 @@ export default function App() {
     if (!suelo?.soilType) return
     setCec(CEC_BY_SOIL_TYPE[suelo.soilType] ?? 220)
   }, [suelo?.soilType])
+
+  // ── Estado fertilizantes manuales (selección del asesor) ────────────────
+  const [fertilizadoresManuales, setFertilizadoresManuales] = useState([])
 
   // ── Estado recintos SIGPAC + ZVN (se popula en queryCoords) ──────────────
   const [recintos,        setRecintos]        = useState(null)
@@ -539,12 +557,14 @@ export default function App() {
         adjustedNutrient:     resultados.adjustedNutrient,
         cultivoAnterior,
         cultivoAnteriorParams,
+        asesor,
+        fertilizadoresManuales,
         baseName,
       })
     } finally {
       setExportingPlan(false)
     }
-  }, [cultivo, resultados, point, recinto, suelo, cec, riego, calculo, fecha, fechaInicioCiclo, fechaFinCiclo])
+  }, [cultivo, resultados, point, recinto, suelo, cec, riego, calculo, fecha, fechaInicioCiclo, fechaFinCiclo, asesor, fertilizadoresManuales])
 
   // ── Exportar plan de abonado PDF ──────────────────────────────────────
   const [exportingPlanPdf, setExportingPlanPdf] = useState(false)
@@ -596,6 +616,8 @@ export default function App() {
         cultivoAnterior,
         cultivoAnteriorParams,
         calculo,
+        asesor,
+        fertilizadoresManuales,
         fecha,
         fechaInicioCiclo,
         fechaFinCiclo,
@@ -614,7 +636,7 @@ export default function App() {
     } finally {
       setExportingPlanPdf(false)
     }
-  }, [cultivo, resultados, recinto, riego, calculo, fecha, fechaInicioCiclo, fechaFinCiclo, cultivoAnterior, cultivoAnteriorParams, polygonsToExport])
+  }, [cultivo, resultados, recinto, riego, calculo, fecha, fechaInicioCiclo, fechaFinCiclo, cultivoAnterior, cultivoAnteriorParams, asesor, fertilizadoresManuales, polygonsToExport])
 
   // ── Render ─────────────────────────────────────────────────────────────
   const cargando      = estado === ESTADO.CARGANDO
@@ -675,6 +697,11 @@ export default function App() {
             recintos={recintos}
             loading={recintosLoading}
             error={estado === ESTADO.ERROR ? error : null}
+          />
+
+          <AsesoramientoPanel
+            asesor={asesor}
+            onChange={setAsesor}
           />
 
           <div style={{ padding: 12 }}>
@@ -819,6 +846,15 @@ export default function App() {
             cultivo={cultivo}
             loading={resultados.loading}
             error={resultados.error}
+          />
+
+          <FertilizanteManualPanel
+            fertilizadoresManuales={fertilizadoresManuales}
+            onChange={setFertilizadoresManuales}
+            npk={resultados.npk}
+            nRiego={resultados.nRiego}
+            pRiego={resultados.pRiego}
+            kRiego={resultados.kRiego}
           />
 
           {/* Exportar plan */}

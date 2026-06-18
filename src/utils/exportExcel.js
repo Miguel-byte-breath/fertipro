@@ -185,6 +185,8 @@ export async function exportarPlanAbonado({
   adjustedNutrient = null,
   cultivoAnterior = null,
   cultivoAnteriorParams = null,
+  asesor = null,
+  fertilizadoresManuales = [],
   baseName = 'fertipro_plan_abonado',
 }) {
   const mod  = await import('xlsx')
@@ -229,6 +231,14 @@ export async function exportarPlanAbonado({
     : new Date().toLocaleDateString('es-ES'))
   if (fechaInicioCiclo) row('Inicio de ciclo', new Date(fechaInicioCiclo + 'T00:00:00').toLocaleDateString('es-ES'))
   if (fechaFinCiclo)    row('Fin de ciclo',    new Date(fechaFinCiclo    + 'T00:00:00').toLocaleDateString('es-ES'))
+  if (asesor?.nombre || asesor?.regfer) {
+    const nombreCompleto = [asesor.nombre, asesor.apellidos].filter(Boolean).join(' ')
+    row('Asesor responsable del plan', nombreCompleto || null)
+    if (asesor.regfer)   row('Nº REGFER', asesor.regfer)
+    if (asesor.nif)      row('NIF asesor', asesor.nif)
+    if (asesor.telefono) row('Teléfono asesor', asesor.telefono)
+    if (asesor.email)    row('Email asesor', asesor.email)
+  }
   row('Longitud', num(point?.lon, 5), '°')
   row('Latitud',  num(point?.lat, 5), '°')
   if (recinto) {
@@ -337,6 +347,7 @@ export async function exportarPlanAbonado({
       const fp2o5 = dose != null ? f.p2o5 * dose / 100 : null
       const fk2o  = dose != null ? f.k2o  * dose / 100 : null
       fertRows.push({
+        'Origen':                'Propuesta API Sativum',
         'Combinación':           ri + 1,
         'Fertilizante':          f.name ?? `Fert. ${ri + 1}`,
         '% N':                   num(f.n,    1),
@@ -346,25 +357,82 @@ export async function exportarPlanAbonado({
         'N aportado (kg/ha)':    num(fn,    1),
         'P₂O₅ aportado (kg/ha)':num(fp2o5, 1),
         'K₂O aportado (kg/ha)': num(fk2o,  1),
+        'Fecha aplicación':      null,
+        'ΣN (kg/ha)':            null,
+        'ΣP₂O₅ (kg/ha)':        null,
+        'ΣK₂O (kg/ha)':         null,
       })
     })
     if (rec.observations) {
       fertRows.push({
+        'Origen':                'Propuesta API Sativum',
         'Combinación':           ri + 1,
         'Fertilizante':          `Observación: ${rec.observations}`,
         '% N': null, '% P₂O₅': null, '% K₂O': null,
         'Dosis (kg/ha)': null,
         'N aportado (kg/ha)': null, 'P₂O₅ aportado (kg/ha)': null, 'K₂O aportado (kg/ha)': null,
+        'Fecha aplicación': null, 'ΣN (kg/ha)': null, 'ΣP₂O₅ (kg/ha)': null, 'ΣK₂O (kg/ha)': null,
       })
     }
   })
+
+  // ── Filas de selección manual (con running totals) ─────────────────────
+  const manList = Array.isArray(fertilizadoresManuales) ? fertilizadoresManuales : []
+  if (manList.length > 0) {
+    // Fila separadora
+    fertRows.push({
+      'Origen': '--- SELECCIÓN MANUAL DEL ASESOR ---',
+      'Combinación': null, 'Fertilizante': null,
+      '% N': null, '% P₂O₅': null, '% K₂O': null, 'Dosis (kg/ha)': null,
+      'N aportado (kg/ha)': null, 'P₂O₅ aportado (kg/ha)': null, 'K₂O aportado (kg/ha)': null,
+      'Fecha aplicación': null, 'ΣN (kg/ha)': null, 'ΣP₂O₅ (kg/ha)': null, 'ΣK₂O (kg/ha)': null,
+    })
+    let sigN = 0; let sigP2o5 = 0; let sigK2o = 0
+    manList.forEach((item, i) => {
+      const dose  = Number(item.cantidad) || 0
+      const aN    = num((item.n    ?? 0) * dose / 100, 1)
+      const aP2o5 = num((item.p2o5 ?? 0) * dose / 100, 1)
+      const aK2o  = num((item.k2o  ?? 0) * dose / 100, 1)
+      sigN    += (item.n    ?? 0) * dose / 100
+      sigP2o5 += (item.p2o5 ?? 0) * dose / 100
+      sigK2o  += (item.k2o  ?? 0) * dose / 100
+      fertRows.push({
+        'Origen':                'Selección manual',
+        'Combinación':           i + 1,
+        'Fertilizante':          item.nombre ?? 'Producto personalizado',
+        '% N':                   num(item.n,    1),
+        '% P₂O₅':               num(item.p2o5, 1),
+        '% K₂O':                num(item.k2o,  1),
+        'Dosis (kg/ha)':         num(dose, 0),
+        'N aportado (kg/ha)':    aN,
+        'P₂O₅ aportado (kg/ha)':aP2o5,
+        'K₂O aportado (kg/ha)': aK2o,
+        'Fecha aplicación':      item.fechaAplicacion ?? null,
+        'ΣN (kg/ha)':            num(sigN,    1),
+        'ΣP₂O₅ (kg/ha)':        num(sigP2o5, 1),
+        'ΣK₂O (kg/ha)':         num(sigK2o,  1),
+      })
+    })
+  }
 
   const wsFert = XLSX.utils.json_to_sheet(
     fertRows.length > 0 ? fertRows : [{ 'Info': 'No hay recomendaciones de fertilizantes disponibles.' }]
   )
   wsFert['!cols'] = [
-    { wch: 12 }, { wch: 30 }, { wch:  8 }, { wch:  9 }, { wch:  9 },
-    { wch: 14 }, { wch: 22 }, { wch: 24 }, { wch: 22 },
+    { wch: 24 }, // Origen
+    { wch: 12 }, // Combinación
+    { wch: 32 }, // Fertilizante
+    { wch:  8 }, // % N
+    { wch:  9 }, // % P₂O₅
+    { wch:  9 }, // % K₂O
+    { wch: 14 }, // Dosis
+    { wch: 20 }, // N aportado
+    { wch: 22 }, // P₂O₅ aportado
+    { wch: 20 }, // K₂O aportado
+    { wch: 16 }, // Fecha aplicación
+    { wch: 14 }, // ΣN
+    { wch: 16 }, // ΣP₂O₅
+    { wch: 14 }, // ΣK₂O
   ]
 
   // ── Hoja 3: Notas ───────────────────────────────────────────────────────
@@ -378,6 +446,14 @@ export async function exportarPlanAbonado({
     { 'Campo': 'Conversión P→P₂O₅', 'Valor': '× 2.2914' },
     { 'Campo': 'Conversión K→K₂O',  'Valor': '× 1.2046' },
     { 'Campo': 'N aportado riego',   'Valor': 'NO₃ (mg/L) × dotación (m³/ha) / 1000 × (14/62) = kg N/ha' },
+    ...(asesor?.nombre || asesor?.regfer ? [
+      { 'Campo': '', 'Valor': '' },
+      { 'Campo': 'Asesor responsable', 'Valor': [asesor.nombre, asesor.apellidos].filter(Boolean).join(' ') || '' },
+      ...(asesor.regfer   ? [{ 'Campo': 'Nº REGFER',        'Valor': asesor.regfer }]   : []),
+      ...(asesor.nif      ? [{ 'Campo': 'NIF asesor',        'Valor': asesor.nif }]      : []),
+      ...(asesor.telefono ? [{ 'Campo': 'Teléfono asesor',   'Valor': asesor.telefono }] : []),
+      ...(asesor.email    ? [{ 'Campo': 'Email asesor',      'Valor': asesor.email }]    : []),
+    ] : []),
   ]
   const wsNotas = XLSX.utils.json_to_sheet(notas)
   wsNotas['!cols'] = [{ wch: 22 }, { wch: 60 }]

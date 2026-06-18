@@ -164,7 +164,7 @@ export default function ResultadosCard({ npk, recomendacion, adjustedNutrient = 
       {recList.length > 0 ? (
         <>
           <div style={SR.sectionTitle}>
-            Combinaciones recomendadas
+            Opciones propuestas (API Sativum)
             <span style={SR.adjBadge}>ajustado a {adjustedNutrient} al 100%</span>
           </div>
           {recList.map((rec, i) => (
