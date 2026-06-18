@@ -24,6 +24,8 @@ Aplicación web de planificación de abonado para agricultores españoles. Calcu
 src/
   App.jsx                    — raíz, estado global, handleCalcularNecesidades
                                handleExportarPlan (Excel) · handleExportarPlanPdf (PDF)
+                               estado: recinto, suelo, cec, riego, calculo, resultados,
+                                       fechaInicioCiclo, fechaFinCiclo
   api/
     sativum-algo.js          — ensamblarPayloadAlgo + calcularNPK + calcularNAgua
     sativum-fertilizers.js   — getRecomendacion, pToOxide, kToOxide
@@ -32,6 +34,7 @@ src/
   components/
     ResultadosCard.jsx       — display NPK + combinaciones fertilizantes
     SueloCard.jsx            — análisis suelo ArcGIS + agua de riego (NO₃/P/K/dotación)
+                               + Sistema de explotación (Secano/Regadío, derivado de fuenteId)
     EstrategiaPanel.jsx      — estrategia, laboreo, params N avanzados
     CultivoAnteriorPanel.jsx — cultivo precedente en la rotación
   cultivos/
@@ -42,8 +45,12 @@ src/
     fuentesAgua.js           — catálogo SIEX fuentes de agua (ids 0-6)
   utils/
     exportExcel.js           — exportarPlanAbonado + exportarRecintosSigpacExcel
+                               acepta: fechaInicioCiclo, fechaFinCiclo
+                               hoja "Recintos SIGPAC": uso_sigpac + coef_regadio incluidos
     exportPdf.js             — exportarPlanAbonadoPdf (jsPDF + AutoTable)
+                               acepta: fechaInicioCiclo, fechaFinCiclo
     recintosInterseccion.js  — interseccionRecintos(feature) → lista recintos con sup/pct
+                               _enrichConRecinfo() → enriquece uso_sigpac + coef_regadio en paralelo
     geometry.js              — centroide, exportarGeoJSON, exportarSHP, etc.
 api/
   sativum-algo.js            — proxy POST /fertilicalc/algo/
@@ -51,6 +58,8 @@ api/
   sativum-crops.js           — proxy GET /nutrients/crops
   sigpac-punto.js            — proxy SIGPAC OGC punto
   sigpac-bbox.js             — proxy SIGPAC OGC bbox (usado por interseccionRecintos)
+  sigpac-recinfo.js          — proxy REST recinfo: uso_sigpac, coef_regadio, superficie, pendiente
+                               GET /api/sigpac-recinfo?pr=&mu=&po=&pa=&re=[&ag=&zo=]
 ```
 
 ## Flujo de cálculo (orden estricto)
@@ -67,20 +76,52 @@ api/
 `handleExportarPlanPdf` en App.jsx:
 1. Llama `interseccionRecintos(feature)` para cada parcela activa → lista plana deduplicada de recintos
 2. Suma superficie total (`@turf/area`) de las parcelas
-3. Llama `exportarPlanAbonadoPdf({ cultivo, recintos, supTotalHa, npk, recomendacion, ... })`
+3. Llama `exportarPlanAbonadoPdf({ cultivo, recintos, supTotalHa, npk, recomendacion, fechaInicioCiclo, fechaFinCiclo, ... })`
 
 `exportPdf.js` genera:
 - Cabecera: logo `public/fertipro.png` + créditos motor
-- Metadatos: cultivo actual/anterior, refs SIGPAC formato `PP-MM-AA-ZZ-PPP-PPP-R`, fecha
+- Metadatos: cultivo actual/anterior, refs SIGPAC formato `PP-MM-AA-ZZ-PPP-PPP-R`, fecha, inicio/fin de ciclo
 - Recuadro NPK: 5 círculos (N · P₂O₅ · P · K₂O · K) + superficie parcela
 - Tabla FERTILIZANTES: fila agua de riego + todas las opciones de `/recommendation` agrupadas
 - Pie: paginación `X/N` + fecha generación
 
-**Pendiente en PDF:** tabla de recintos SIGPAC con superficie intersectada (ver Backlog #1).
+**Pendiente en PDF:** tabla de recintos SIGPAC con superficie intersectada (ver Backlog #3).
 
 ## Flujo exportación Excel
 
-`handleExportarPlan` en App.jsx pasa actualmente solo `recinto` (punto). **Pendiente** refactorizar igual que el PDF para pasar lista intersectada completa (Backlog #1).
+`handleExportarPlan` en App.jsx pasa actualmente solo `recinto` (punto). **Pendiente** refactorizar igual que el PDF para pasar lista intersectada completa (Backlog #3).
+
+## SIGPAC HubCloud — endpoints y arquitectura
+
+Base URL: `https://sigpac-hubcloud.es`
+
+### OGC API Features (bbox, punto)
+Usado por los proxies `sigpac-bbox.js` y `sigpac-punto.js`.  
+**Problema conocido:** la OGC API devuelve `uso_sigpac` y `coef_regadio` vacíos para muchos recintos. No es fiable para estos campos.
+
+### REST de consultas SIGPAC (recinfo, nitratos)
+Servicio propio FEGA, más completo. Datos anuales (CC BY 4.0 HVD SIGC).
+
+#### recinfo — datos del recinto
+```
+GET /servicioconsultassigpac/query/recinfo/{pr}/{mu}/{ag}/{zo}/{po}/{pa}/{re}.json
+```
+- `ag` y `zo` pueden ser `0` si no se conocen.
+- Devuelve: `{ uso_sigpac, coef_regadio, superficie, pendiente_media, admisibilidad, region }`.
+- **Proxy:** `api/sigpac-recinfo.js`.
+- **Patrón de uso:** `_enrichConRecinfo()` en `recintosInterseccion.js` — llamadas paralelas con `Promise.allSettled`, aplicado en Caso A (SIGPAC intacta) y Caso B (bbox + turf). Si falla alguna, el recinto se devuelve sin modificar.
+
+#### intersection nitratos — ZVN por recinto
+```
+GET /servicioconsultassigpac/intersection/nitratos/{pr}/{mu}/{ag}/{zo}/{po}/{pa}/{re}.json
+```
+- Devuelve `[{ surface_intersection: <m²>, surface_tpc: <float 0–100> }]`.
+- Devuelve `[]` si el recinto **no** intersecta ninguna Zona Vulnerable a Nitratos (ZVN).
+- **Pendiente:** proxy `api/sigpac-zvn.js` (Backlog #1).
+
+### Parámetros de ruta SIGPAC
+`pr`=provincia · `mu`=municipio · `ag`=agregado · `zo`=zona · `po`=polígono · `pa`=parcela · `re`=recinto  
+Todos disponibles en el objeto `recinto` que devuelve `getSigpacRecinto()`.
 
 ## Reglas críticas de la API (bugs documentados)
 
@@ -118,26 +159,47 @@ git add .; git commit -m "..."; git push   # Despliegue a Vercel automático
 ```
 
 **Nota PowerShell:** usar `;` como separador, no `&&`.  
-**Nota vercel dev:** el token caduca. Si falla, ejecutar `npx vercel login` primero.
+**Nota vercel dev:** el token caduca. Si falla, ejecutar `npx vercel login` primero.  
+**Nota edición archivos largos:** usar Python en `/tmp` para edits de archivos >100 líneas; verificar `tail -5` antes de dar el commit. Nunca sobreescribir archivos largos con Write directamente.  
+**Git workflow:** Claude edita archivos, el usuario ejecuta todos los comandos git desde PowerShell.
+
+## Commits recientes (2026-06-18)
+
+```
+8ee32a2 fix: exportPdf.js truncado — restaurar fechas ciclo sin cortar el archivo
+09917a2 feat: fechas inicio/fin de ciclo en panel, Excel y PDF
+ad8c2a3 feat: uso_sigpac + coef_regadio via servicio REST SIGPAC recinfo
+ae490f8 fix: sistema de explotación en Excel y panel (encoding correcto)
+ee41039 feat: añadir sistema de explotación (Secano/Regadío) en panel y Excel
+```
 
 ## Backlog
 
 ### Activo
 
-1. **Recintos SIGPAC en Excel y PDF** — Mostrar superficie intersectada por recinto.
-   - *Excel:* refactorizar `handleExportarPlan` para calcular `interseccionRecintos()` (igual que ya hace `handleExportarPlanPdf`); pasar `recintos` + `supTotalHa` a `exportarPlanAbonado()`; añadir hoja "Recintos SIGPAC" con ref/uso/sup_recinto/sup_intersección/pct_ocupado.
-   - *PDF:* añadir tabla de recintos tras el bloque NPK con las mismas columnas. Los datos ya llegan en el parámetro `recintos` de `exportarPlanAbonadoPdf`.
+1. **ZVN — Zonas Vulnerables a Nitratos** — Comprobar si el `recinto` activo intersecta alguna ZVN (RD 1051/2022).
+   - **Endpoint disponible:** `GET /servicioconsultassigpac/intersection/nitratos/{pr}/{mu}/{ag}/{zo}/{po}/{pa}/{re}.json`
+   - Devuelve `[{ surface_intersection, surface_tpc }]` o `[]` si no hay intersección.
+   - **Archivos a crear/tocar:**
+     - `api/sigpac-zvn.js` — proxy nuevo (misma estructura que `sigpac-recinfo.js`)
+     - `App.jsx` — estado `zvn`, llamar en `queryCoords` tras `setRecinto(rec)`
+     - `src/components/ResultadosCard.jsx` — badge rojo "⚠ ZVN" si `zvn.enZvn`
+     - `src/utils/exportPdf.js` — bloque de alerta amarillo en metadatos
+   - El objeto `recinto` de `getSigpacRecinto()` tiene todos los campos necesarios: `provincia`, `municipio`, `agregado`, `zona`, `poligono`, `parcela`, `recinto`.
 
-2. **Fechas de ciclo del cultivo** — Inputs de fecha inicio y fin de ciclo justo debajo de la fecha del plan en el panel lateral. Incluir en Excel (Hoja 1) y PDF (metadatos). Pendiente confirmar si la API Sativum devuelve estas fechas por cultivo o son siempre manuales.
+2. **Selección manual de fertilizantes del catálogo** — Además de las 5 mejores propuestas automáticas, permitir añadir combinación propia desde el catálogo Sativum (1.253 productos). Prerequisito: ítem 2a.
+   - 2a. **Proxy catálogo fertilizantes** — `api/sativum-fertilizers.js` GET lista: forward query params al upstream para filtrado/paginación.
 
-3. **ZVN — Zonas Vulnerables a Nitratos** — Comprobar intersección de la/s geometría/s con la capa ZVN del OGC API SIGPAC (FEGA HubCloud). Badge de aviso en UI (ResultadosCard) + bloque de alerta en PDF. Relevante para RD 1051/2022. Requiere nuevo proxy `/api/sigpac-zvn.js` + turf.intersect. Investigar endpoint exacto en FEGA.
-
-4. **Selección manual de fertilizantes del catálogo** — Además de las 5 mejores propuestas automáticas, permitir que el asesor/productor añada su propia combinación seleccionando del catálogo Sativum (1.253 productos). Prerequisito técnico: activar forward de query params en `api/sativum-fertilizers.js` GET lista.
+3. **Recintos SIGPAC en Excel y PDF** — Tabla de recintos con superficie intersectada.
+   - *Excel:* refactorizar `handleExportarPlan` para calcular `interseccionRecintos()` (igual que `handleExportarPlanPdf`); la hoja "Recintos SIGPAC" ya existe con columnas uso/coef pero recibe solo el recinto de punto; añadir sup_recinto/sup_intersección/pct_ocupado.
+   - *PDF:* añadir tabla de recintos tras el bloque NPK. Los datos ya llegan en `recintos` de `exportarPlanAbonadoPdf`.
 
 ### En espera
 
-5. **CEC dinámico** — Cuando ITACyL publique capa ArcGIS de CEC, reemplazar valores por textura por dato real.
+4. **CEC dinámico** — Cuando ITACyL publique capa ArcGIS de CEC, reemplazar valores por textura por dato real.
 
-### Ideas futuras
+### Completados (2026-06-18)
 
-6. **Proxy catálogo fertilizantes** — `api/sativum-fertilizers.js` GET lista: forward query params al upstream para filtrado/paginación. Prerequisito del ítem 4.
+- ✅ **Sistema de explotación** — Badge Secano/Regadío en `SueloCard.jsx` + fila en Excel, derivado de `riego.fuenteId`.
+- ✅ **uso_sigpac + coef_regadio** — Proxy `api/sigpac-recinfo.js`; `_enrichConRecinfo()` enriquece todos los recintos (Caso A y B). Hoja "Recintos SIGPAC" en Excel incluye ambas columnas.
+- ✅ **Fechas de ciclo** — `fechaInicioCiclo` / `fechaFinCiclo` en App.jsx, inputs de fecha en panel, incluidos en Excel y PDF.

@@ -162,11 +162,6 @@ export async function exportarPlanAbonadoPdf({
     ? supTotalHa
     : null
 
-  // ── Refs SIGPAC ───────────────────────────────────────────────────────────
-  const refsTexto = recintos.length > 0
-    ? recintos.map(fmtRef).join(', ')
-    : (riego?._refSigpac ?? null)
-
   // ── Rendimiento del cultivo actual ────────────────────────────────────────
   const rendimiento = calculo?.cropYield ?? cultivo?.yieldMedium ?? null
 
@@ -245,19 +240,6 @@ export async function exportarPlanAbonadoPdf({
   }
 
   // Refs SIGPAC
-  if (refsTexto) {
-    // Si las refs son largas, dividir en varias líneas
-    const lines = doc.splitTextToSize(refsTexto, CW - doc.getTextWidth('Referencia SIGPAC de la parcela: '))
-    doc.setFontSize(9)
-    doc.setFont('helvetica', 'bold')
-    doc.setTextColor(...C_LABEL)
-    const lblW = doc.getTextWidth('Referencia SIGPAC de la parcela: ')
-    doc.text('Referencia SIGPAC de la parcela: ', ML, y)
-    doc.setFont('helvetica', 'normal')
-    doc.text(lines, ML + lblW, y)
-    y += metaLineHeight * Math.max(1, lines.length)
-  }
-
   metaRow('Fecha del plan de nutrientes', fechaFmt)
   if (fechaInicioCiclo) {
     const fmtInicio = new Date(fechaInicioCiclo + 'T00:00:00').toLocaleDateString('es-ES', { day: '2-digit', month: 'long', year: 'numeric' })
@@ -270,7 +252,81 @@ export async function exportarPlanAbonadoPdf({
 
   y += 4
 
-  // ── 4. RECUADRO NPK ───────────────────────────────────────────────────────
+  // ── 4. TABLA RECINTOS SIGPAC ──────────────────────────────────────────────
+  // Se dibuja solo si hay recintos. Sustituye la lista lineal de refs SIGPAC.
+  if (recintos.length > 0) {
+    const C_ZVN_BG  = [255, 235, 238]  // fondo fila ZVN
+    const C_ZVN_TXT = [183,  28,  28]  // texto ZVN
+
+    const recHead = [['Referencia SIGPAC', 'Sup. (ha)', '%', 'Uso', 'Coef. reg.', 'ZVN']]
+    const recBody = recintos.map(r => {
+      const pad = (v, n) => String(v ?? 0).padStart(n, '0')
+      const ref = [
+        pad(r.provincia, 2), pad(r.municipio, 2),
+        pad(r.agregado ?? 0, 1), pad(r.zona ?? 0, 1),
+        pad(r.poligono, 3), pad(r.parcela, 3), pad(r.recinto, 1),
+      ].join('-')
+      const supHa  = r.superficie_interseccion_ha ?? r.superficie_total_ha
+      const pct    = r.pct_ocupado
+      const uso    = r.uso_sigpac ?? '—'
+      const coef   = r.coef_regadio != null ? `${Number(r.coef_regadio).toFixed(0)} %` : '—'
+      const zvn    = r.enZvn === true ? '⚠ S' : (r.enZvn === false ? 'N' : '—')
+      return [
+        ref,
+        supHa != null ? fmt(supHa, 4) : '—',
+        pct   != null ? `${fmt(pct, 1)} %` : '—',
+        uso,
+        coef,
+        zvn,
+      ]
+    })
+
+    autoTable(doc, {
+      startY: y,
+      head:   recHead,
+      body:   recBody,
+      margin:     { left: ML, right: MR },
+      tableWidth: CW,
+      styles: {
+        fontSize:    7.5,
+        cellPadding: { top: 1.5, bottom: 1.5, left: 2.5, right: 2.5 },
+        lineColor:   C_BORDER,
+        lineWidth:   0.2,
+        font:        'helvetica',
+        textColor:   C_LABEL,
+        valign:      'middle',
+      },
+      headStyles: {
+        fillColor: [38, 50, 56],
+        textColor: [255, 255, 255],
+        fontStyle: 'bold',
+        fontSize:  7.5,
+        halign:    'center',
+      },
+      columnStyles: {
+        0: { cellWidth: 52, fontStyle: 'bold', font: 'courier', fontSize: 7 },
+        1: { cellWidth: 22, halign: 'right' },
+        2: { cellWidth: 18, halign: 'right' },
+        3: { cellWidth: 18, halign: 'center' },
+        4: { cellWidth: 22, halign: 'right' },
+        5: { cellWidth: 22, halign: 'center', fontStyle: 'bold' },
+      },
+      alternateRowStyles: { fillColor: [248, 250, 253] },
+      didParseCell(data) {
+        if (data.section === 'body' && data.column.index === 5) {
+          const raw = recintos[data.row.index]
+          if (raw?.enZvn === true) {
+            data.cell.styles.fillColor  = C_ZVN_BG
+            data.cell.styles.textColor  = C_ZVN_TXT
+          }
+        }
+      },
+    })
+
+    y = doc.lastAutoTable.finalY + 6
+  }
+
+  // ── 5. RECUADRO NPK ───────────────────────────────────────────────────────
   const boxX  = ML
   const boxW  = CW
   const BADGE_R   = 7.5   // radio del círculo en mm
@@ -363,7 +419,7 @@ export async function exportarPlanAbonadoPdf({
 
   y = boxY + boxH + 6
 
-  // ── 5. TABLA FERTILIZANTES ────────────────────────────────────────────────
+  // ── 6. TABLA FERTILIZANTES ────────────────────────────────────────────────
   // Construir filas
   const tableRows = []
 
@@ -471,7 +527,7 @@ export async function exportarPlanAbonadoPdf({
     },
   })
 
-  // ── 6. PIE DE PÁGINA (paginación X/N) ─────────────────────────────────────
+  // ── 7. PIE DE PÁGINA (paginación X/N) ─────────────────────────────────────
   const totalPages = doc.internal.getNumberOfPages()
   for (let i = 1; i <= totalPages; i++) {
     doc.setPage(i)
@@ -498,6 +554,6 @@ export async function exportarPlanAbonadoPdf({
     )
   }
 
-  // ── 7. DESCARGA ───────────────────────────────────────────────────────────
+  // ── 8. DESCARGA ───────────────────────────────────────────────────────────
   doc.save(`${baseName}.pdf`)
 }

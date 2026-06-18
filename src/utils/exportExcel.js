@@ -75,6 +75,7 @@ export async function exportarRecintosSigpacExcel(parcelas, baseName = 'fertipro
         'Pendiente (%)':          num(r.pendiente_media, 2),
         'Altitud (m)':            num(r.altitud, 0),
         'Observación':            r.observacion,
+        'ZVN':                    r.enZvn === true ? 'S' : (r.enZvn === false ? 'N' : null),
       })
     }
   }
@@ -104,6 +105,7 @@ export async function exportarRecintosSigpacExcel(parcelas, baseName = 'fertipro
     { wch: 14 }, // Pendiente
     { wch: 12 }, // Altitud
     { wch: 14 }, // Observación
+    { wch:  6 }, // ZVN
   ]
   XLSX.utils.book_append_sheet(wb, wsRecintos, 'Recintos')
 
@@ -118,6 +120,8 @@ export async function exportarRecintosSigpacExcel(parcelas, baseName = 'fertipro
     { 'Campo': 'Umbral "Completo"',        'Valor': '≥ 99,5 % del recinto ocupado por la parcela' },
     { 'Campo': 'Etiqueta "Recortado"',     'Valor': 'El usuario ha modificado la geometría de la parcela (tijera o edición de vértices)' },
     { 'Campo': 'Etiqueta "Parcial"',       'Valor': 'Parcela libre que intersecta una porción del recinto sin intervención del usuario' },
+    { 'Campo': 'Columna ZVN',              'Valor': 'S = recinto intersecta una Zona Vulnerable a Nitratos (RD 1051/2022) · N = no intersecta · vacío = no consultado' },
+    { 'Campo': 'Fuente ZVN',               'Valor': 'SIGPAC (FEGA) — servicio intersection/nitratos' },
   ]
   const wsNotas = XLSX.utils.json_to_sheet(notas)
   wsNotas['!cols'] = [{ wch: 22 }, { wch: 60 }]

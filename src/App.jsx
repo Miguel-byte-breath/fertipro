@@ -20,8 +20,7 @@ import turfArea from '@turf/area'
 import MapPicker        from './map/MapPicker'
 import CultivoSelector  from './cultivos/CultivoSelector'
 import CultivoCard      from './cultivos/CultivoCard'
-import RecintoCard      from './components/RecintoCard'
-import RecintosOrigenCard from './components/RecintosOrigenCard'
+import ParcelaInfoCard  from './components/ParcelaInfoCard'
 import GeometryPanel    from './components/GeometryPanel'
 import { getSigpacRecinto } from './api/sigpac'
 import { identifySativum, normalizarSuelo } from './api/sativum-suelo'
@@ -40,7 +39,7 @@ import {
   exportarSHP,
 } from './utils/geometry'
 import { slugify } from './utils/slugify'
-import { interseccionRecintos, detectarTipoParcela } from './utils/recintosInterseccion'
+import { interseccionRecintos, enrichRecintos, detectarTipoParcela } from './utils/recintosInterseccion'
 import { exportarRecintosSigpacExcel, exportarPlanAbonado } from './utils/exportExcel'
 import { exportarPlanAbonadoPdf } from './utils/exportPdf'
 import { FUENTES_AGUA } from './data/sativum/fuentesAgua'
@@ -130,6 +129,10 @@ export default function App() {
     if (!suelo?.soilType) return
     setCec(CEC_BY_SOIL_TYPE[suelo.soilType] ?? 220)
   }, [suelo?.soilType])
+
+  // ── Estado recintos SIGPAC + ZVN (se popula en queryCoords) ──────────────
+  const [recintos,        setRecintos]        = useState(null)
+  const [recintosLoading, setRecintosLoading] = useState(false)
 
   // ── Estado resultados NPK ──────────────────────────────────────────────
   const [resultados, setResultados] = useState({
@@ -268,11 +271,37 @@ export default function App() {
   const [excelError,   setExcelError]   = useState(null)
 
   // ── Consulta SIGPAC ────────────────────────────────────────────────────
-  const queryCoords = useCallback(async ({ lon, lat }) => {
+
+  // Convierte el objeto recinto de getSigpacRecinto() al formato normalizado
+  // de interseccionRecintos/enrichRecintos para enriquecerlo con recinfo+ZVN.
+  function toRecintoItem(rec) {
+    if (!rec) return null
+    return {
+      provincia:   Number(rec.provincia)                      || 0,
+      municipio:   rec.municipio_cod || Number(rec.municipio) || 0,
+      agregado:    rec.agregado ?? 0,
+      zona:        rec.zona    ?? 0,
+      poligono:    rec.poligono,
+      parcela:     rec.parcela,
+      recinto:     rec.recinto,
+      uso_sigpac:  rec.uso_sigpac ?? null,
+      coef_regadio: null,
+      pendiente_media: rec.pendiente_media ?? null,
+      altitud:     rec.altitud ?? null,
+      superficie_total_ha:        rec.superficie_ha ?? null,
+      superficie_interseccion_ha: rec.superficie_ha ?? null,
+      pct_ocupado:  100,
+      observacion: 'Completo',
+    }
+  }
+
+  const queryCoords = useCallback(async ({ lon, lat, feature = null }) => {
     setPoint({ lon, lat })
     setEstado(ESTADO.CARGANDO)
     setError(null)
     setRecinto(null)
+    setRecintos(null)
+    setRecintosLoading(true)
     setSuelo(null)
     try {
       const [rec, arcgisData] = await Promise.all([
@@ -282,9 +311,30 @@ export default function App() {
       setRecinto(rec)
       setSuelo(normalizarSuelo(arcgisData))
       setEstado(ESTADO.LISTO)
+
+      // Enriquecimiento de recintos + ZVN en segundo plano (puede tardar varios segundos)
+      try {
+        let recList
+        if (feature) {
+          // Polígono activo → intersección completa con recinfo + ZVN
+          recList = await interseccionRecintos(feature)
+        } else if (rec) {
+          // Punto libre → enriquecer el único recinto con recinfo + ZVN
+          recList = await enrichRecintos([toRecintoItem(rec)])
+        } else {
+          recList = []
+        }
+        setRecintos(recList)
+      } catch (err) {
+        console.warn('[queryCoords] recintos/ZVN error:', err.message)
+        setRecintos([])
+      } finally {
+        setRecintosLoading(false)
+      }
     } catch (err) {
       setError(err.message || 'Error consultando SIGPAC.')
       setEstado(ESTADO.ERROR)
+      setRecintosLoading(false)
     }
   }, [])
 
@@ -299,7 +349,7 @@ export default function App() {
     const poly = polygonsRef.current.find(p => p.id === id)
     if (!poly) return
     setActivePolygonId(id)
-    queryCoords(poly.centroid)
+    queryCoords({ ...poly.centroid, feature: poly.feature })
   }, [queryCoords])
 
   // ── Selector del panel ─────────────────────────────────────────────────
@@ -314,13 +364,13 @@ export default function App() {
       const lat = all.reduce((s, p) => s + p.centroid.lat, 0) / all.length
       const lon = all.reduce((s, p) => s + p.centroid.lon, 0) / all.length
       setActivePolygonId('todas')
-      queryCoords({ lon, lat })
+      queryCoords({ lon, lat })  // sin feature para 'todas' — usa el punto del centroide
     } else {
       const id   = Number(value)
       const poly = polygonsRef.current.find(p => p.id === id)
       if (!poly) return
       setActivePolygonId(id)
-      queryCoords(poly.centroid)
+      queryCoords({ ...poly.centroid, feature: poly.feature })
     }
   }, [queryCoords])
 
@@ -343,7 +393,7 @@ export default function App() {
 
     setPolygons(prev => [...prev, newPoly])
     setActivePolygonId(id)
-    queryCoords(cent)
+    queryCoords({ ...cent, feature })
   }, [queryCoords])
 
   // ── Polígono editado (mover vértices o tijera) ─────────────────────────
@@ -361,7 +411,7 @@ export default function App() {
       // al centroide que ahora mismo se está consultando.
       setActivePolygonId(currentActive => {
         if (currentActive === id) {
-          queryCoords(cent)
+          queryCoords({ ...cent, feature })
         } else if (currentActive === 'todas' && next.length) {
           const lat = next.reduce((s, p) => s + p.centroid.lat, 0) / next.length
           const lon = next.reduce((s, p) => s + p.centroid.lon, 0) / next.length
@@ -606,6 +656,27 @@ export default function App() {
         </div>
 
         <aside style={S.aside}>
+
+          {/* ── Geometría + recintos SIGPAC — primer bloque, antes del cultivo ── */}
+          <GeometryPanel
+            polygons={polygons}
+            activeId={activePolygonId}
+            onSelect={handlePolygonSelect}
+            onRename={handlePolygonRename}
+            onRemove={handlePanelRemove}
+            onDownloadGeoJSON={handleDownloadGeoJSON}
+            onDownloadSHP={handleDownloadSHP}
+            onDownloadExcel={handleDownloadExcel}
+            loadingExcel={loadingExcel}
+            excelError={excelError}
+          />
+
+          <ParcelaInfoCard
+            recintos={recintos}
+            loading={recintosLoading}
+            error={estado === ESTADO.ERROR ? error : null}
+          />
+
           <div style={{ padding: 12 }}>
 
             {/* ── Fecha del plan ── primer dato del formulario ── */}
@@ -696,33 +767,6 @@ export default function App() {
 
           {/* ── Ficha agronómica del cultivo ── */}
           <CultivoCard cultivo={cultivo} />
-
-          <GeometryPanel
-            polygons={polygons}
-            activeId={activePolygonId}
-            onSelect={handlePolygonSelect}
-            onRename={handlePolygonRename}
-            onRemove={handlePanelRemove}
-            onDownloadGeoJSON={handleDownloadGeoJSON}
-            onDownloadSHP={handleDownloadSHP}
-            onDownloadExcel={handleDownloadExcel}
-            loadingExcel={loadingExcel}
-            excelError={excelError}
-          />
-
-          <RecintoCard
-            recinto={recinto}
-            loading={cargando}
-            error={estado === ESTADO.ERROR ? error : null}
-          />
-
-          {/* Recintos SIGPAC que componen la hoja activa (si es construida) */}
-          {(() => {
-            if (activePolygonId == null || activePolygonId === 'todas') return null
-            const poly = polygons.find(p => p.id === activePolygonId)
-            const recintos = poly?.feature?.properties?.recintos_origen
-            return <RecintosOrigenCard recintos={recintos} />
-          })()}
 
           <SueloCard
             suelo={suelo}

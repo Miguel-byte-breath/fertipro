@@ -109,7 +109,7 @@ export async function interseccionRecintos(feature) {
       pct_ocupado:                100,
       observacion:                'Completo',
     }))
-    return await _enrichConRecinfo(base)
+    return await _enrichConZvn(await _enrichConRecinfo(base))
   }
 
   // Caso B: hay que consultar SIGPAC y recortar al polígono real.
@@ -198,7 +198,7 @@ async function _interseccionDesdeBbox(feature, editada) {
 
   // Ordenar por superficie de intersección descendente (los más relevantes primero)
   resultado.sort((a, b) => b.superficie_interseccion_ha - a.superficie_interseccion_ha)
-  return await _enrichConRecinfo(resultado)
+  return await _enrichConZvn(await _enrichConRecinfo(resultado))
 }
 
 /**
@@ -225,4 +225,40 @@ async function _enrichConRecinfo(recintos) {
     })
   )
   return results.map((e, i) => e.status === 'fulfilled' ? e.value : recintos[i])
+}
+
+/**
+ * Comprueba si cada recinto intersecta alguna Zona Vulnerable a Nitratos (ZVN)
+ * usando el endpoint REST SIGPAC (/api/sigpac-zvn). Llamadas en paralelo;
+ * si alguna falla, el recinto se devuelve con enZvn: false (no bloquea).
+ */
+async function _enrichConZvn(recintos) {
+  const results = await Promise.allSettled(
+    recintos.map(async r => {
+      try {
+        const url = `/api/sigpac-zvn?pr=${r.provincia}&mu=${r.municipio}&po=${r.poligono}&pa=${r.parcela}&re=${r.recinto}`
+        const res = await fetch(url)
+        if (!res.ok) return { ...r, enZvn: false }
+        const data = await res.json()
+        return { ...r, enZvn: Array.isArray(data) && data.length > 0 }
+      } catch {
+        return { ...r, enZvn: false }
+      }
+    })
+  )
+  return results.map((e, i) =>
+    e.status === 'fulfilled' ? e.value : { ...recintos[i], enZvn: false }
+  )
+}
+
+/**
+ * Enriquece una lista de recintos con recinfo (uso_sigpac, coef_regadio)
+ * y ZVN (enZvn). Útil para enriquecer el recinto de punto en App.jsx
+ * sin pasar por el flujo de intersección geométrica completo.
+ *
+ * @param {Array<object>} recintos — items con al menos {provincia, municipio, poligono, parcela, recinto}
+ * @returns {Promise<Array<object>>}
+ */
+export async function enrichRecintos(recintos) {
+  return await _enrichConZvn(await _enrichConRecinfo(recintos))
 }
