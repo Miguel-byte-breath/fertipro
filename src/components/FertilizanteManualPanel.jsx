@@ -438,7 +438,7 @@ export default function FertilizanteManualPanel({
               ) : (
                 /* ── Combobox búsqueda ── */
                 <div style={{ position: 'relative', marginBottom: 6 }}>
-                  <label style={S.label}>PRODUCTO FERTILIZANTE</label>
+                  <label style={S.smallLabel}>PRODUCTO FERTILIZANTE</label>
                   <input
                     type="text"
                     value={busqueda}

@@ -1,10 +1,13 @@
+import { jsPDF } from 'jspdf'
+import autoTable from 'jspdf-autotable'
+
 /**
  * src/utils/exportPdf.js
  *
  * Genera y descarga el "Plan de Nutrientes de una Parcela" en PDF,
  * siguiendo el estilo del informe oficial Sativum (ITACyL).
  *
- * Dependencias (importación dinámica para no inflar el bundle inicial):
+ * Dependencias (import estático — evita problemas de chunk hash en Vercel):
  *   jspdf           — https://github.com/parallax/jsPDF
  *   jspdf-autotable — https://github.com/simonbengtsson/jsPDF-AutoTable
  *
@@ -141,12 +144,6 @@ export async function exportarPlanAbonadoPdf({
   planItems            = null,  // nuevo: array unificado con origen:'sativum'|'manual'
   baseName             = 'fertipro_plan_nutrientes',
 }) {
-  // ── Carga dinámica de jsPDF ───────────────────────────────────────────────
-  const [{ jsPDF }, autoTable] = await Promise.all([
-    import('jspdf'),
-    import('jspdf-autotable').then(m => m.default ?? m),
-  ])
-
   const doc = new jsPDF({ orientation: 'portrait', unit: 'mm', format: 'a4' })
 
   // ── Logo FertiPRO (intenta cargar favicon.png) ────────────────────────────
