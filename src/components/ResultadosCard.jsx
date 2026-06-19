@@ -14,7 +14,6 @@
  *   onOpenSativumDialog — callback para abrir SativumApplicationDialog
  */
 import { pToOxide, kToOxide } from '../api/sativum-fertilizers'
-import { calcNpkEfectivo } from '../utils/npkUtils'
 
 const P_TO_P2O5 = 2.2914
 const K_TO_K2O  = 1.2046
@@ -57,39 +56,12 @@ function NpkGrid({ n, p, k, nRiego = 0 }) {
   )
 }
 
-// ── CoverageBar ───────────────────────────────────────────────────────────────
-function CoverageBar({ label, aportado, necesidad }) {
-  if (!necesidad || necesidad <= 0) return null
-  const pct   = Math.min(100, (aportado / necesidad) * 100)
-  const color = pct >= 100 ? '#2e7d32' : pct >= 70 ? '#e65100' : '#b71c1c'
-  return (
-    <div style={{ display: 'flex', alignItems: 'center', gap: 4, fontSize: 10, marginBottom: 3 }}>
-      <span style={{ width: 34, fontWeight: 700, color: '#1a237e', flexShrink: 0 }}>{label}</span>
-      <span style={{ width: 52, textAlign: 'right', fontFamily: 'monospace', color: '#263238', flexShrink: 0 }}>
-        {Number(aportado).toFixed(1)}
-      </span>
-      <span style={{ color: '#90a4ae', flexShrink: 0 }}>/</span>
-      <span style={{ width: 52, textAlign: 'right', fontFamily: 'monospace', color: '#546e7a', flexShrink: 0 }}>
-        {Number(necesidad).toFixed(1)}
-      </span>
-      <div style={{ flex: 1, height: 8, background: '#eceff1', borderRadius: 4, overflow: 'hidden', minWidth: 30 }}>
-        <div style={{ width: `${pct}%`, height: '100%', background: color, borderRadius: 4, transition: 'width 0.3s' }} />
-      </div>
-      <span style={{ width: 32, textAlign: 'right', fontWeight: 700, color, flexShrink: 0 }}>
-        {Math.round(pct)}%
-      </span>
-    </div>
-  )
-}
-
 // ── Componente principal ──────────────────────────────────────────────────────
 
 export default function ResultadosCard({
   npk,
   npkParaRec,
-  planItems = [],
   nRiego = 0, pRiego = 0, kRiego = 0,
-  fechaInicioCiclo = '',
   cultivo,
   loading,
   error,
@@ -108,25 +80,6 @@ export default function ResultadosCard({
   if (!npk) return null
 
   const npkValues = extraerNPK(npk)
-
-  // Cobertura del plan actual usando valores efectivos (mineralización incluida)
-  const aportado = planItems.reduce(
-    (acc, item) => {
-      const { efN, efP2o5, efK2o } = calcNpkEfectivo(item, fechaInicioCiclo)
-      return {
-        n:    acc.n    + efN,
-        p2o5: acc.p2o5 + efP2o5,
-        k2o:  acc.k2o  + efK2o,
-      }
-    }, { n: 0, p2o5: 0, k2o: 0 }
-  )
-
-  // Necesidades netas en oxide (bruto menos aporte del riego) para las barras de cobertura
-  const nNecesidad    = npkParaRec?.n ?? 0
-  const p2o5Necesidad = pToOxide(npkParaRec?.p ?? 0)
-  const k2oNecesidad  = kToOxide(npkParaRec?.k ?? 0)
-
-  const hayPlan = planItems.length > 0
 
   return (
     <div style={SR.card}>
@@ -154,27 +107,6 @@ export default function ResultadosCard({
         <div style={{ fontSize: 11, color: '#90a4ae', padding: '4px 0' }}>
           No se obtuvieron datos NPK del motor.
         </div>
-      )}
-
-      {/* Cobertura del plan */}
-      {npkParaRec && hayPlan && (
-        <>
-          <div style={SR.sectionTitle}>Cobertura del plan</div>
-          <div style={{ display: 'flex', fontSize: 9, color: '#90a4ae', marginBottom: 4, gap: 4 }}>
-            <span style={{ width: 34 }} />
-            <span style={{ width: 52, textAlign: 'right' }}>Aportado</span>
-            <span />
-            <span style={{ width: 52, textAlign: 'right' }}>Necesidad</span>
-            <span style={{ flex: 1 }} />
-            <span style={{ width: 32, textAlign: 'right' }}>%</span>
-          </div>
-          <CoverageBar label="N"     aportado={aportado.n}    necesidad={nNecesidad}    />
-          <CoverageBar label="P₂O₅" aportado={aportado.p2o5} necesidad={p2o5Necesidad} />
-          <CoverageBar label="K₂O"  aportado={aportado.k2o}  necesidad={k2oNecesidad}  />
-          <div style={{ fontSize: 9, color: '#b0bec5', marginTop: 2, marginBottom: 4 }}>
-            kg/ha · necesidad bruta (incluye riego)
-          </div>
-        </>
       )}
 
       {/* Botón Sativum */}

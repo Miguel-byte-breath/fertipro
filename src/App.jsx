@@ -856,11 +856,9 @@ export default function App() {
           <ResultadosCard
             npk={resultados.npk}
             npkParaRec={resultados.npkParaRec}
-            planItems={planItems}
             nRiego={resultados.nRiego}
             pRiego={resultados.pRiego}
             kRiego={resultados.kRiego}
-            fechaInicioCiclo={fechaInicioCiclo}
             cultivo={cultivo}
             loading={resultados.loading}
             error={resultados.error}
