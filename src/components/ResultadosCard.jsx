@@ -121,10 +121,10 @@ export default function ResultadosCard({
     }, { n: 0, p2o5: 0, k2o: 0 }
   )
 
-  // Necesidades brutas en oxide (para las barras de cobertura)
-  const nNecesidad    = (npkValues?.n ?? 0) + nRiego
-  const p2o5Necesidad = pToOxide(npkValues?.p ?? 0)
-  const k2oNecesidad  = kToOxide(npkValues?.k ?? 0)
+  // Necesidades netas en oxide (bruto menos aporte del riego) para las barras de cobertura
+  const nNecesidad    = npkParaRec?.n ?? 0
+  const p2o5Necesidad = pToOxide(npkParaRec?.p ?? 0)
+  const k2oNecesidad  = kToOxide(npkParaRec?.k ?? 0)
 
   const hayPlan = planItems.length > 0
 
