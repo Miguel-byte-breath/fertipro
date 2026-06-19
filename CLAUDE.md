@@ -298,7 +298,7 @@ const handleAddPlanItems = useCallback((items) => {
 ## Commits recientes (2026-06-18)
 
 ```
-(pendiente hash) feat: arquitectura plan iterativo — planItems unificado, SativumApplicationDialog, cobertura NPK
+da8fdfe feat: plan iterativo unificado — planItems, SativumApplicationDialog, cobertura NPK, exportacion unificada
         — App.jsx: planItems state, sativumDialogOpen, npkParaRec, handleAddPlanItems
           quita auto-getRecomendacion; quita import getRecomendacion
         — SativumApplicationDialog.jsx: nuevo modal slider + 5 opciones API Sativum
@@ -306,7 +306,7 @@ const handleAddPlanItems = useCallback((items) => {
         — FertilizanteManualPanel.jsx: usa planItems unificado, badges sativum/asesor, orden fecha
         — exportExcel.js: hoja Fertilizantes usa allItems ordenado por fecha, col Tipo SIEX
         — exportPdf.js: sección 7 "PLAN DE APLICACIONES" unificado, quita tabla Sativum estática
-(pendiente hash) fix: superficie recinto Excel — usa recinto enriquecido (superficie_total_ha)
+ace60ed fix: superficie recinto Excel — usa recinto enriquecido (superficie_total_ha)
 (pendiente hash) fix: PDF — agua riego sección propia, UF P2O5/K2O, sin Unicode; panel → Recomendación asesor
 849dc53 feat: PERSONALIZADO vinculado a tipo SIEX (RD 1051/2022) en FertilizanteManualPanel
 09917a2 feat: fechas inicio/fin de ciclo en panel, Excel y PDF
