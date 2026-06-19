@@ -288,6 +288,12 @@ export default function FertilizanteManualPanel({
           cantidad:        dosis,
           fechaAplicacion: fechaAplicacion || null,
           esPersonalizado: true,
+          // Mineralización orgánica: poblada cuando el tipo SIEX es orgánico
+          // (obtenida del producto PERSONALIZADO del catálogo Sativum al seleccionar)
+          appliesAnnualEffectiveness: detalleOrganico?.appliesAnnualEffectiveness ?? false,
+          yearPercent0: detalleOrganico?.yearPercent0 ?? null,
+          yearPercent1: detalleOrganico?.yearPercent1 ?? null,
+          yearPercent2: detalleOrganico?.yearPercent2 ?? null,
         }
       : {
           id:              Date.now(),
@@ -410,6 +416,16 @@ export default function FertilizanteManualPanel({
                       <div style={{ ...S.productoNpk, color: '#7b1fa2' }}>
                         Introduce N%, P₂O₅%, K₂O% abajo
                       </div>
+                      {loadingDetalle && (
+                        <div style={{ fontSize: 9, color: '#78909c', fontStyle: 'italic', marginTop: 2 }}>
+                          Consultando mineralización…
+                        </div>
+                      )}
+                      {!loadingDetalle && detalleOrganico?.appliesAnnualEffectiveness && (
+                        <div style={{ fontSize: 9, color: '#ef6c00', marginTop: 2 }}>
+                          🌿 Orgánico — mineral. año 0: {detalleOrganico.yearPercent0}% · año 1: {detalleOrganico.yearPercent1}% · año 2: {detalleOrganico.yearPercent2}%
+                        </div>
+                      )}
                     </div>
                     <button
                       type="button"
@@ -474,6 +490,23 @@ export default function FertilizanteManualPanel({
                               setBusqueda('')
                               setBusquedaDelay('')
                               setShowSugerencias(false)
+                              // Para SIEX orgánicos: fetch del producto PERSONALIZADO del catálogo
+                              // para obtener yearPercent0/1/2 y appliesAnnualEffectiveness
+                              setDetalleOrganico(null)
+                              if (ORGANIC_SIEX_CODES.has(tipoSIEXCodigo)) {
+                                const personalItem = catalogoFiltradoSiex.find(
+                                  x => x.name?.toUpperCase().startsWith('PERSONALIZADO')
+                                )
+                                if (personalItem) {
+                                  const fid = extractFertilizerId(personalItem)
+                                  if (fid) {
+                                    setLoadingDetalle(true)
+                                    getFertilizador(fid)
+                                      .then(d => setDetalleOrganico(d))
+                                      .finally(() => setLoadingDetalle(false))
+                                  }
+                                }
+                              }
                             }}
                           >
                             <div style={{ fontWeight: 700, fontSize: 11, color: '#4a148c' }}>
