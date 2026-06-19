@@ -18,6 +18,7 @@
 import { useState, useEffect, useMemo, useRef, useCallback } from 'react'
 import { getFertilizadores, getFertilizador, extractFertilizerId, pToOxide, kToOxide } from '../api/sativum-fertilizers'
 import { TIPOS_MATERIAL_FERTILIZANTE } from '../data/sativum/tiposMaterialFertilizante'
+import { calcNpkEfectivo } from '../utils/npkUtils'
 
 // Categorías SIEX con mineralización anual (RD 1051/2022)
 const ORGANIC_SIEX_CODES = new Set([1,2,3,4,5,6,7,8,10,13,15,16,19,20,21,22])
@@ -64,33 +65,7 @@ function extraerNPKNeed(npk, nRiego = 0) {
   }
 }
 
-/**
- * Calcula N/P2O5/K2O aplicados y efectivos (fracción mineralizable este ciclo).
- * Para no-orgánicos: efN === brutoN, pct === 100, esOrganico === false.
- */
-function calcNpkEfectivo(item, fechaInicioCiclo) {
-  const dose    = Number(item.cantidad) || 0
-  const brutoN    = (item.n    ?? 0) * dose / 100
-  const brutoP2o5 = (item.p2o5 ?? 0) * dose / 100
-  const brutoK2o  = (item.k2o  ?? 0) * dose / 100
-
-  if (!item.appliesAnnualEffectiveness || !item.fechaAplicacion || !fechaInicioCiclo) {
-    return { efN: brutoN, efP2o5: brutoP2o5, efK2o: brutoK2o, brutoN, brutoP2o5, brutoK2o, pct: 100, esOrganico: false }
-  }
-
-  const yearInicio = new Date(fechaInicioCiclo + 'T00:00:00').getFullYear()
-  const yearAplic  = new Date(item.fechaAplicacion + 'T00:00:00').getFullYear()
-  const delta = Math.min(2, Math.max(0, yearInicio - yearAplic))
-  const pct   = item[`yearPercent${delta}`] ?? 100
-
-  return {
-    efN:    brutoN    * pct / 100,
-    efP2o5: brutoP2o5 * pct / 100,
-    efK2o:  brutoK2o  * pct / 100,
-    brutoN, brutoP2o5, brutoK2o,
-    pct, esOrganico: true,
-  }
-}
+// calcNpkEfectivo importada desde ../utils/npkUtils
 
 function calcularAcumulado(items, fechaInicioCiclo) {
   return items.reduce(

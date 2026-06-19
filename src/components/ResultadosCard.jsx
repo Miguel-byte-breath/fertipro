@@ -14,6 +14,7 @@
  *   onOpenSativumDialog — callback para abrir SativumApplicationDialog
  */
 import { pToOxide, kToOxide } from '../api/sativum-fertilizers'
+import { calcNpkEfectivo } from '../utils/npkUtils'
 
 const P_TO_P2O5 = 2.2914
 const K_TO_K2O  = 1.2046
@@ -88,6 +89,7 @@ export default function ResultadosCard({
   npkParaRec,
   planItems = [],
   nRiego = 0, pRiego = 0, kRiego = 0,
+  fechaInicioCiclo = '',
   cultivo,
   loading,
   error,
@@ -107,14 +109,14 @@ export default function ResultadosCard({
 
   const npkValues = extraerNPK(npk)
 
-  // Cobertura del plan actual (en oxide para P/K)
+  // Cobertura del plan actual usando valores efectivos (mineralización incluida)
   const aportado = planItems.reduce(
     (acc, item) => {
-      const dose = Number(item.cantidad) || 0
+      const { efN, efP2o5, efK2o } = calcNpkEfectivo(item, fechaInicioCiclo)
       return {
-        n:    acc.n    + ((item.n    ?? 0) * dose / 100),
-        p2o5: acc.p2o5 + ((item.p2o5 ?? 0) * dose / 100),
-        k2o:  acc.k2o  + ((item.k2o  ?? 0) * dose / 100),
+        n:    acc.n    + efN,
+        p2o5: acc.p2o5 + efP2o5,
+        k2o:  acc.k2o  + efK2o,
       }
     }, { n: 0, p2o5: 0, k2o: 0 }
   )
