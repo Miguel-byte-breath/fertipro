@@ -7,11 +7,13 @@
  * a un tipo de material fertilizante SIEX (RD 1051/2022).
  *
  * Props:
- *   fertilizadoresManuales   — array de items { id, nombre, tipo, tipoSIEX,
- *                              n, p2o5, k2o, cantidad, fechaAplicacion, esPersonalizado }
- *   onChange(items)          — callback para actualizar el array en App.jsx
+ *   planItems                — array unificado de aplicaciones { id, origen:'sativum'|'manual',
+ *                              nombre, tipo, tipoSIEX, n, p2o5, k2o, cantidad,
+ *                              fechaAplicacion, esPersonalizado }
+ *   onChange(items)          — callback para actualizar el array completo en App.jsx
  *   npk                      — respuesta cruda /algo/ (para coverage bars)
- *   nRiego / pRiego / kRiego — kg/ha cubiertos por riego (para necesidad bruta)
+ *   npkParaRec               — { n, p, k } neto (para necesidad en barras)
+ *   nRiego / pRiego / kRiego — kg/ha cubiertos por riego
  */
 import { useState, useEffect, useMemo, useRef, useCallback } from 'react'
 import { getFertilizadores, pToOxide, kToOxide } from '../api/sativum-fertilizers'
@@ -97,13 +99,16 @@ function CoverageRow({ label, aportado, necesidad }) {
 // ── FertilizanteManualPanel ───────────────────────────────────────────────────
 
 export default function FertilizanteManualPanel({
-  fertilizadoresManuales = [],
+  planItems  = [],
   onChange,
   npk        = null,
+  npkParaRec = null,
   nRiego     = 0,
   pRiego     = 0,   // eslint-disable-line no-unused-vars
   kRiego     = 0,   // eslint-disable-line no-unused-vars
 }) {
+  // Alias para legibilidad interna (los items manuales son un subconjunto)
+  const fertilizadoresManuales = planItems
   const [open, setOpen] = useState(false)
 
   // ── Catálogo ──────────────────────────────────────────────────────────────
@@ -187,8 +192,18 @@ export default function FertilizanteManualPanel({
     return result
   }, [catalogo, fabricante, busquedaDelay, tipoSIEX])
 
-  const npkNeed   = useMemo(() => extraerNPKNeed(npk, nRiego), [npk, nRiego])
-  const acumulado = useMemo(() => calcularAcumulado(fertilizadoresManuales), [fertilizadoresManuales])
+  const npkNeed = useMemo(() => {
+    // Si tenemos npkParaRec (neto tras riego) lo usamos directamente; si no, calculamos del motor
+    if (npkParaRec) {
+      return {
+        n:    (npkParaRec.n ?? 0) + (nRiego ?? 0),
+        p2o5: pToOxide(npkParaRec.p ?? 0),
+        k2o:  kToOxide(npkParaRec.k ?? 0),
+      }
+    }
+    return extraerNPKNeed(npk, nRiego)
+  }, [npkParaRec, npk, nRiego])
+  const acumulado = useMemo(() => calcularAcumulado(planItems), [planItems])
 
   // ── Handlers ──────────────────────────────────────────────────────────────
   const handleAnadir = useCallback(() => {
@@ -200,6 +215,7 @@ export default function FertilizanteManualPanel({
     const item = esPersonalizado
       ? {
           id:              Date.now(),
+          origen:          'manual',
           nombre:          `Personalizado — ${tipoSIEX}`,
           tipo:            tipoSIEX,
           tipoSIEX:        tipoSIEX,
@@ -212,6 +228,7 @@ export default function FertilizanteManualPanel({
         }
       : {
           id:              Date.now(),
+          origen:          'manual',
           nombre:          productoSeleccionado.name,
           tipo:            productoSeleccionado.type ?? '',
           tipoSIEX:        tipoSIEX || null,
@@ -223,7 +240,7 @@ export default function FertilizanteManualPanel({
           esPersonalizado: false,
         }
 
-    onChange([...fertilizadoresManuales, item])
+    onChange([...planItems, item])
     // Reset formulario (tipoSIEX se mantiene para añadir más del mismo tipo)
     setProductoSeleccionado(null)
     setBusqueda('')
@@ -236,8 +253,8 @@ export default function FertilizanteManualPanel({
       tipoSIEX, fertilizadoresManuales, onChange])
 
   const handleEliminar = useCallback(id => {
-    onChange(fertilizadoresManuales.filter(f => f.id !== id))
-  }, [fertilizadoresManuales, onChange])
+    onChange(planItems.filter(f => f.id !== id))
+  }, [planItems, onChange])
 
   const canAnadir =
     Number(cantidad) > 0 &&
@@ -245,7 +262,14 @@ export default function FertilizanteManualPanel({
       ? (!!npCustom.n || !!npCustom.p2o5 || !!npCustom.k2o)
       : !!productoSeleccionado)
 
-  const nItems = fertilizadoresManuales.length
+  const nItems = planItems.length
+  // Todos los items ordenados por fecha (sin fecha al final)
+  const itemsOrdenados = useMemo(() => [...planItems].sort((a, b) => {
+    if (!a.fechaAplicacion && !b.fechaAplicacion) return 0
+    if (!a.fechaAplicacion) return 1
+    if (!b.fechaAplicacion) return -1
+    return a.fechaAplicacion.localeCompare(b.fechaAplicacion)
+  }), [planItems])
 
   // ── Render ────────────────────────────────────────────────────────────────
   return (
@@ -462,11 +486,11 @@ export default function FertilizanteManualPanel({
             </button>
           )}
 
-          {/* ── Tabla de items añadidos ── */}
+          {/* ── Tabla de items del plan (todos, ordenados por fecha) ── */}
           {nItems > 0 && (
             <div style={{ marginTop: 12 }}>
-              <div style={S.sectionLabel}>Selección del asesor</div>
-              {fertilizadoresManuales.map(item => {
+              <div style={S.sectionLabel}>Plan de aplicaciones</div>
+              {itemsOrdenados.map(item => {
                 const dose = Number(item.cantidad) || 0
                 const aN    = (item.n    ?? 0) * dose / 100
                 const aP2o5 = (item.p2o5 ?? 0) * dose / 100
@@ -477,6 +501,10 @@ export default function FertilizanteManualPanel({
                       <div style={{ flex: 1, minWidth: 0, marginRight: 4 }}>
                         <div style={S.itemNombre}>{item.nombre}</div>
                         <div style={S.itemMeta}>
+                          {item.origen === 'sativum'
+                            ? <span style={S.sativumBadge}>Sativum</span>
+                            : <span style={S.manualBadge}>Asesor</span>
+                          }
                           {item.fechaAplicacion ? fmtFecha(item.fechaAplicacion) + ' · ' : ''}
                           <strong>{Number(dose).toFixed(0)} kg/ha</strong>
                           {item.tipoSIEX && (
@@ -524,7 +552,7 @@ export default function FertilizanteManualPanel({
                 style={S.clearAllBtn}
                 onClick={() => onChange([])}
               >
-                Limpiar selección
+                Limpiar plan
               </button>
             </div>
           )}
@@ -653,6 +681,14 @@ const S = {
     fontSize: 8, color: '#4a148c', background: '#f3e5f5',
     borderRadius: 3, padding: '1px 4px',
     maxWidth: 120, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap',
+  },
+  sativumBadge: {
+    fontSize: 8, fontWeight: 700, color: '#0d47a1', background: '#bbdefb',
+    borderRadius: 3, padding: '1px 5px',
+  },
+  manualBadge: {
+    fontSize: 8, fontWeight: 700, color: '#1b5e20', background: '#c8e6c9',
+    borderRadius: 3, padding: '1px 5px',
   },
   itemNpk: {
     fontSize: 10, color: '#546e7a', marginTop: 4,

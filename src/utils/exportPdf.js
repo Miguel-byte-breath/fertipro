@@ -113,7 +113,8 @@ export async function exportarPlanAbonadoPdf({
   pRiego               = 0,
   kRiego               = 0,
   asesor               = null,
-  fertilizadoresManuales = [],
+  fertilizadoresManuales = [],  // alias legacy
+  planItems            = null,  // nuevo: array unificado con origen:'sativum'|'manual'
   baseName             = 'fertipro_plan_nutrientes',
 }) {
   // ── Carga dinámica de jsPDF ───────────────────────────────────────────────
@@ -478,115 +479,30 @@ export async function exportarPlanAbonadoPdf({
     y = doc.lastAutoTable.finalY + 6
   }
 
-  // ── 7. TABLA FERTILIZANTES — OPCIONES PROPUESTAS (API SATIVUM) ───────────
-  // Título de sección
-  doc.setFontSize(8.5)
-  doc.setFont('helvetica', 'bold')
-  doc.setTextColor(...C_TEAL)
-  doc.text('OPCIONES PROPUESTAS — API SATIVUM', ML, y)
-  y += 5
-
-  // Construir filas
-  const tableRows = []
-
-  // Filas fertilizantes de /recommendation
-  const recList = Array.isArray(recomendacion) ? recomendacion : []
-  recList.forEach((rec, ri) => {
-    const ferts = rec.unique ?? []
-    // Cabecera de opción (si hay más de una)
-    if (recList.length > 1) {
-      tableRows.push({ _type: 'opcion', label: `Opción ${ri + 1}` })
-    }
-    ferts.forEach(f => {
-      const dose     = f.quantity
-      const fn       = dose != null ? f.n    * dose / 100 : null
-      const fp2o5    = dose != null ? f.p2o5 * dose / 100 : null
-      const fk2o     = dose != null ? f.k2o  * dose / 100 : null
-      const cantTotal = (dose != null && sup != null) ? dose * sup : null
-      tableRows.push({
-        _type:     'fert',
-        nombre:    f.name ?? f.shortName ?? `Fertilizante ${ri + 1}`,
-        cantHa:    dose != null ? `${fmtNum(dose, 0)} kg/ha` : '—',
-        cantTotal: cantTotal != null ? `${fmtNum(cantTotal, 0)} kg` : '—',
-        ufn:       fn    != null ? fmt(fn, 1)    : '—',
-        ufp:       fp2o5 != null ? fmt(fp2o5, 1) : '—',
-        ufk:       fk2o  != null ? fmt(fk2o, 1)  : '—',
-      })
-    })
-    if (rec.observations) {
-      tableRows.push({ _type: 'obs', label: rec.observations })
-    }
-  })
-
-  // Convertir a array de arrays para autoTable
-  const head = [['FERTILIZANTE', 'CANTIDAD/HA', 'CANTIDAD TOTAL', 'UF N (kg/ha)', 'UF P2O5 (kg/ha)', 'UF K2O (kg/ha)']]
-  const body = tableRows.map(r => {
-    if (r._type === 'opcion') {
-      return [{ content: r.label, colSpan: 6, styles: { fontStyle: 'bold', fillColor: [220, 237, 233], textColor: C_TEAL } }]
-    }
-    if (r._type === 'obs') {
-      return [{ content: `ⓘ ${r.label}`, colSpan: 6, styles: { fontStyle: 'italic', fontSize: 7.5, fillColor: C_WARN_BG, textColor: [120, 90, 0] } }]
-    }
-    return [r.nombre, r.cantHa, r.cantTotal, r.ufn, r.ufp, r.ufk]
-  })
-
-  if (body.length === 0) {
-    body.push([{ content: 'Sin recomendaciones de fertilizantes disponibles.', colSpan: 6, styles: { fontStyle: 'italic', textColor: C_MUTED } }])
-  }
-
-  autoTable(doc, {
-    startY: y,
-    head,
-    body,
-    margin: { left: ML, right: MR },
-    tableWidth: CW,
-    styles: {
-      fontSize:    8.5,
-      cellPadding: { top: 2.5, bottom: 2.5, left: 3, right: 3 },
-      lineColor:   C_BORDER,
-      lineWidth:   0.2,
-      font:        'helvetica',
-      textColor:   C_LABEL,
-      valign:      'middle',
-    },
-    headStyles: {
-      fillColor:    C_TEAL,
-      textColor:    [255, 255, 255],
-      fontStyle:    'bold',
-      fontSize:     8.5,
-      halign:       'center',
-    },
-    columnStyles: {
-      0: { cellWidth: 58,  halign: 'left'   },
-      1: { cellWidth: 28,  halign: 'right'  },
-      2: { cellWidth: 30,  halign: 'right'  },
-      3: { cellWidth: 19,  halign: 'right'  },
-      4: { cellWidth: 19,  halign: 'right'  },
-      5: { cellWidth: 20,  halign: 'right'  },
-    },
-    alternateRowStyles: { fillColor: C_TEAL_LT },
-  })
-
-  // ── 7. TABLA FERTILIZANTES — RECOMENDACIÓN PERSONALIZADA DEL ASESOR ──────
-  if (Array.isArray(fertilizadoresManuales) && fertilizadoresManuales.length > 0) {
-    y = doc.lastAutoTable.finalY + 8
-
-    // Título de sección
+  // ── 7. PLAN DE APLICACIONES ──────────────────────────────────────────────
+  const allPlanItems = planItems ?? fertilizadoresManuales ?? []
+  if (Array.isArray(allPlanItems) && allPlanItems.length > 0) {
     doc.setFontSize(8.5)
     doc.setFont('helvetica', 'bold')
     doc.setTextColor(...C_TITLE)
-    doc.text('RECOMENDACIÓN PERSONALIZADA DEL ASESOR', ML, y)
+    doc.text('PLAN DE APLICACIONES', ML, y)
     y += 5
 
-    // Cabecera y body con acumulados corrientes (running totals)
-    const manHead = [[
-      'Fecha', 'Producto / Fertilizante', 'Tipo',
+    const itemsSorted = [...allPlanItems].sort((a, b) => {
+      if (!a.fechaAplicacion && !b.fechaAplicacion) return 0
+      if (!a.fechaAplicacion) return 1
+      if (!b.fechaAplicacion) return -1
+      return a.fechaAplicacion.localeCompare(b.fechaAplicacion)
+    })
+
+    const planHead = [[
+      'Fecha', 'Origen', 'Producto / Fertilizante', 'Tipo SIEX',
       'Dosis\n(kg/ha)', 'N\n(kg/ha)', 'P2O5\n(kg/ha)', 'K2O\n(kg/ha)',
-      'N acum.\n(kg/ha)', 'P2O5\nacum.(kg/ha)', 'K2O\nacum.(kg/ha)',
+      'N acum.\n(kg/ha)', 'P2O5\nacum.\n(kg/ha)', 'K2O\nacum.\n(kg/ha)',
     ]]
 
     let sumN = 0; let sumP2o5 = 0; let sumK2o = 0
-    const manBody = fertilizadoresManuales.map(item => {
+    const planBody = itemsSorted.map(item => {
       const dose  = Number(item.cantidad) || 0
       const aN    = (item.n    ?? 0) * dose / 100
       const aP2o5 = (item.p2o5 ?? 0) * dose / 100
@@ -597,10 +513,12 @@ export async function exportarPlanAbonadoPdf({
       const fechaStr = item.fechaAplicacion
         ? new Date(item.fechaAplicacion + 'T00:00:00').toLocaleDateString('es-ES', { day: '2-digit', month: '2-digit', year: '2-digit' })
         : '—'
+      const origenStr = item.origen === 'sativum' ? 'Sativum' : 'Asesor'
       return [
         fechaStr,
+        origenStr,
         item.nombre ?? '—',
-        item.tipo   ?? '—',
+        item.tipoSIEX ?? '—',
         fmt(dose, 0),
         fmt(aN,    1),
         fmt(aP2o5, 1),
@@ -611,35 +529,33 @@ export async function exportarPlanAbonadoPdf({
       ]
     })
 
-    // Fila TOTAL al final
-    manBody.push([
-      { content: 'TOTAL', colSpan: 4, styles: { fontStyle: 'bold', fillColor: [232, 245, 242], textColor: C_TEAL } },
+    // Fila TOTAL
+    planBody.push([
+      { content: 'TOTAL', colSpan: 5, styles: { fontStyle: 'bold', fillColor: [232, 245, 242], textColor: C_TEAL } },
       { content: fmt(sumN,    1), styles: { fontStyle: 'bold', fillColor: [232, 245, 242], textColor: C_TEAL } },
       { content: fmt(sumP2o5, 1), styles: { fontStyle: 'bold', fillColor: [232, 245, 242], textColor: C_TEAL } },
       { content: fmt(sumK2o,  1), styles: { fontStyle: 'bold', fillColor: [232, 245, 242], textColor: C_TEAL } },
-      { content: '',  styles: { fillColor: [232, 245, 242] } },
-      { content: '',  styles: { fillColor: [232, 245, 242] } },
-      { content: '',  styles: { fillColor: [232, 245, 242] } },
+      { content: '', styles: { fillColor: [232, 245, 242] } },
+      { content: '', styles: { fillColor: [232, 245, 242] } },
+      { content: '', styles: { fillColor: [232, 245, 242] } },
     ])
 
-    // Fila de cobertura (si hay NPK disponible)
+    // Fila cobertura
     if (nBruto > 0 || p2o5 > 0 || k2o > 0) {
-      const covN    = nBruto > 0 ? Math.round((sumN    / nBruto) * 100) : null
-      const covP    = p2o5   > 0 ? Math.round((sumP2o5 / p2o5)   * 100) : null
-      const covK    = k2o    > 0 ? Math.round((sumK2o  / k2o)    * 100) : null
-      manBody.push([
-        {
-          content: `Cobertura s/ necesidad bruta: N ${covN != null ? covN + '%' : '—'} · P2O5 ${covP != null ? covP + '%' : '—'} · K2O ${covK != null ? covK + '%' : '—'}`,
-          colSpan: 10,
-          styles: { fontStyle: 'italic', fontSize: 7.5, fillColor: C_WARN_BG, textColor: [120, 90, 0] },
-        },
-      ])
+      const covN = nBruto > 0 ? Math.round((sumN    / nBruto) * 100) : null
+      const covP = p2o5   > 0 ? Math.round((sumP2o5 / p2o5)   * 100) : null
+      const covK = k2o    > 0 ? Math.round((sumK2o  / k2o)    * 100) : null
+      planBody.push([{
+        content: `Cobertura s/ necesidad bruta: N ${covN != null ? covN + '%' : '—'} · P2O5 ${covP != null ? covP + '%' : '—'} · K2O ${covK != null ? covK + '%' : '—'}`,
+        colSpan: 11,
+        styles: { fontStyle: 'italic', fontSize: 7.5, fillColor: C_WARN_BG, textColor: [120, 90, 0] },
+      }])
     }
 
     autoTable(doc, {
       startY:     y,
-      head:       manHead,
-      body:       manBody,
+      head:       planHead,
+      body:       planBody,
       margin:     { left: ML, right: MR },
       tableWidth: CW,
       styles: {
@@ -653,18 +569,31 @@ export async function exportarPlanAbonadoPdf({
         fontStyle: 'bold', fontSize: 7, halign: 'center',
       },
       columnStyles: {
-        0: { cellWidth: 14, halign: 'center' },
-        1: { cellWidth: 46, halign: 'left'   },
-        2: { cellWidth: 22, halign: 'center' },
-        3: { cellWidth: 15, halign: 'right'  },
-        4: { cellWidth: 13, halign: 'right'  },
-        5: { cellWidth: 15, halign: 'right'  },
-        6: { cellWidth: 13, halign: 'right'  },
-        7: { cellWidth: 13, halign: 'right', fontStyle: 'bold' },
-        8: { cellWidth: 15, halign: 'right', fontStyle: 'bold' },
-        9: { cellWidth: 13, halign: 'right', fontStyle: 'bold' },
+        0:  { cellWidth: 12, halign: 'center' },
+        1:  { cellWidth: 14, halign: 'center' },
+        2:  { cellWidth: 42, halign: 'left'   },
+        3:  { cellWidth: 20, halign: 'center' },
+        4:  { cellWidth: 12, halign: 'right'  },
+        5:  { cellWidth: 12, halign: 'right'  },
+        6:  { cellWidth: 14, halign: 'right'  },
+        7:  { cellWidth: 12, halign: 'right'  },
+        8:  { cellWidth: 13, halign: 'right', fontStyle: 'bold' },
+        9:  { cellWidth: 13, halign: 'right', fontStyle: 'bold' },
+        10: { cellWidth: 10, halign: 'right', fontStyle: 'bold' },
       },
       alternateRowStyles: { fillColor: [250, 252, 255] },
+      didParseCell(data) {
+        if (data.section === 'body' && data.column.index === 1) {
+          const txt = data.cell.text[0]
+          if (txt === 'Sativum') {
+            data.cell.styles.fillColor = [187, 222, 251]
+            data.cell.styles.textColor = [13, 71, 161]
+          } else if (txt === 'Asesor') {
+            data.cell.styles.fillColor = [200, 230, 201]
+            data.cell.styles.textColor = [27, 94, 32]
+          }
+        }
+      },
     })
   }
 

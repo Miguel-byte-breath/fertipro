@@ -250,35 +250,65 @@ Y commitir **todo** lo que aparezca como modificado (`M`) o nuevo (`??`) antes d
 ## App.jsx — estado global ampliado
 
 ```js
-// añadido en sesión 2026-06-18
+// asesor — persiste en localStorage
 const [asesor, setAsesor] = useState(() => JSON.parse(localStorage.getItem('fertipro_asesor') || 'null') || { nRegfer:'', nombre:'', apellidos:'', nif:'', telefono:'', email:'' })
-const [fertilizadoresManuales, setFertilizadoresManuales] = useState([])
 useEffect(() => { localStorage.setItem('fertipro_asesor', JSON.stringify(asesor)) }, [asesor])
+
+// planItems — plan de aplicaciones unificado (sativum + asesor), sesión 4 2026-06-18
+const [planItems, setPlanItems] = useState([])
+const [sativumDialogOpen, setSativumDialogOpen] = useState(false)
+const handleAddPlanItems = useCallback((items) => {
+  const arr = Array.isArray(items) ? items : [items]
+  setPlanItems(prev => [...prev, ...arr])
+}, [])
 ```
-`fertilizadoresManuales` — array de items:
+
+`planItems` — array de items unificado (ambos orígenes):
 ```js
-{ id: Date.now(), nombre, tipo, tipoSIEX?, n, p2o5, k2o, cantidad, fechaAplicacion, esPersonalizado }
+{ id: Date.now(), origen: 'sativum'|'manual', nombre, tipo, tipoSIEX, n, p2o5, k2o, cantidad, fechaAplicacion, esPersonalizado }
 ```
-- `tipo` — tipo Sativum ("TERNARIO NPK"…) para catálogo; nombre SIEX para personalizado
-- `tipoSIEX` — nombre SIEX (string), presente siempre (obligatorio desde 2026-06-18)
-- `esPersonalizado` — bool; cuando true, composición NPK fue introducida manualmente (derived en el panel, almacenado en el item)
+- `origen` — `'sativum'` (propuesta API) | `'manual'` (asesor)
+- `tipoSIEX` — nombre SIEX (string), obligatorio para manual; opcional para sativum
+- `esPersonalizado` — bool; cuando true, composición NPK fue introducida manualmente
+
+## Arquitectura plan de abonado (sesión 4 — 2026-06-18)
+
+**Motor iterativo con balance de NPK:**
+
+1. `handleCalcularNecesidades` calcula NPK bruto + almacena `npkParaRec` en `resultados`
+   (NPK neto en elemento puro, ya descontado el riego). Resetea `planItems = []`.
+2. El usuario puede añadir aplicaciones en cualquier orden:
+   - **Botón "Añadir aplicación Sativum"** → abre `SativumApplicationDialog`
+     - Sliders de % objetivo por nutriente (partiendo de lo ya cubierto por planItems)
+     - Calcula delta → llama `getRecomendacion(delta, {adjustedNutrient})` → 5 opciones
+     - Usuario elige 1 → crea N items con `origen:'sativum'`
+   - **FertilizanteManualPanel** → selector SIEX + catálogo o PERSONALIZADO
+     → crea items con `origen:'manual'`
+3. Balance = `npkToCover - Σ(aportaciones planItems)`; barras de cobertura en ResultadosCard
+4. Items se muestran ordenados por `fechaAplicacion` en FertilizanteManualPanel
+5. Export Excel/PDF usa `planItems` unificado, ordenado por fecha, con columna Origen
+
+**Componentes afectados:**
+- `ResultadosCard.jsx` — muestra NPK bruto + barras de cobertura + botón Sativum
+- `SativumApplicationDialog.jsx` — modal slider + 5 opciones API
+- `FertilizanteManualPanel.jsx` — lista planItems ordenados, badge Sativum/Asesor
+- `exportExcel.js` — hoja "Fertilizantes" usa `allItems = planItems ?? fertilizadoresManuales`
+- `exportPdf.js` — sección 7 "PLAN DE APLICACIONES" (sin sección Sativum estática)
 
 ## Commits recientes (2026-06-18)
 
 ```
+(pendiente hash) feat: arquitectura plan iterativo — planItems unificado, SativumApplicationDialog, cobertura NPK
+        — App.jsx: planItems state, sativumDialogOpen, npkParaRec, handleAddPlanItems
+          quita auto-getRecomendacion; quita import getRecomendacion
+        — SativumApplicationDialog.jsx: nuevo modal slider + 5 opciones API Sativum
+        — ResultadosCard.jsx: barras cobertura plan + botón "Añadir aplicación Sativum"
+        — FertilizanteManualPanel.jsx: usa planItems unificado, badges sativum/asesor, orden fecha
+        — exportExcel.js: hoja Fertilizantes usa allItems ordenado por fecha, col Tipo SIEX
+        — exportPdf.js: sección 7 "PLAN DE APLICACIONES" unificado, quita tabla Sativum estática
+(pendiente hash) fix: superficie recinto Excel — usa recinto enriquecido (superficie_total_ha)
 (pendiente hash) fix: PDF — agua riego sección propia, UF P2O5/K2O, sin Unicode; panel → Recomendación asesor
-        — exportPdf.js: agua riego como tabla standalone (sección 5), cabeceras UF P2O5/UF K2O,
-          eliminados todos los caracteres Unicode (P2O5, K2O, "N acum.", "P2O5 acum.", "K2O acum.")
-        — FertilizanteManualPanel.jsx: header renombrado a "Recomendación asesor"
 849dc53 feat: PERSONALIZADO vinculado a tipo SIEX (RD 1051/2022) en FertilizanteManualPanel
-        — tipoSIEX state, esPersonalizado derived, sentinel morado en dropdown, badge tipoSIEX
-(anterior) feat: data/sativum/tiposMaterialFertilizante.js — 24 tipos SIEX RD 1051/2022
-(anterior) feat: AsesoramientoPanel.jsx (REGFER) + FertilizanteManualPanel.jsx (selección manual)
-(anterior) feat: App.jsx — estado asesor (localStorage) + fertilizadoresManuales
-(anterior) feat: exportPdf.js — bloque asesor en metadatos + tabla RECOMENDACIÓN PERSONALIZADA
-(anterior) feat: exportExcel.js — filas asesor + sección "Selección personalizada" con acumulados
-(anterior) fix: ZVN en PDF muestra SI/NO en lugar de emoji ⚠ (jsPDF no soporta Unicode)
-(anterior) feat: ZVN por recinto — proxy sigpac-zvn.js, ParcelaInfoCard, tabla PDF, columna Excel
 09917a2 feat: fechas inicio/fin de ciclo en panel, Excel y PDF
 ad8c2a3 feat: uso_sigpac + coef_regadio via servicio REST SIGPAC recinfo
 ```
@@ -292,6 +322,16 @@ _Sin ítems activos._
 ### En espera
 
 3. **CEC dinámico** — Cuando ITACyL publique capa ArcGIS de CEC, reemplazar valores por textura.
+
+### Completados (2026-06-18, sesión 4)
+
+- ✅ **Arquitectura plan iterativo (planItems unificado)** — Rediseño completo del motor de plan:
+  `fertilizadoresManuales` reemplazado por `planItems` con `origen:'sativum'|'manual'`.
+  `SativumApplicationDialog.jsx` nuevo: sliders de % objetivo, delta NPK, 5 opciones API, multiitem.
+  `ResultadosCard.jsx`: barras cobertura N/P2O5/K2O vs. necesidad bruta + botón Sativum.
+  `FertilizanteManualPanel.jsx`: lista planItems unificada ordenada por fecha, badges origen.
+  `exportExcel.js`: hoja Fertilizantes usa allItems ordenado por fecha, col Tipo SIEX.
+  `exportPdf.js`: sección 7 "PLAN DE APLICACIONES" unificada, eliminada tabla estática Sativum.
 
 ### Completados (2026-06-18, sesión 3)
 

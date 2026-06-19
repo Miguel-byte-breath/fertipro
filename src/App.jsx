@@ -27,11 +27,11 @@ import { identifySativum, normalizarSuelo } from './api/sativum-suelo'
 import SueloCard        from './components/SueloCard'
 import EstrategiaPanel       from './components/EstrategiaPanel'
 import CultivoAnteriorPanel  from './components/CultivoAnteriorPanel'
-import ResultadosCard        from './components/ResultadosCard'
+import ResultadosCard           from './components/ResultadosCard'
 import AsesoramientoPanel        from './components/AsesoramientoPanel'
 import FertilizanteManualPanel   from './components/FertilizanteManualPanel'
+import SativumApplicationDialog  from './components/SativumApplicationDialog'
 import { calcularNPK, calcularNAgua }  from './api/sativum-algo'
-import { getRecomendacion } from './api/sativum-fertilizers'
 import { FUENTE_SUBTERRANEA, FUENTE_SIN_RIEGO } from './data/sativum/fuentesAgua'
 import {
   centroide,
@@ -145,8 +145,19 @@ export default function App() {
     setCec(CEC_BY_SOIL_TYPE[suelo.soilType] ?? 220)
   }, [suelo?.soilType])
 
-  // ── Estado fertilizantes manuales (selección del asesor) ────────────────
-  const [fertilizadoresManuales, setFertilizadoresManuales] = useState([])
+  // ── Plan de aplicaciones unificado (Sativum + manual) ───────────────────
+  // Cada item: { id, origen:'sativum'|'manual', nombre, tipo, tipoSIEX,
+  //              n, p2o5, k2o, cantidad, fechaAplicacion, esPersonalizado }
+  const [planItems, setPlanItems] = useState([])
+
+  // Diálogo de aplicación Sativum
+  const [sativumDialogOpen, setSativumDialogOpen] = useState(false)
+
+  // Handler unificado: acepta un item o array de items
+  const handleAddPlanItems = useCallback((items) => {
+    const arr = Array.isArray(items) ? items : [items]
+    setPlanItems(prev => [...prev, ...arr])
+  }, [])
 
   // ── Estado recintos SIGPAC + ZVN (se popula en queryCoords) ──────────────
   const [recintos,        setRecintos]        = useState(null)
@@ -155,7 +166,7 @@ export default function App() {
   // ── Estado resultados NPK ──────────────────────────────────────────────
   const [resultados, setResultados] = useState({
     npk:              null,
-    recomendacion:    null,
+    npkParaRec:       null,   // NPK neto a cubrir por fertilizante (después de riego)
     adjustedNutrient: 'N',
     nRiego:           0,
     pRiego:           0,
@@ -167,7 +178,8 @@ export default function App() {
   // ── Cálculo NPK ────────────────────────────────────────────────────────
   const handleCalcularNecesidades = useCallback(async () => {
     if (!cultivo) return
-    setResultados({ npk: null, recomendacion: null, adjustedNutrient: 'N', nRiego: 0, pRiego: 0, kRiego: 0, loading: true, error: null })
+    setResultados({ npk: null, npkParaRec: null, adjustedNutrient: 'N', nRiego: 0, pRiego: 0, kRiego: 0, loading: true, error: null })
+    setPlanItems([])   // resetear plan al recalcular
 
     try {
       // Riego efectivo según fuente SIEX
@@ -272,15 +284,9 @@ export default function App() {
       })()
       console.debug('[adjustedNutrient]', adjNutrient, 'npkParaRec:', npkParaRec)
 
-      // Recomendación de fertilizantes sobre los valores netos
-      const recomData = await getRecomendacion(npkParaRec, { adjustedNutrient: adjNutrient })
-      if (!recomData) {
-        console.warn('[recommendation] Sativum no devolvió recomendación. npkParaRec:', npkParaRec, 'adj:', adjNutrient)
-      }
-
-      setResultados({ npk: npkData, recomendacion: recomData, adjustedNutrient: adjNutrient, nRiego, pRiego, kRiego, loading: false, error: null })
+      setResultados({ npk: npkData, npkParaRec, adjustedNutrient: adjNutrient, nRiego, pRiego, kRiego, loading: false, error: null })
     } catch (err) {
-      setResultados({ npk: null, recomendacion: null, adjustedNutrient: 'N', nRiego: 0, pRiego: 0, kRiego: 0, loading: false, error: err.message || 'Error en el cálculo.' })
+      setResultados({ npk: null, npkParaRec: null, adjustedNutrient: 'N', nRiego: 0, pRiego: 0, kRiego: 0, loading: false, error: err.message || 'Error en el cálculo.' })
     }
   }, [cultivo, suelo, cec, riego, calculo, cultivoAnterior, cultivoAnteriorParams])
 
@@ -564,18 +570,18 @@ export default function App() {
         fechaInicioCiclo,
         fechaFinCiclo,
         npk:                  resultados.npk,
-        recomendacion:        resultados.recomendacion,
+        recomendacion:        null,
         adjustedNutrient:     resultados.adjustedNutrient,
         cultivoAnterior,
         cultivoAnteriorParams,
         asesor,
-        fertilizadoresManuales,
+        planItems,
         baseName,
       })
     } finally {
       setExportingPlan(false)
     }
-  }, [cultivo, resultados, point, recinto, recintos, suelo, cec, riego, calculo, fecha, fechaInicioCiclo, fechaFinCiclo, asesor, fertilizadoresManuales])
+  }, [cultivo, resultados, point, recinto, recintos, suelo, cec, riego, calculo, fecha, fechaInicioCiclo, fechaFinCiclo, asesor, planItems])
 
   // ── Exportar plan de abonado PDF ──────────────────────────────────────
   const [exportingPlanPdf, setExportingPlanPdf] = useState(false)
@@ -628,7 +634,6 @@ export default function App() {
         cultivoAnteriorParams,
         calculo,
         asesor,
-        fertilizadoresManuales,
         fecha,
         fechaInicioCiclo,
         fechaFinCiclo,
@@ -636,10 +641,11 @@ export default function App() {
         supTotalHa,
         riego:       { ...riego, fuenteLabel },
         npk:         resultados.npk,
-        recomendacion: resultados.recomendacion,
+        recomendacion: null,
         nRiego:      resultados.nRiego,
         pRiego:      resultados.pRiego,
         kRiego:      resultados.kRiego,
+        planItems,
         baseName,
       })
     } catch (err) {
@@ -647,7 +653,7 @@ export default function App() {
     } finally {
       setExportingPlanPdf(false)
     }
-  }, [cultivo, resultados, recinto, riego, calculo, fecha, fechaInicioCiclo, fechaFinCiclo, cultivoAnterior, cultivoAnteriorParams, asesor, fertilizadoresManuales, polygonsToExport])
+  }, [cultivo, resultados, recinto, riego, calculo, fecha, fechaInicioCiclo, fechaFinCiclo, cultivoAnterior, cultivoAnteriorParams, asesor, planItems, polygonsToExport])
 
   // ── Render ─────────────────────────────────────────────────────────────
   const cargando      = estado === ESTADO.CARGANDO
@@ -849,24 +855,36 @@ export default function App() {
 
           <ResultadosCard
             npk={resultados.npk}
-            recomendacion={resultados.recomendacion}
-            adjustedNutrient={resultados.adjustedNutrient}
+            npkParaRec={resultados.npkParaRec}
+            planItems={planItems}
             nRiego={resultados.nRiego}
             pRiego={resultados.pRiego}
             kRiego={resultados.kRiego}
             cultivo={cultivo}
             loading={resultados.loading}
             error={resultados.error}
+            onOpenSativumDialog={() => setSativumDialogOpen(true)}
           />
 
           <FertilizanteManualPanel
-            fertilizadoresManuales={fertilizadoresManuales}
-            onChange={setFertilizadoresManuales}
+            planItems={planItems}
+            onChange={setPlanItems}
             npk={resultados.npk}
+            npkParaRec={resultados.npkParaRec}
             nRiego={resultados.nRiego}
             pRiego={resultados.pRiego}
             kRiego={resultados.kRiego}
           />
+
+          {sativumDialogOpen && resultados.npkParaRec && (
+            <SativumApplicationDialog
+              npkParaRec={resultados.npkParaRec}
+              planItems={planItems}
+              adjustedNutrient={resultados.adjustedNutrient}
+              onAdd={(items) => { handleAddPlanItems(items); setSativumDialogOpen(false) }}
+              onClose={() => setSativumDialogOpen(false)}
+            />
+          )}
 
           {/* Exportar plan */}
           {resultados.npk && !resultados.loading && (

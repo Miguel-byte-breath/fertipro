@@ -181,14 +181,17 @@ export async function exportarPlanAbonado({
   fechaInicioCiclo = null,
   fechaFinCiclo    = null,
   npk,
-  recomendacion,
+  recomendacion,           // ignorado en la nueva arquitectura (planItems reemplaza)
   adjustedNutrient = null,
   cultivoAnterior = null,
   cultivoAnteriorParams = null,
   asesor = null,
-  fertilizadoresManuales = [],
+  fertilizadoresManuales = [],  // alias legacy — usar planItems si se pasa
+  planItems = null,             // nuevo: array unificado con origen:'sativum'|'manual'
   baseName = 'fertipro_plan_abonado',
 }) {
+  // Compatibilidad: planItems tiene prioridad sobre fertilizadoresManuales
+  const allItems = planItems ?? fertilizadoresManuales
   const mod  = await import('xlsx')
   const XLSX = mod.default ?? mod
 
@@ -335,60 +338,18 @@ export async function exportarPlanAbonado({
   const wsPlan = XLSX.utils.json_to_sheet(plan)
   wsPlan['!cols'] = [{ wch: 28 }, { wch: 24 }, { wch: 14 }]
 
-  // ── Hoja 2: Fertilizantes ───────────────────────────────────────────────
-  // Estructura real de /recommendation: [{unique:[{name,n,p2o5,k2o,quantity,...}], observations:""}]
+  // ── Hoja 2: Plan de aplicaciones (unificado, ordenado por fecha) ────────
   const fertRows = []
-  const recList = Array.isArray(recomendacion) ? recomendacion : []
-  recList.forEach((rec, ri) => {
-    const ferts = rec.unique ?? []
-    ferts.forEach(f => {
-      const dose  = f.quantity
-      const fn    = dose != null ? f.n    * dose / 100 : null
-      const fp2o5 = dose != null ? f.p2o5 * dose / 100 : null
-      const fk2o  = dose != null ? f.k2o  * dose / 100 : null
-      fertRows.push({
-        'Origen':                'Propuesta API Sativum',
-        'Combinación':           ri + 1,
-        'Fertilizante':          f.name ?? `Fert. ${ri + 1}`,
-        '% N':                   num(f.n,    1),
-        '% P₂O₅':               num(f.p2o5, 1),
-        '% K₂O':                num(f.k2o,  1),
-        'Dosis (kg/ha)':         num(dose, 0),
-        'N aportado (kg/ha)':    num(fn,    1),
-        'P₂O₅ aportado (kg/ha)':num(fp2o5, 1),
-        'K₂O aportado (kg/ha)': num(fk2o,  1),
-        'Fecha aplicación':      null,
-        'ΣN (kg/ha)':            null,
-        'ΣP₂O₅ (kg/ha)':        null,
-        'ΣK₂O (kg/ha)':         null,
-      })
-    })
-    if (rec.observations) {
-      fertRows.push({
-        'Origen':                'Propuesta API Sativum',
-        'Combinación':           ri + 1,
-        'Fertilizante':          `Observación: ${rec.observations}`,
-        '% N': null, '% P₂O₅': null, '% K₂O': null,
-        'Dosis (kg/ha)': null,
-        'N aportado (kg/ha)': null, 'P₂O₅ aportado (kg/ha)': null, 'K₂O aportado (kg/ha)': null,
-        'Fecha aplicación': null, 'ΣN (kg/ha)': null, 'ΣP₂O₅ (kg/ha)': null, 'ΣK₂O (kg/ha)': null,
-      })
-    }
+  const itemsSorted = [...(Array.isArray(allItems) ? allItems : [])].sort((a, b) => {
+    if (!a.fechaAplicacion && !b.fechaAplicacion) return 0
+    if (!a.fechaAplicacion) return 1
+    if (!b.fechaAplicacion) return -1
+    return a.fechaAplicacion.localeCompare(b.fechaAplicacion)
   })
 
-  // ── Filas de selección manual (con running totals) ─────────────────────
-  const manList = Array.isArray(fertilizadoresManuales) ? fertilizadoresManuales : []
-  if (manList.length > 0) {
-    // Fila separadora
-    fertRows.push({
-      'Origen': '--- SELECCIÓN MANUAL DEL ASESOR ---',
-      'Combinación': null, 'Fertilizante': null,
-      '% N': null, '% P₂O₅': null, '% K₂O': null, 'Dosis (kg/ha)': null,
-      'N aportado (kg/ha)': null, 'P₂O₅ aportado (kg/ha)': null, 'K₂O aportado (kg/ha)': null,
-      'Fecha aplicación': null, 'ΣN (kg/ha)': null, 'ΣP₂O₅ (kg/ha)': null, 'ΣK₂O (kg/ha)': null,
-    })
+  if (itemsSorted.length > 0) {
     let sigN = 0; let sigP2o5 = 0; let sigK2o = 0
-    manList.forEach((item, i) => {
+    itemsSorted.forEach((item) => {
       const dose  = Number(item.cantidad) || 0
       const aN    = num((item.n    ?? 0) * dose / 100, 1)
       const aP2o5 = num((item.p2o5 ?? 0) * dose / 100, 1)
@@ -396,10 +357,11 @@ export async function exportarPlanAbonado({
       sigN    += (item.n    ?? 0) * dose / 100
       sigP2o5 += (item.p2o5 ?? 0) * dose / 100
       sigK2o  += (item.k2o  ?? 0) * dose / 100
+      const origen = item.origen === 'sativum' ? 'Propuesta Sativum' : 'Selección asesor'
       fertRows.push({
-        'Origen':                'Selección manual',
-        'Combinación':           i + 1,
+        'Origen':                origen,
         'Fertilizante':          item.nombre ?? 'Producto personalizado',
+        'Tipo SIEX':             item.tipoSIEX ?? null,
         '% N':                   num(item.n,    1),
         '% P₂O₅':               num(item.p2o5, 1),
         '% K₂O':                num(item.k2o,  1),
@@ -419,9 +381,9 @@ export async function exportarPlanAbonado({
     fertRows.length > 0 ? fertRows : [{ 'Info': 'No hay recomendaciones de fertilizantes disponibles.' }]
   )
   wsFert['!cols'] = [
-    { wch: 24 }, // Origen
-    { wch: 12 }, // Combinación
+    { wch: 20 }, // Origen
     { wch: 32 }, // Fertilizante
+    { wch: 26 }, // Tipo SIEX
     { wch:  8 }, // % N
     { wch:  9 }, // % P₂O₅
     { wch:  9 }, // % K₂O
