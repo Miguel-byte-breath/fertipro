@@ -337,6 +337,12 @@ dca6e73 fix: jsPDF import estático (evita chunk hash error en Vercel)
         — FertilizanteManualPanel.jsx: npkNeed.n = npkParaRec.n (sin re-añadir nRiego)
           nota al pie actualizada: "Necesidad neta = necesidades del cultivo descontado el riego"
 
+        fix: elimina resumen COBERTURA DEL PLAN de la tarjeta NPK
+        — ResultadosCard.jsx: quitadas las barras de cobertura — aparecían antes de que
+          el usuario añadiera ningún fertilizante, lo que resultaba confuso
+          La tarjeta NPK queda solo con los valores N/P2O5/K2O, nota de riego y botón Sativum
+          El único resumen de cobertura es COBERTURA ACUMULADA, en el panel de aplicaciones
+
 (sesión 7, 2026-06-19)
         feat: label "PRODUCTO FERTILIZANTE" encima del combobox en RecomendacionAsesor
         — FertilizanteManualPanel.jsx: etiqueta PRODUCTO FERTILIZANTE antes del combobox
@@ -430,6 +436,11 @@ _(sin issues activos)_
 - ✅ **fix: label PRODUCTO FERTILIZANTE** — `FertilizanteManualPanel.jsx`.
   Usaba `S.label` (estilo inexistente → browser default bold). Cambiado a `S.smallLabel`
   para consistencia visual con el resto de etiquetas del panel.
+
+- ✅ **fix: quitar resumen de cobertura de la tarjeta NPK** — `ResultadosCard.jsx`.
+  Las barras de cobertura aparecían antes de que el usuario añadiera ningún fertilizante,
+  lo que resultaba confuso. La tarjeta NPK muestra solo N/P₂O₅/K₂O + nota de riego + botón Sativum.
+  El único resumen de cobertura es COBERTURA ACUMULADA, en el panel de aplicaciones.
 
 ### En espera
 
