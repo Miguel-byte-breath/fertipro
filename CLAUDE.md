@@ -317,6 +317,26 @@ const handleAddPlanItems = useCallback((items) => {
 ## Commits recientes
 
 ```
+(sesión 8, 2026-06-19)
+610bfbf fix: cobertura NPK usa valores efectivos (mineralización orgánicos)
+        — src/utils/npkUtils.js: nuevo módulo compartido con calcNpkEfectivo exportada
+        — ResultadosCard.jsx: nueva prop fechaInicioCiclo; reduce aportado usa calcNpkEfectivo
+        — FertilizanteManualPanel.jsx: elimina definición local de calcNpkEfectivo; importa del util
+        — App.jsx: pasa fechaInicioCiclo a ResultadosCard
+
+830d15a fix: cobertura NPK descuenta riego de la necesidad antes de contabilizar plan
+        — ResultadosCard.jsx: nNecesidad/p2o5Necesidad/k2oNecesidad usan npkParaRec (neto)
+          en lugar de npkValues+nRiego (bruto); comentario actualizado
+
+dca6e73 fix: jsPDF import estático (evita chunk hash error en Vercel)
+        — exportPdf.js: import { jsPDF } + import autoTable estáticos en cabecera
+          elimina dynamic import() que causaba "Failed to fetch dynamically imported module"
+        fix: label PRODUCTO FERTILIZANTE usa S.smallLabel (consistente con panel)
+        — FertilizanteManualPanel.jsx: S.label (inexistente) → S.smallLabel
+        fix: cobertura acumulada descuenta riego de la necesidad neta
+        — FertilizanteManualPanel.jsx: npkNeed.n = npkParaRec.n (sin re-añadir nRiego)
+          nota al pie actualizada: "Necesidad neta = necesidades del cultivo descontado el riego"
+
 (sesión 7, 2026-06-19)
         feat: label "PRODUCTO FERTILIZANTE" encima del combobox en RecomendacionAsesor
         — FertilizanteManualPanel.jsx: etiqueta PRODUCTO FERTILIZANTE antes del combobox
@@ -385,6 +405,31 @@ ad8c2a3 feat: uso_sigpac + coef_regadio via servicio REST SIGPAC recinfo
 ### Activo (próxima sesión)
 
 _(sin issues activos)_
+
+### Completados (2026-06-19, sesión 8)
+
+- ✅ **fix: calcNpkEfectivo extraída a utils compartido** — `src/utils/npkUtils.js` nuevo.
+  `FertilizanteManualPanel` importa del util; elimina definición local.
+  `ResultadosCard` también importa del util; recibe nueva prop `fechaInicioCiclo`.
+
+- ✅ **fix: barras de cobertura usan NPK efectivo (mineralización orgánicos)** —
+  `ResultadosCard.jsx`: reduce de `aportado` usa `calcNpkEfectivo` → `efN/efP2o5/efK2o`
+  en lugar del bruto. Corrige que orgánicos con yearPercent < 100 inflaban la cobertura.
+
+- ✅ **fix: cobertura descuenta riego de la necesidad** — `ResultadosCard.jsx` y
+  `FertilizanteManualPanel.jsx`. Concepto: total calculado (N 190.3 · P₂O₅ 67.3 · K₂O 268.9)
+  → restar aporte riego (N 2.8 · P₂O₅ 1.7 · K₂O 28.6) → necesidad neta para fertilizantes
+  (N 187.5 · P₂O₅ 65.6 · K₂O 240.3). Las barras miden el avance del plan contra la neta.
+  `ResultadosCard`: usa `npkParaRec` directamente para nNecesidad/p2o5Necesidad/k2oNecesidad.
+  `FertilizanteManualPanel`: `npkNeed.n = npkParaRec.n` (sin re-añadir nRiego).
+
+- ✅ **fix: jsPDF import estático** — `exportPdf.js`. Imports dinámicos (`import()`)
+  causaban "Failed to fetch dynamically imported module" en Vercel al cambiar el hash del chunk.
+  Convertido a import estático en cabecera del módulo.
+
+- ✅ **fix: label PRODUCTO FERTILIZANTE** — `FertilizanteManualPanel.jsx`.
+  Usaba `S.label` (estilo inexistente → browser default bold). Cambiado a `S.smallLabel`
+  para consistencia visual con el resto de etiquetas del panel.
 
 ### En espera
 
