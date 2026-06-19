@@ -25,8 +25,15 @@ const ORGANIC_SIEX_CODES = new Set([1,2,3,4,5,6,7,8,10,13,15,16,19,20,21,22])
 // ── helpers ───────────────────────────────────────────────────────────────────
 
 function extraerFabricante(name = '') {
-  const idx = name.indexOf(' de ')
-  return idx >= 0 ? name.slice(idx + 4) : 'GENÉRICO'
+  // Los nombres convencionales siguen el patrón "fórmula NPK de FABRICANTE".
+  // Los productos orgánicos tienen " de " dentro de la descripción, no como separador
+  // de fabricante. Usamos lastIndexOf para encontrar el separador real, y descartamos
+  // el candidato si contiene ')' (estaba dentro de paréntesis) o es muy largo.
+  const idx = name.lastIndexOf(' de ')
+  if (idx < 0) return 'GENÉRICO'
+  const candidate = name.slice(idx + 4)
+  if (candidate.includes(')') || candidate.length > 40) return 'GENÉRICO'
+  return candidate
 }
 
 function uniq(arr) {
