@@ -928,7 +928,7 @@ export default function App() {
 
           <div style={S.footer}>
             <strong>v0.2.0</strong> · FertiPRO ×{' '}
-            <a href="https://api.itacyl.es/sativum" target="_blank" rel="noreferrer" style={{ color: 'inherit' }}>Sativum (ITACyL)</a>
+            <a href="https://portal.api.itacyl.es" target="_blank" rel="noreferrer" style={{ color: 'inherit' }}>Sativum (ITACyL)</a>
             {' '}· FertiliCalc (Villalobos et al. 2020) ·{' '}
             <a href="https://creativecommons.org/licenses/by/4.0/deed.es" target="_blank" rel="noreferrer" style={{ color: 'inherit' }}>CC BY 4.0</a>
             <br />
