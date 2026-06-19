@@ -49,15 +49,15 @@ src/
                                auto-expande si localStorage ya tiene datos; badge con nombre si colapsado
                                props: asesor, onChange(obj)
     FertilizanteManualPanel.jsx — panel colapsable "Recomendación asesor" ✅
-                               1º selector obligatorio: tipoSIEX (24 tipos RD 1051/2022)
-                               carga lazy catálogo Sativum (1253 items) al primer open
-                               filtro Fabricante + combobox búsqueda (debounce 300ms)
+                               1º selector tipoSIEX (24 tipos RD 1051/2022) — filtra catálogo por materialSiexId
+                               2º selector Fabricante — solo fabricantes del tipo SIEX seleccionado
+                               3º combobox producto: muestra todos si hay fabricante (sin texto); mín 1 char si no
                                sentinel PERSONALIZADO (morado) → inputs N%/P2O5%/K2O%
-                               esPersonalizado es derived (no state): productoSeleccionado?.esPersonalizado
-                               tabla items con dosis, fecha, aporte NPK; badge tipoSIEX (morado/azul)
-                               barras cobertura NPK acumulada vs. necesidad (verde ≥100% / ámbar ≥70% / rojo <70%)
-                               fallback npm run dev: "Catálogo no disponible. Selecciona tipo SIEX + PERSONALIZADO"
-                               props: fertilizadoresManuales, onChange, npk, nRiego, pRiego, kRiego
+                               esPersonalizado derived: productoSeleccionado?.esPersonalizado
+                               badge "Recomendación asesor" muestra solo items origen:'manual'
+                               "Plan de aplicaciones" muestra total planItems (sativum+manual)
+                               barras cobertura NPK (verde ≥100% / ámbar ≥70% / rojo <70%)
+                               props: planItems, onAddItem, onRemoveItem, npk, nRiego, pRiego, kRiego, fechaInicioCiclo
   cultivos/
     CultivoSelector.jsx      — combobox con búsqueda contra /nutrients/crops
   data/sativum/
@@ -130,23 +130,22 @@ queryCoords({ lon, lat, feature? })
 4. Recuadro NPK: 5 círculos (N · P2O5 · P · K2O · K) + superficie parcela
 5. Tabla "APORTE DEL AGUA DE RIEGO" (si riego activo): fuente | dotación/ha | dotación total | UF N | UF P2O5 | UF K2O
    → sección standalone con cabecera azul (40,100,140); se renderiza solo si fuenteId≠0 y dotación>0
-6. Tabla "OPCIONES PROPUESTAS — API SATIVUM": columnas UF N / UF P2O5 / UF K2O (kg/ha)
-7. Tabla "RECOMENDACIÓN DEL ASESOR" (si hay fertilizadoresManuales):
-   columnas Fecha | Producto | Tipo | Dosis | N | P2O5 | K2O | N acum. | P2O5 acum. | K2O acum.
-   fila TOTAL + fila cobertura %
-8. Pie: paginación `X/N` + fecha generación
+6. Tabla "PLAN DE APLICACIONES" (si hay planItems): columnas Origen | Fecha | Producto | Tipo SIEX | Dosis | N | P2O5 | K2O | N acum. | P2O5 acum. | K2O acum.
+   fila TOTAL + fila cobertura % — ordenado por fechaAplicacion
+   celda Origen: azul para 'sativum', verde para 'manual'
+7. Pie: paginación `X/N` + fecha generación
 
 **⚠ jsPDF + Helvetica = WinAnsi only** — NO soporta Unicode: ₂ (U+2082), ₅ (U+2085), Σ (U+03A3).
 Usar siempre equivalentes ASCII: P2O5, K2O, "N acum.", "P2O5 acum.", "K2O acum.".
 
 ## Flujo exportación Excel
 
-`handleExportarPlan` en App.jsx — acepta `asesor`, `fertilizadoresManuales`:
-- **Pendiente refactorizar:** actualmente pasa solo `recinto` (punto) → debe pasar lista `recintos` del estado
+`handleExportarPlan` en App.jsx — acepta `asesor`, `planItems`, `recintos`:
+- Pasa recinto enriquecido (buscado en lista `recintos` por pr/mu/po/pa/re) con fallback `superficie_total_ha ?? superficie_ha`
 - Hoja principal y "Notas": filas con datos del asesor (si los hay)
 - Hoja "Recintos SIGPAC": columnas uso_sigpac, coef_regadio, ZVN (S/N/null)
-- Hoja "Fertilizantes": columna `Origen` distingue "Propuesta API Sativum" vs. manual
-  sección manual incluye ΣN, ΣP₂O₅, ΣK₂O acumulados por fila
+- Hoja "Fertilizantes": `allItems = planItems ?? fertilizadoresManuales`, ordenado por fechaAplicacion
+  columnas: Origen | Fertilizante | Tipo SIEX | %N | %P2O5 | %K2O | Dosis | N aportado | P2O5 aportado | K2O aportado | Fecha | ΣN | ΣP2O5 | ΣK2O
 
 ## SIGPAC HubCloud — endpoints y arquitectura
 
@@ -181,17 +180,33 @@ Todos disponibles en el objeto `recinto` que devuelve `getSigpacRecinto()`.
 
 ## Catálogo de fertilizantes Sativum — estructura
 
-`GET /nutrients/fertilizers` devuelve array de 1253 items. Campos por item:
+### Lista (`GET /nutrients/fertilizers`) — 1253 items, campos relevantes:
 ```json
 { "id": 0, "name": "05-08-18 de GENÉRICO", "type": "TERNARIO NPK",
+  "materialSiexId": 14,
   "n": 5, "p2o5": 8, "k2o": 18, "cao": 0, "links": [{"href":"..."}] }
 ```
 - **`type`** — tipo químico: `"TERNARIO NPK"`, `"BINARIO PK"`, `"BINARIO NP"`, `"BINARIO NK"` (y más)
-- **Fabricante** — NO existe como campo separado; está embebido en `name` tras `" de "`:  
+- **`materialSiexId`** — código SIEX directo (int); coincide con `codigo` en `TIPOS_MATERIAL_FERTILIZANTE`. Presente en la lista → permite filtrar en memoria sin fetch extra.
+- **Fabricante** — NO existe como campo separado; embebido en `name` tras `" de "`:  
   `"05-08-18 de GENÉRICO"` → fabricante = `"GENÉRICO"`
-- **Filtrado:** cliente carga los 1253 una vez (cache proxy 30 min), filtra en memoria.
 - **ID real:** en lista `id=0`; extraer de `links[0].href` último segmento (ver `extractFertilizerId()`).
-- **Asimetría lista/detalle:** lista usa `cao`; detalle usa `ca/mg/s/na`.
+
+### Detalle (`GET /nutrients/fertilizers/{id}`) — campos adicionales clave:
+```json
+{ "id": 555, "name": "Enmienda orgánica: Compost (estiércol)", "producer": "GENÉRICO",
+  "materialSiexId": 13,
+  "n": 2.62, "p2o5": 3.44, "k2o": 1.81,
+  "organicN": 2.25, "ammoniacalN": 0.38, "organicC": 30.0, "organicMatter": 51.72,
+  "yearPercent0": 50, "yearPercent1": 30, "yearPercent2": 20,
+  "appliesAnnualEffectiveness": true,
+  "aggregateState": "S", "humidity": 25.0 }
+```
+- **`yearPercent0/1/2`** — % de mineralización por año (0=año aplicación, 1=2º año, 2=3º año). Solo en detalle.
+- **`appliesAnnualEffectiveness`** — bool; true para fertilizantes orgánicos que necesitan corrección de mineralización. Solo en detalle.
+- **`producer`** — fabricante como campo separado (en lista va embebido en `name`).
+- **Asimetría lista/detalle:** lista usa `cao/mgo/so3/na2o`; detalle usa `ca/mg/s/na`.
+- **Cuándo fetchear detalle:** solo al seleccionar un producto en FertilizanteManualPanel, para obtener `yearPercent0/1/2` y `appliesAnnualEffectiveness`. Un GET por selección.
 
 ## Reglas críticas de la API (bugs documentados)
 
@@ -265,11 +280,15 @@ const handleAddPlanItems = useCallback((items) => {
 
 `planItems` — array de items unificado (ambos orígenes):
 ```js
-{ id: Date.now(), origen: 'sativum'|'manual', nombre, tipo, tipoSIEX, n, p2o5, k2o, cantidad, fechaAplicacion, esPersonalizado }
+{ id: Date.now(), origen: 'sativum'|'manual', nombre, tipo, tipoSIEX,
+  n, p2o5, k2o, cantidad, fechaAplicacion, esPersonalizado,
+  // campos orgánicos (pendiente implementar — issue #3):
+  appliesAnnualEffectiveness, yearPercent0, yearPercent1, yearPercent2 }
 ```
 - `origen` — `'sativum'` (propuesta API) | `'manual'` (asesor)
 - `tipoSIEX` — nombre SIEX (string), obligatorio para manual; opcional para sativum
 - `esPersonalizado` — bool; cuando true, composición NPK fue introducida manualmente
+- `appliesAnnualEffectiveness` / `yearPercent0/1/2` — solo para orgánicos; se obtienen del detalle Sativum al seleccionar producto (un GET extra por selección). Ver backlog issue #3.
 
 ## Arquitectura plan de abonado (sesión 4 — 2026-06-18)
 
@@ -290,14 +309,23 @@ const handleAddPlanItems = useCallback((items) => {
 
 **Componentes afectados:**
 - `ResultadosCard.jsx` — muestra NPK bruto + barras de cobertura + botón Sativum
-- `SativumApplicationDialog.jsx` — modal slider + 5 opciones API
-- `FertilizanteManualPanel.jsx` — lista planItems ordenados, badge Sativum/Asesor
+- `SativumApplicationDialog.jsx` — modal: fecha primero → sliders → "Calcular opciones" → 5 opciones API
+- `FertilizanteManualPanel.jsx` — filtro cascada SIEX→Fabricante→Producto; lista planItems ordenados; badges sativum/asesor
 - `exportExcel.js` — hoja "Fertilizantes" usa `allItems = planItems ?? fertilizadoresManuales`
-- `exportPdf.js` — sección 7 "PLAN DE APLICACIONES" (sin sección Sativum estática)
+- `exportPdf.js` — sección 6 "PLAN DE APLICACIONES" (unificado, sin sección Sativum estática)
 
-## Commits recientes (2026-06-18)
+## Commits recientes
 
 ```
+(pendiente — sesión 5, 2026-06-19)
+        feat: filtro cascada SIEX→Fabricante→Producto en FertilizanteManualPanel
+        — materialSiexId del catálogo mapea directamente a codigo SIEX
+        — fabricantes filtrados por tipo SIEX seleccionado
+        — sugerencias muestran todos si hay fabricante (sin texto requerido)
+        — badge "Recomendación asesor" muestra solo items origen:'manual'
+        — "Plan de aplicaciones" muestra total planItems
+        feat: SativumApplicationDialog — campo fecha antes de sliders (siempre visible)
+
 da8fdfe feat: plan iterativo unificado — planItems, SativumApplicationDialog, cobertura NPK, exportacion unificada
         — App.jsx: planItems state, sativumDialogOpen, npkParaRec, handleAddPlanItems
           quita auto-getRecomendacion; quita import getRecomendacion
@@ -307,7 +335,7 @@ da8fdfe feat: plan iterativo unificado — planItems, SativumApplicationDialog, 
         — exportExcel.js: hoja Fertilizantes usa allItems ordenado por fecha, col Tipo SIEX
         — exportPdf.js: sección 7 "PLAN DE APLICACIONES" unificado, quita tabla Sativum estática
 ace60ed fix: superficie recinto Excel — usa recinto enriquecido (superficie_total_ha)
-(pendiente hash) fix: PDF — agua riego sección propia, UF P2O5/K2O, sin Unicode; panel → Recomendación asesor
+        fix: PDF — agua riego sección propia, UF P2O5/K2O, sin Unicode; panel → Recomendación asesor
 849dc53 feat: PERSONALIZADO vinculado a tipo SIEX (RD 1051/2022) en FertilizanteManualPanel
 09917a2 feat: fechas inicio/fin de ciclo en panel, Excel y PDF
 ad8c2a3 feat: uso_sigpac + coef_regadio via servicio REST SIGPAC recinfo
@@ -317,11 +345,47 @@ ad8c2a3 feat: uso_sigpac + coef_regadio via servicio REST SIGPAC recinfo
 
 ### Activo (próxima sesión)
 
-_Sin ítems activos._
+**Issue #3 — Mineralización de fertilizantes orgánicos (yearPercent)**
+
+Categorías SIEX orgánicas: códigos 1-8, 10, 13, 15, 16, 19-22.
+
+**Flujo acordado (opción A — fetch detalle al seleccionar):**
+1. En `FertilizanteManualPanel`, al seleccionar producto en combobox:
+   - Extraer ID real con `extractFertilizerId(producto)`
+   - Si `materialSiexId` está en categorías orgánicas → `getFertilizador(id)`
+   - Del detalle, guardar `appliesAnnualEffectiveness`, `yearPercent0/1/2` en el item del form
+2. Al añadir al plan (`handleAddItem`): incluir esos campos en el `planItem`
+3. Al calcular cobertura (barras + totales):
+   - Si `item.appliesAnnualEffectiveness`:
+     - `delta = year(fechaInicioCiclo) - year(item.fechaAplicacion)`, clamp 0-2
+     - `pct = item['yearPercent' + delta] ?? 100`
+     - `nEfectivo = item.n * item.cantidad/100 * pct/100` (igual p2o5, k2o)
+   - Si no: comportamiento actual
+4. En UI: mostrar "(aplicado Xkg/ha, efectivo este año Ykg/ha)" para orgánicos
+5. En exports: columnas "N aportado" / "N efectivo" (o nota en pie de página)
+
+**Archivos a tocar:**
+- `src/components/FertilizanteManualPanel.jsx` — fetch detalle al seleccionar, nuevo state `detalleFertilizante`
+- `src/components/FertilizanteManualPanel.jsx` — cálculo efectivo en barras cobertura
+- `src/utils/exportExcel.js` — columnas N/P2O5/K2O efectivos
+- `src/utils/exportPdf.js` — columnas o nota pie orgánicos
 
 ### En espera
 
 3. **CEC dinámico** — Cuando ITACyL publique capa ArcGIS de CEC, reemplazar valores por textura.
+
+### Completados (2026-06-19, sesión 5)
+
+- ✅ **Filtro cascada SIEX→Fabricante→Producto** — `FertilizanteManualPanel.jsx`. `materialSiexId`
+  del catálogo mapea directamente a `codigo` en `TIPOS_MATERIAL_FERTILIZANTE`. `catalogoFiltradoSiex`
+  filtra en memoria. Fabricantes solo del tipo SIEX activo. Combobox muestra todos si hay fabricante
+  seleccionado (sin texto requerido). Auto-abre dropdown al cambiar fabricante. Reset fabricante al
+  cambiar tipoSIEX.
+- ✅ **Badge corregido** — header "Recomendación asesor" muestra `nItemsManual` (solo `origen:'manual'`).
+  Título "Plan de aplicaciones" muestra `nItems` total (sativum+manual).
+- ✅ **SativumApplicationDialog: fecha antes de sliders** — campo fecha siempre visible al abrir el
+  modal, antes de los sliders y del botón "Calcular opciones". Eliminado del bloque condicional
+  post-opciones.
 
 ### Completados (2026-06-18, sesión 4)
 

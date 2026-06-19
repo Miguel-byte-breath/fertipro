@@ -118,6 +118,10 @@ export default function FertilizanteManualPanel({
 
   // ── Tipo SIEX (primer selector) ───────────────────────────────────────────
   const [tipoSIEX, setTipoSIEX] = useState('')
+  // Código numérico SIEX derivado del nombre seleccionado (para filtrar catálogo por materialSiexId)
+  const tipoSIEXCodigo = useMemo(() =>
+    TIPOS_MATERIAL_FERTILIZANTE.find(t => t.nombre === tipoSIEX)?.codigo ?? null
+  , [tipoSIEX])
 
   // ── Filtro fabricante (segundo selector) ──────────────────────────────────
   const [fabricante, setFabricante] = useState('')
@@ -163,34 +167,49 @@ export default function FertilizanteManualPanel({
     return () => clearTimeout(busquedaRef.current)
   }, [busqueda])
 
+  // ── Auto-abrir dropdown al seleccionar fabricante ─────────────────────────
+  useEffect(() => {
+    if (fabricante) setShowSugerencias(true)
+  }, [fabricante])
+
   // ── Reset al cambiar tipoSIEX ─────────────────────────────────────────────
   useEffect(() => {
-    if (productoSeleccionado?.esPersonalizado) {
-      setProductoSeleccionado(null)
-      setNpCustom({ n: '', p2o5: '', k2o: '' })
-    }
+    setProductoSeleccionado(null)
+    setNpCustom({ n: '', p2o5: '', k2o: '' })
+    setFabricante('')   // reset fabricante al cambiar categoría
     setBusqueda('')
     setBusquedaDelay('')
   }, [tipoSIEX]) // eslint-disable-line react-hooks/exhaustive-deps
 
   // ── Derived ───────────────────────────────────────────────────────────────
+
+  // Subconjunto del catálogo para la categoría SIEX seleccionada
+  const catalogoFiltradoSiex = useMemo(() => {
+    if (tipoSIEXCodigo == null) return catalogo
+    return catalogo.filter(f => f.materialSiexId === tipoSIEXCodigo)
+  }, [catalogo, tipoSIEXCodigo])
+
+  // Fabricantes solo del subconjunto SIEX (sin duplicados)
   const fabricantes = useMemo(() => {
-    return uniq(catalogo.map(f => extraerFabricante(f.name)))
-  }, [catalogo])
+    return uniq(catalogoFiltradoSiex.map(f => extraerFabricante(f.name)))
+  }, [catalogoFiltradoSiex])
 
   const sugerencias = useMemo(() => {
-    let items = catalogo
+    // Partir siempre del subconjunto filtrado por SIEX
+    let items = catalogoFiltradoSiex
+    // Filtro fabricante
     if (fabricante) items = items.filter(f => extraerFabricante(f.name) === fabricante)
-    if (busquedaDelay.length >= 2) {
+    // Filtro texto (1 carácter mínimo); sin texto y sin fabricante = lista vacía (demasiados items)
+    if (busquedaDelay.length >= 1) {
       const q = busquedaDelay.toLowerCase()
       items = items.filter(f => f.name.toLowerCase().includes(q))
-    } else {
-      items = [] // sin texto no mostramos las 1253 opciones
+    } else if (!fabricante) {
+      items = []   // sin texto ni fabricante, no mostramos todo el catálogo
     }
-    const result = items.slice(0, 15)
+    const result = items.slice(0, 20)
     if (tipoSIEX) result.unshift({ esPersonalizado: true, _sentinel: true })
     return result
-  }, [catalogo, fabricante, busquedaDelay, tipoSIEX])
+  }, [catalogoFiltradoSiex, fabricante, busquedaDelay, tipoSIEX])
 
   const npkNeed = useMemo(() => {
     // Si tenemos npkParaRec (neto tras riego) lo usamos directamente; si no, calculamos del motor
@@ -262,7 +281,8 @@ export default function FertilizanteManualPanel({
       ? (!!npCustom.n || !!npCustom.p2o5 || !!npCustom.k2o)
       : !!productoSeleccionado)
 
-  const nItems = planItems.length
+  const nItems       = planItems.length
+  const nItemsManual = planItems.filter(i => i.origen === 'manual').length
   // Todos los items ordenados por fecha (sin fecha al final)
   const itemsOrdenados = useMemo(() => [...planItems].sort((a, b) => {
     if (!a.fechaAplicacion && !b.fechaAplicacion) return 0
@@ -282,8 +302,8 @@ export default function FertilizanteManualPanel({
           Recomendación asesor
         </span>
         <span style={{ display: 'flex', alignItems: 'center', gap: 6 }}>
-          {nItems > 0 && (
-            <span style={S.badge}>{nItems} producto{nItems !== 1 ? 's' : ''}</span>
+          {nItemsManual > 0 && (
+            <span style={S.badge}>{nItemsManual} asesor{nItemsManual !== 1 ? '' : ''}</span>
           )}
           <span style={{ color: '#90a4ae', fontSize: 10 }}>{open ? '▲' : '▼'}</span>
         </span>
@@ -371,9 +391,9 @@ export default function FertilizanteManualPanel({
                     type="text"
                     value={busqueda}
                     placeholder={
-                      catalogo.length > 0
-                        ? 'Buscar fertilizante (mín. 2 caracteres)…'
-                        : 'Escribe para buscar o usa la opción PERSONALIZADO'
+                      fabricante
+                        ? 'Buscar en la lista o deja vacío para ver todos…'
+                        : 'Escribe para buscar o selecciona un fabricante primero…'
                     }
                     onChange={e => { setBusqueda(e.target.value); setShowSugerencias(true) }}
                     onFocus={() => setShowSugerencias(true)}
@@ -489,7 +509,12 @@ export default function FertilizanteManualPanel({
           {/* ── Tabla de items del plan (todos, ordenados por fecha) ── */}
           {nItems > 0 && (
             <div style={{ marginTop: 12 }}>
-              <div style={S.sectionLabel}>Plan de aplicaciones</div>
+              <div style={S.sectionLabel}>
+                Plan de aplicaciones
+                <span style={{ fontWeight: 400, color: '#90a4ae', marginLeft: 6, fontSize: 9 }}>
+                  {nItems} producto{nItems !== 1 ? 's' : ''}
+                </span>
+              </div>
               {itemsOrdenados.map(item => {
                 const dose = Number(item.cantidad) || 0
                 const aN    = (item.n    ?? 0) * dose / 100

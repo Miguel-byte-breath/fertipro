@@ -223,10 +223,20 @@ export default function SativumApplicationDialog({
         </div>
 
         <div style={SD.modalBody}>
+          {/* Fecha de aplicación — primero, antes de calcular */}
+          <div style={{ marginBottom: 12 }}>
+            <label style={SD.dateLabel}>Fecha de aplicación</label>
+            <input
+              type="date"
+              value={fecha}
+              onChange={e => setFecha(e.target.value)}
+              style={{ ...SD.dateInput, width: 160 }}
+            />
+          </div>
+
           <p style={SD.intro}>
-            Selecciona el nutriente objetivo ajustando los deslizadores. El marcador
-            izquierdo (azul claro) indica lo ya cubierto por el plan. Mueve el deslizador
-            derecho para fijar la cobertura deseada tras esta aplicación.
+            Ajusta los deslizadores para fijar qué porcentaje del NPK total quieres cubrir
+            en esta aplicación. El marcador azul claro indica lo ya cubierto por el plan.
           </p>
 
           <SliderRow label="N"    total={nTotal}    covered={covered.n}    target={tgtN}    onTarget={setTgtN}    />
@@ -271,18 +281,6 @@ export default function SativumApplicationDialog({
             </div>
           )}
 
-          {/* Fecha de aplicación */}
-          {options !== null && options.length > 0 && (
-            <div style={{ marginTop: 10 }}>
-              <label style={SD.dateLabel}>Fecha de aplicación</label>
-              <input
-                type="date"
-                value={fecha}
-                onChange={e => setFecha(e.target.value)}
-                style={SD.dateInput}
-              />
-            </div>
-          )}
         </div>
 
         <div style={SD.modalFooter}>
