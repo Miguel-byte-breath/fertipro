@@ -146,7 +146,7 @@ const MapPicker = forwardRef(function MapPicker(
       'PNOA Máxima Actualidad (IGN)': L.tileLayer(
         'https://tms-pnoa-ma.idee.es/1.0.0/pnoa-ma/{z}/{x}/{-y}.jpeg',
         {
-          attribution: '© <a href="https://www.ign.es">IGN</a> · PNOA',
+          attribution: 'PNOA CC-BY 4.0 <a href="https://www.ign.es">ign.es</a>',
           maxZoom: 22,
           maxNativeZoom: 19,   // PNOA-MA suele llegar a ~19 según la zona
         }

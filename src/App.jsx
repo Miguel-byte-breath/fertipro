@@ -927,7 +927,13 @@ export default function App() {
           )}
 
           <div style={S.footer}>
-            <strong>v0.2.0</strong> · FertiPRO × Sativum (ITACyL) · FertiliCalc (Villalobos et al. 2020)
+            <strong>v0.2.0</strong> · FertiPRO ×{' '}
+            <a href="https://api.itacyl.es/sativum" target="_blank" rel="noreferrer" style={{ color: 'inherit' }}>Sativum (ITACyL)</a>
+            {' '}· FertiliCalc (Villalobos et al. 2020) ·{' '}
+            <a href="https://creativecommons.org/licenses/by/4.0/deed.es" target="_blank" rel="noreferrer" style={{ color: 'inherit' }}>CC BY 4.0</a>
+            <br />
+            Datos de suelo:{' '}
+            <a href="https://suelos.itacyl.es" target="_blank" rel="noreferrer" style={{ color: 'inherit' }}>©Junta de Castilla y León (suelos.itacyl.es)</a>
           </div>
         </aside>
       </div>

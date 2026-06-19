@@ -434,7 +434,7 @@ export async function exportarPlanAbonado({
   const notas = [
     { 'Campo': 'Aplicación',         'Valor': 'FertiPRO' },
     { 'Campo': 'Motor de cálculo',   'Valor': 'FertiliCalc (Villalobos et al. 2020) vía API Sativum (ITACyL)' },
-    { 'Campo': 'Fuente suelo',       'Valor': 'ArcGIS MapServer Sativum / ITACyL' },
+    { 'Campo': 'Fuente suelo',       'Valor': '©Junta de Castilla y León (IGCYL-NC) · suelos.itacyl.es' },
     { 'Campo': 'Fuente recintos',    'Valor': 'SIGPAC (FEGA) · OGC API · CC BY 4.0' },
     { 'Campo': 'Fecha generación',   'Valor': new Date().toISOString() },
     { 'Campo': 'Unidades NPK',       'Valor': 'kg/ha — N en elemento puro; P y K en forma óxido (P₂O₅, K₂O)' },

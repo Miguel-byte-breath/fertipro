@@ -217,8 +217,8 @@ export async function exportarPlanAbonadoPdf({
   doc.setFont('helvetica', 'normal')
   doc.setTextColor(...C_MUTED)
   doc.text('Plan de Nutrientes', PW - MR, y + 5, { align: 'right' })
-  doc.text('Motor: FertiliCalc (Villalobos et al. 2020)', PW - MR, y + 9, { align: 'right' })
-  doc.text('API Sativum · ITACyL', PW - MR, y + 13, { align: 'right' })
+  doc.text('Motor: FertiliCalc (Villalobos et al. 2020) · CC BY 4.0 ITACyL', PW - MR, y + 9, { align: 'right' })
+  doc.text('Suelo: (c)Junta de Castilla y Leon · suelos.itacyl.es', PW - MR, y + 13, { align: 'right' })
 
   y += 16
 
