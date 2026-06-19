@@ -136,6 +136,30 @@ function num(v, dec = 2) {
   return Number(Number(v).toFixed(dec))
 }
 
+/**
+ * Calcula N/P2O5/K2O efectivos (mineralización este ciclo) para un item.
+ * Devuelve pct=null si el item no es orgánico (efN === bruto).
+ */
+function calcEfectivoExcel(item, fechaInicioCiclo) {
+  const dose    = Number(item.cantidad) || 0
+  const brutoN    = (item.n    ?? 0) * dose / 100
+  const brutoP2o5 = (item.p2o5 ?? 0) * dose / 100
+  const brutoK2o  = (item.k2o  ?? 0) * dose / 100
+  if (!item.appliesAnnualEffectiveness || !item.fechaAplicacion || !fechaInicioCiclo) {
+    return { pct: null, efN: null, efP2o5: null, efK2o: null }
+  }
+  const yearInicio = new Date(fechaInicioCiclo + 'T00:00:00').getFullYear()
+  const yearAplic  = new Date(item.fechaAplicacion + 'T00:00:00').getFullYear()
+  const delta = Math.min(2, Math.max(0, yearInicio - yearAplic))
+  const pct   = item[`yearPercent${delta}`] ?? 100
+  return {
+    pct,
+    efN:    num(brutoN    * pct / 100, 1),
+    efP2o5: num(brutoP2o5 * pct / 100, 1),
+    efK2o:  num(brutoK2o  * pct / 100, 1),
+  }
+}
+
 // ─────────────────────────────────────────────────────────────────────────────
 // Plan de Abonado completo
 // ─────────────────────────────────────────────────────────────────────────────
@@ -358,21 +382,26 @@ export async function exportarPlanAbonado({
       sigP2o5 += (item.p2o5 ?? 0) * dose / 100
       sigK2o  += (item.k2o  ?? 0) * dose / 100
       const origen = item.origen === 'sativum' ? 'Propuesta Sativum' : 'Selección asesor'
+      const ef = calcEfectivoExcel(item, fechaInicioCiclo)
       fertRows.push({
-        'Origen':                origen,
-        'Fertilizante':          item.nombre ?? 'Producto personalizado',
-        'Tipo SIEX':             item.tipoSIEX ?? null,
-        '% N':                   num(item.n,    1),
-        '% P₂O₅':               num(item.p2o5, 1),
-        '% K₂O':                num(item.k2o,  1),
-        'Dosis (kg/ha)':         num(dose, 0),
-        'N aportado (kg/ha)':    aN,
-        'P₂O₅ aportado (kg/ha)':aP2o5,
-        'K₂O aportado (kg/ha)': aK2o,
-        'Fecha aplicación':      item.fechaAplicacion ?? null,
-        'ΣN (kg/ha)':            num(sigN,    1),
-        'ΣP₂O₅ (kg/ha)':        num(sigP2o5, 1),
-        'ΣK₂O (kg/ha)':         num(sigK2o,  1),
+        'Origen':                  origen,
+        'Fertilizante':            item.nombre ?? 'Producto personalizado',
+        'Tipo SIEX':               item.tipoSIEX ?? null,
+        '% N':                     num(item.n,    1),
+        '% P₂O₅':                 num(item.p2o5, 1),
+        '% K₂O':                  num(item.k2o,  1),
+        'Dosis (kg/ha)':           num(dose, 0),
+        'N aportado (kg/ha)':      aN,
+        'P₂O₅ aportado (kg/ha)':  aP2o5,
+        'K₂O aportado (kg/ha)':   aK2o,
+        'Mineral. (%)':            ef.pct,            // null si no orgánico
+        'N efectivo (kg/ha)':      ef.efN,            // null si no orgánico
+        'P₂O₅ efectivo (kg/ha)':  ef.efP2o5,
+        'K₂O efectivo (kg/ha)':   ef.efK2o,
+        'Fecha aplicación':        item.fechaAplicacion ?? null,
+        'ΣN (kg/ha)':              num(sigN,    1),
+        'ΣP₂O₅ (kg/ha)':          num(sigP2o5, 1),
+        'ΣK₂O (kg/ha)':           num(sigK2o,  1),
       })
     })
   }
@@ -391,6 +420,10 @@ export async function exportarPlanAbonado({
     { wch: 20 }, // N aportado
     { wch: 22 }, // P₂O₅ aportado
     { wch: 20 }, // K₂O aportado
+    { wch: 14 }, // Mineral. (%)
+    { wch: 20 }, // N efectivo
+    { wch: 22 }, // P₂O₅ efectivo
+    { wch: 20 }, // K₂O efectivo
     { wch: 16 }, // Fecha aplicación
     { wch: 14 }, // ΣN
     { wch: 16 }, // ΣP₂O₅

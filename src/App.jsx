@@ -874,6 +874,7 @@ export default function App() {
             nRiego={resultados.nRiego}
             pRiego={resultados.pRiego}
             kRiego={resultados.kRiego}
+            fechaInicioCiclo={fechaInicioCiclo}
           />
 
           {sativumDialogOpen && resultados.npkParaRec && (

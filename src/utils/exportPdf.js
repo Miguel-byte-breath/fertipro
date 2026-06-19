@@ -89,6 +89,30 @@ function extraerNPK(npkData) {
 const P_TO_P2O5 = 2.2914
 const K_TO_K2O  = 1.2046
 
+/**
+ * N/P2O5/K2O efectivos (fracción mineralizable este ciclo).
+ * Para no-orgánicos: efN === bruto, esOrganico === false.
+ */
+function calcNpkEfectivoPdf(item, fechaInicioCiclo) {
+  const dose    = Number(item.cantidad) || 0
+  const brutoN    = (item.n    ?? 0) * dose / 100
+  const brutoP2o5 = (item.p2o5 ?? 0) * dose / 100
+  const brutoK2o  = (item.k2o  ?? 0) * dose / 100
+  if (!item.appliesAnnualEffectiveness || !item.fechaAplicacion || !fechaInicioCiclo) {
+    return { efN: brutoN, efP2o5: brutoP2o5, efK2o: brutoK2o, pct: 100, esOrganico: false }
+  }
+  const yearInicio = new Date(fechaInicioCiclo + 'T00:00:00').getFullYear()
+  const yearAplic  = new Date(item.fechaAplicacion + 'T00:00:00').getFullYear()
+  const delta = Math.min(2, Math.max(0, yearInicio - yearAplic))
+  const pct   = item[`yearPercent${delta}`] ?? 100
+  return {
+    efN:    brutoN    * pct / 100,
+    efP2o5: brutoP2o5 * pct / 100,
+    efK2o:  brutoK2o  * pct / 100,
+    pct, esOrganico: true,
+  }
+}
+
 // ── Función principal ─────────────────────────────────────────────────────────
 
 /**
@@ -502,27 +526,31 @@ export async function exportarPlanAbonadoPdf({
     ]]
 
     let sumN = 0; let sumP2o5 = 0; let sumK2o = 0
+    let hayOrganicos = false
     const planBody = itemsSorted.map(item => {
       const dose  = Number(item.cantidad) || 0
-      const aN    = (item.n    ?? 0) * dose / 100
-      const aP2o5 = (item.p2o5 ?? 0) * dose / 100
-      const aK2o  = (item.k2o  ?? 0) * dose / 100
-      sumN    += aN
-      sumP2o5 += aP2o5
-      sumK2o  += aK2o
+      const ef    = calcNpkEfectivoPdf(item, fechaInicioCiclo)
+      if (ef.esOrganico) hayOrganicos = true
+      sumN    += ef.efN
+      sumP2o5 += ef.efP2o5
+      sumK2o  += ef.efK2o
       const fechaStr = item.fechaAplicacion
         ? new Date(item.fechaAplicacion + 'T00:00:00').toLocaleDateString('es-ES', { day: '2-digit', month: '2-digit', year: '2-digit' })
         : '—'
       const origenStr = item.origen === 'sativum' ? 'Sativum' : 'Asesor'
+      // Para orgánicos con mineralización parcial: añadir "(X%)" al valor N
+      const nStr    = ef.esOrganico && ef.pct !== 100 ? `${fmt(ef.efN, 1)}*` : fmt(ef.efN, 1)
+      const p2o5Str = ef.esOrganico && ef.pct !== 100 ? `${fmt(ef.efP2o5, 1)}*` : fmt(ef.efP2o5, 1)
+      const k2oStr  = ef.esOrganico && ef.pct !== 100 ? `${fmt(ef.efK2o, 1)}*` : fmt(ef.efK2o, 1)
       return [
         fechaStr,
         origenStr,
         item.nombre ?? '—',
         item.tipoSIEX ?? '—',
         fmt(dose, 0),
-        fmt(aN,    1),
-        fmt(aP2o5, 1),
-        fmt(aK2o,  1),
+        nStr,
+        p2o5Str,
+        k2oStr,
         fmt(sumN,    1),
         fmt(sumP2o5, 1),
         fmt(sumK2o,  1),
@@ -549,6 +577,15 @@ export async function exportarPlanAbonadoPdf({
         content: `Cobertura s/ necesidad bruta: N ${covN != null ? covN + '%' : '—'} · P2O5 ${covP != null ? covP + '%' : '—'} · K2O ${covK != null ? covK + '%' : '—'}`,
         colSpan: 11,
         styles: { fontStyle: 'italic', fontSize: 7.5, fillColor: C_WARN_BG, textColor: [120, 90, 0] },
+      }])
+    }
+
+    // Nota orgánicos (solo si hay al menos uno con mineralización parcial)
+    if (hayOrganicos) {
+      planBody.push([{
+        content: '* Fertilizante organico con mineralizacion anual: N/P2O5/K2O indicado = fraccion efectiva este ciclo (yearPercent Sativum)',
+        colSpan: 11,
+        styles: { fontStyle: 'italic', fontSize: 6.5, fillColor: [232, 245, 242], textColor: [40, 100, 60] },
       }])
     }
 

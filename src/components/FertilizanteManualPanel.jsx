@@ -16,8 +16,11 @@
  *   nRiego / pRiego / kRiego — kg/ha cubiertos por riego
  */
 import { useState, useEffect, useMemo, useRef, useCallback } from 'react'
-import { getFertilizadores, pToOxide, kToOxide } from '../api/sativum-fertilizers'
+import { getFertilizadores, getFertilizador, extractFertilizerId, pToOxide, kToOxide } from '../api/sativum-fertilizers'
 import { TIPOS_MATERIAL_FERTILIZANTE } from '../data/sativum/tiposMaterialFertilizante'
+
+// Categorías SIEX con mineralización anual (RD 1051/2022)
+const ORGANIC_SIEX_CODES = new Set([1,2,3,4,5,6,7,8,10,13,15,16,19,20,21,22])
 
 // ── helpers ───────────────────────────────────────────────────────────────────
 
@@ -54,14 +57,42 @@ function extraerNPKNeed(npk, nRiego = 0) {
   }
 }
 
-function calcularAcumulado(items) {
+/**
+ * Calcula N/P2O5/K2O aplicados y efectivos (fracción mineralizable este ciclo).
+ * Para no-orgánicos: efN === brutoN, pct === 100, esOrganico === false.
+ */
+function calcNpkEfectivo(item, fechaInicioCiclo) {
+  const dose    = Number(item.cantidad) || 0
+  const brutoN    = (item.n    ?? 0) * dose / 100
+  const brutoP2o5 = (item.p2o5 ?? 0) * dose / 100
+  const brutoK2o  = (item.k2o  ?? 0) * dose / 100
+
+  if (!item.appliesAnnualEffectiveness || !item.fechaAplicacion || !fechaInicioCiclo) {
+    return { efN: brutoN, efP2o5: brutoP2o5, efK2o: brutoK2o, brutoN, brutoP2o5, brutoK2o, pct: 100, esOrganico: false }
+  }
+
+  const yearInicio = new Date(fechaInicioCiclo + 'T00:00:00').getFullYear()
+  const yearAplic  = new Date(item.fechaAplicacion + 'T00:00:00').getFullYear()
+  const delta = Math.min(2, Math.max(0, yearInicio - yearAplic))
+  const pct   = item[`yearPercent${delta}`] ?? 100
+
+  return {
+    efN:    brutoN    * pct / 100,
+    efP2o5: brutoP2o5 * pct / 100,
+    efK2o:  brutoK2o  * pct / 100,
+    brutoN, brutoP2o5, brutoK2o,
+    pct, esOrganico: true,
+  }
+}
+
+function calcularAcumulado(items, fechaInicioCiclo) {
   return items.reduce(
     (acc, item) => {
-      const dose = Number(item.cantidad) || 0
+      const { efN, efP2o5, efK2o } = calcNpkEfectivo(item, fechaInicioCiclo)
       return {
-        n:    acc.n    + ((item.n    ?? 0) * dose / 100),
-        p2o5: acc.p2o5 + ((item.p2o5 ?? 0) * dose / 100),
-        k2o:  acc.k2o  + ((item.k2o  ?? 0) * dose / 100),
+        n:    acc.n    + efN,
+        p2o5: acc.p2o5 + efP2o5,
+        k2o:  acc.k2o  + efK2o,
       }
     },
     { n: 0, p2o5: 0, k2o: 0 }
@@ -99,13 +130,14 @@ function CoverageRow({ label, aportado, necesidad }) {
 // ── FertilizanteManualPanel ───────────────────────────────────────────────────
 
 export default function FertilizanteManualPanel({
-  planItems  = [],
+  planItems        = [],
   onChange,
-  npk        = null,
-  npkParaRec = null,
-  nRiego     = 0,
-  pRiego     = 0,   // eslint-disable-line no-unused-vars
-  kRiego     = 0,   // eslint-disable-line no-unused-vars
+  npk              = null,
+  npkParaRec       = null,
+  nRiego           = 0,
+  pRiego           = 0,   // eslint-disable-line no-unused-vars
+  kRiego           = 0,   // eslint-disable-line no-unused-vars
+  fechaInicioCiclo = null,
 }) {
   // Alias para legibilidad interna (los items manuales son un subconjunto)
   const fertilizadoresManuales = planItems
@@ -138,6 +170,10 @@ export default function FertilizanteManualPanel({
 
   // ── esPersonalizado es derived ────────────────────────────────────────────
   const esPersonalizado = productoSeleccionado?.esPersonalizado === true
+
+  // ── Detalle fertilizante orgánico (fetch al seleccionar) ─────────────────
+  const [detalleOrganico, setDetalleOrganico] = useState(null)
+  const [loadingDetalle,  setLoadingDetalle]  = useState(false)
 
   // ── Entrada ───────────────────────────────────────────────────────────────
   const [cantidad,        setCantidad]        = useState('')
@@ -179,6 +215,7 @@ export default function FertilizanteManualPanel({
     setFabricante('')   // reset fabricante al cambiar categoría
     setBusqueda('')
     setBusquedaDelay('')
+    setDetalleOrganico(null)
   }, [tipoSIEX]) // eslint-disable-line react-hooks/exhaustive-deps
 
   // ── Derived ───────────────────────────────────────────────────────────────
@@ -222,7 +259,7 @@ export default function FertilizanteManualPanel({
     }
     return extraerNPKNeed(npk, nRiego)
   }, [npkParaRec, npk, nRiego])
-  const acumulado = useMemo(() => calcularAcumulado(planItems), [planItems])
+  const acumulado = useMemo(() => calcularAcumulado(planItems, fechaInicioCiclo), [planItems, fechaInicioCiclo])
 
   // ── Handlers ──────────────────────────────────────────────────────────────
   const handleAnadir = useCallback(() => {
@@ -257,6 +294,11 @@ export default function FertilizanteManualPanel({
           cantidad:        dosis,
           fechaAplicacion: fechaAplicacion || null,
           esPersonalizado: false,
+          // Campos mineralización orgánica (null si no aplica)
+          appliesAnnualEffectiveness: detalleOrganico?.appliesAnnualEffectiveness ?? false,
+          yearPercent0: detalleOrganico?.yearPercent0 ?? null,
+          yearPercent1: detalleOrganico?.yearPercent1 ?? null,
+          yearPercent2: detalleOrganico?.yearPercent2 ?? null,
         }
 
     onChange([...planItems, item])
@@ -268,8 +310,9 @@ export default function FertilizanteManualPanel({
     setFechaAplicacion('')
     setNpCustom({ n: '', p2o5: '', k2o: '' })
     setShowSugerencias(false)
+    setDetalleOrganico(null)
   }, [cantidad, esPersonalizado, productoSeleccionado, npCustom, fechaAplicacion,
-      tipoSIEX, fertilizadoresManuales, onChange])
+      tipoSIEX, fertilizadoresManuales, detalleOrganico, onChange])
 
   const handleEliminar = useCallback(id => {
     onChange(planItems.filter(f => f.id !== id))
@@ -363,7 +406,7 @@ export default function FertilizanteManualPanel({
                     </div>
                     <button
                       type="button"
-                      onClick={() => { setProductoSeleccionado(null); setBusqueda(''); setBusquedaDelay('') }}
+                      onClick={() => { setProductoSeleccionado(null); setBusqueda(''); setBusquedaDelay(''); setDetalleOrganico(null) }}
                       style={S.clearBtn}
                     >×</button>
                   </div>
@@ -376,10 +419,20 @@ export default function FertilizanteManualPanel({
                         N {productoSeleccionado.n}% · P₂O₅ {productoSeleccionado.p2o5}% · K₂O {productoSeleccionado.k2o}%
                         {' · '}{productoSeleccionado.type}
                       </div>
+                      {loadingDetalle && (
+                        <div style={{ fontSize: 9, color: '#78909c', fontStyle: 'italic', marginTop: 2 }}>
+                          Consultando mineralización…
+                        </div>
+                      )}
+                      {!loadingDetalle && detalleOrganico?.appliesAnnualEffectiveness && (
+                        <div style={{ fontSize: 9, color: '#ef6c00', marginTop: 2 }}>
+                          🌿 Orgánico — mineral. año 0: {detalleOrganico.yearPercent0}% · año 1: {detalleOrganico.yearPercent1}% · año 2: {detalleOrganico.yearPercent2}%
+                        </div>
+                      )}
                     </div>
                     <button
                       type="button"
-                      onClick={() => { setProductoSeleccionado(null); setBusqueda(''); setBusquedaDelay('') }}
+                      onClick={() => { setProductoSeleccionado(null); setBusqueda(''); setBusquedaDelay(''); setDetalleOrganico(null) }}
                       style={S.clearBtn}
                     >×</button>
                   </div>
@@ -432,6 +485,17 @@ export default function FertilizanteManualPanel({
                               setProductoSeleccionado(f)
                               setBusqueda(f.name)
                               setShowSugerencias(false)
+                              // Fetch detalle si es categoría orgánica (para yearPercent)
+                              setDetalleOrganico(null)
+                              if (ORGANIC_SIEX_CODES.has(f.materialSiexId)) {
+                                const fid = extractFertilizerId(f)
+                                if (fid) {
+                                  setLoadingDetalle(true)
+                                  getFertilizador(fid)
+                                    .then(d => setDetalleOrganico(d))
+                                    .finally(() => setLoadingDetalle(false))
+                                }
+                              }
                             }}
                           >
                             <div style={{ fontWeight: 600, fontSize: 11, color: '#263238' }}>{f.name}</div>
@@ -517,9 +581,7 @@ export default function FertilizanteManualPanel({
               </div>
               {itemsOrdenados.map(item => {
                 const dose = Number(item.cantidad) || 0
-                const aN    = (item.n    ?? 0) * dose / 100
-                const aP2o5 = (item.p2o5 ?? 0) * dose / 100
-                const aK2o  = (item.k2o  ?? 0) * dose / 100
+                const ef   = calcNpkEfectivo(item, fechaInicioCiclo)
                 return (
                   <div key={item.id} style={S.itemRow}>
                     <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'flex-start' }}>
@@ -542,9 +604,14 @@ export default function FertilizanteManualPanel({
                       <button type="button" onClick={() => handleEliminar(item.id)} style={S.deletBtn}>×</button>
                     </div>
                     <div style={S.itemNpk}>
-                      N <strong>{fmt1(aN)}</strong>
-                      {' · '}P₂O₅ <strong>{fmt1(aP2o5)}</strong>
-                      {' · '}K₂O <strong>{fmt1(aK2o)}</strong> kg/ha
+                      N <strong>{fmt1(ef.brutoN)}</strong>
+                      {' · '}P₂O₅ <strong>{fmt1(ef.brutoP2o5)}</strong>
+                      {' · '}K₂O <strong>{fmt1(ef.brutoK2o)}</strong> kg/ha
+                      {ef.esOrganico && (
+                        <div style={{ color: '#ef6c00', fontSize: 9, marginTop: 2 }}>
+                          🌿 efectivo este ciclo ({ef.pct}%): N {fmt1(ef.efN)} · P₂O₅ {fmt1(ef.efP2o5)} · K₂O {fmt1(ef.efK2o)} kg/ha
+                        </div>
+                      )}
                     </div>
                   </div>
                 )
@@ -567,6 +634,9 @@ export default function FertilizanteManualPanel({
                   <CoverageRow label="K₂O"  aportado={acumulado.k2o}  necesidad={npkNeed.k2o}  />
                   <div style={{ fontSize: 9, color: '#b0bec5', marginTop: 4 }}>
                     kg/ha · Necesidad = necesidades brutas del cultivo (incluye riego)
+                    {planItems.some(i => i.appliesAnnualEffectiveness) && (
+                      <span style={{ color: '#ef6c00' }}> · 🌿 Orgánicos: fracción mineralizable este ciclo</span>
+                    )}
                   </div>
                 </div>
               )}
