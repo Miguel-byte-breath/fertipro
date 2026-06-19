@@ -231,10 +231,10 @@ export default function FertilizanteManualPanel({
   }, [catalogoFiltradoSiex, fabricante, busquedaDelay, tipoSIEX])
 
   const npkNeed = useMemo(() => {
-    // Si tenemos npkParaRec (neto tras riego) lo usamos directamente; si no, calculamos del motor
+    // npkParaRec ya tiene descontado el aporte del riego (N via n_other, P/K client-side)
     if (npkParaRec) {
       return {
-        n:    (npkParaRec.n ?? 0) + (nRiego ?? 0),
+        n:    npkParaRec.n ?? 0,
         p2o5: pToOxide(npkParaRec.p ?? 0),
         k2o:  kToOxide(npkParaRec.k ?? 0),
       }
@@ -649,7 +649,7 @@ export default function FertilizanteManualPanel({
                   <CoverageRow label="P₂O₅" aportado={acumulado.p2o5} necesidad={npkNeed.p2o5} />
                   <CoverageRow label="K₂O"  aportado={acumulado.k2o}  necesidad={npkNeed.k2o}  />
                   <div style={{ fontSize: 9, color: '#b0bec5', marginTop: 4 }}>
-                    kg/ha · Necesidad = necesidades brutas del cultivo (incluye riego)
+                    kg/ha · Necesidad neta = necesidades del cultivo descontado el riego
                     {planItems.some(i => i.appliesAnnualEffectiveness) && (
                       <span style={{ color: '#ef6c00' }}> · 🌿 Orgánicos: fracción mineralizable este ciclo</span>
                     )}
