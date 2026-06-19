@@ -317,7 +317,34 @@ const handleAddPlanItems = useCallback((items) => {
 ## Commits recientes
 
 ```
-(pendiente — sesión 5, 2026-06-19)
+(sesión 6, 2026-06-19)
+        feat: mineralizacion anual organicos (yearPercent) — issue #3
+        — FertilizanteManualPanel: ORGANIC_SIEX_CODES, fetch detalle al seleccionar
+          calcNpkEfectivo(item, fechaInicioCiclo), barras cobertura usan efectivo
+          UI: "efectivo este ciclo (X%)" bajo bruto; ficha muestra yearPercent0/1/2
+          nuevo prop fechaInicioCiclo; App.jsx lo pasa al panel
+        — exportExcel: columnas Mineral.(%) + N/P2O5/K2O efectivo (null si no orgánico)
+        — exportPdf: tabla plan usa efectivo; asterisco en orgánicos parciales; nota al pie
+
+        fix: extraerFabricante usa lastIndexOf para productos orgánicos
+        — Los nombres orgánicos tienen " de " dentro de la descripción (ej. "Estiércol (bovino
+          de leche con lecho compostado)"), no como separador de fabricante.
+          Cambiado indexOf → lastIndexOf; descarta candidatos con ')' o > 40 chars → 'GENÉRICO'.
+
+        fix: PERSONALIZADO orgánico aplica yearPercent del catálogo Sativum
+        — Al seleccionar PERSONALIZADO en tipo SIEX orgánico: busca en catalogoFiltradoSiex
+          el item con nombre "PERSONALIZADO…", extrae ID, fetcha getFertilizador(id) →
+          detalleOrganico queda con yearPercent0/1/2 y appliesAnnualEffectiveness.
+        — handleAnadir (rama esPersonalizado): incluye campos organicos de detalleOrganico.
+        — UI PERSONALIZADO seleccionado: muestra "🌿 Orgánico — mineral. año 0/1/2 X%".
+
+        docs: README completo en español
+        — Flujo agrónomo (6 pasos), stack, arranque local (npm dev + vercel dev),
+          despliegue, estructura repositorio, fuentes de datos y licencias
+          (FertiliCalc/Sativum CC-libre, suelo ArcGIS ITACyL, SIGPAC CC BY 4.0,
+          PNOA IGN CC BY 4.0, RD 1051/2022), referencia académica Villalobos 2020.
+
+(sesión 5, 2026-06-19)
         feat: filtro cascada SIEX→Fabricante→Producto en FertilizanteManualPanel
         — materialSiexId del catálogo mapea directamente a codigo SIEX
         — fabricantes filtrados por tipo SIEX seleccionado
@@ -345,34 +372,45 @@ ad8c2a3 feat: uso_sigpac + coef_regadio via servicio REST SIGPAC recinfo
 
 ### Activo (próxima sesión)
 
-**Issue #3 — Mineralización de fertilizantes orgánicos (yearPercent)**
-
-Categorías SIEX orgánicas: códigos 1-8, 10, 13, 15, 16, 19-22.
-
-**Flujo acordado (opción A — fetch detalle al seleccionar):**
-1. En `FertilizanteManualPanel`, al seleccionar producto en combobox:
-   - Extraer ID real con `extractFertilizerId(producto)`
-   - Si `materialSiexId` está en categorías orgánicas → `getFertilizador(id)`
-   - Del detalle, guardar `appliesAnnualEffectiveness`, `yearPercent0/1/2` en el item del form
-2. Al añadir al plan (`handleAddItem`): incluir esos campos en el `planItem`
-3. Al calcular cobertura (barras + totales):
-   - Si `item.appliesAnnualEffectiveness`:
-     - `delta = year(fechaInicioCiclo) - year(item.fechaAplicacion)`, clamp 0-2
-     - `pct = item['yearPercent' + delta] ?? 100`
-     - `nEfectivo = item.n * item.cantidad/100 * pct/100` (igual p2o5, k2o)
-   - Si no: comportamiento actual
-4. En UI: mostrar "(aplicado Xkg/ha, efectivo este año Ykg/ha)" para orgánicos
-5. En exports: columnas "N aportado" / "N efectivo" (o nota en pie de página)
-
-**Archivos a tocar:**
-- `src/components/FertilizanteManualPanel.jsx` — fetch detalle al seleccionar, nuevo state `detalleFertilizante`
-- `src/components/FertilizanteManualPanel.jsx` — cálculo efectivo en barras cobertura
-- `src/utils/exportExcel.js` — columnas N/P2O5/K2O efectivos
-- `src/utils/exportPdf.js` — columnas o nota pie orgánicos
+_(sin issues activos)_
 
 ### En espera
 
 3. **CEC dinámico** — Cuando ITACyL publique capa ArcGIS de CEC, reemplazar valores por textura.
+
+### Completados (2026-06-19, sesión 6)
+
+- ✅ **README.md completo** — `README.md` reescrito desde cero en español para desarrolladores y agrónomos.
+  Flujo de trabajo en 6 pasos, stack técnico, arranque local (dos modos: `npm run dev` sin serverless
+  y `npx vercel dev` completo), despliegue Vercel, estructura del repositorio, tabla de fuentes de datos
+  y licencias (FertiliCalc/Sativum, ArcGIS ITACyL, SIGPAC CC BY 4.0 HVD, PNOA IGN CC BY 4.0,
+  RD 1051/2022, dependencias npm), y referencia académica FertiliCalc (Villalobos et al. 2020).
+
+- ✅ **fix: extraerFabricante para productos orgánicos** — `FertilizanteManualPanel.jsx`.
+  `indexOf(' de ')` encontraba el primer " de " dentro del nombre del producto orgánico (ej.
+  "Estiércol (bovino de leche con lecho compostado)"), mostrando cadenas truncadas como fabricante.
+  Cambiado a `lastIndexOf`; candidato descartado → 'GENÉRICO' si contiene `)` o longitud > 40.
+
+- ✅ **fix: PERSONALIZADO orgánico aplica yearPercent** — `FertilizanteManualPanel.jsx`.
+  Al seleccionar PERSONALIZADO en un tipo SIEX orgánico (ORGANIC_SIEX_CODES), el `onMouseDown`
+  busca en `catalogoFiltradoSiex` el item cuyo nombre empieza por "PERSONALIZADO", extrae su ID
+  vía `extractFertilizerId` y llama `getFertilizador(id)` → `detalleOrganico` queda con
+  `yearPercent0/1/2` y `appliesAnnualEffectiveness`. `handleAnadir` (rama `esPersonalizado`)
+  incluye esos campos → `calcNpkEfectivo` aplica el delta correcto. UI muestra
+  "🌿 Orgánico — mineral. año 0/1/2 X%" en el display del producto seleccionado.
+
+- ✅ **Mineralización anual de fertilizantes orgánicos (yearPercent) — issue #3** —
+  `FertilizanteManualPanel.jsx`, `exportExcel.js`, `exportPdf.js`.
+  `ORGANIC_SIEX_CODES` (códigos SIEX 1-8, 10, 13, 15, 16, 19-22). Al seleccionar producto del catálogo
+  cuya `materialSiexId` sea orgánica → `getFertilizador(id)` → almacena `appliesAnnualEffectiveness`,
+  `yearPercent0/1/2` en `detalleOrganico` (state) y los incluye en el `planItem`.
+  `calcNpkEfectivo(item, fechaInicioCiclo)`: `delta = year(inicio) - year(aplic)` clamp 0-2,
+  `pct = yearPercent{delta} ?? 100`, `efN = bruto * pct/100`.
+  UI: muestra "🌿 efectivo este ciclo (X%): N Y · P₂O₅ Z · K₂O W kg/ha" bajo el bruto.
+  Barras de cobertura acumulan el valor efectivo. Ficha del producto muestra mineralización por año.
+  Excel: columnas `Mineral. (%)` + `N/P₂O₅/K₂O efectivo (kg/ha)` (null para no-orgánicos).
+  PDF: N/P₂O₅/K₂O en tabla plan = valor efectivo; orgánicos parciales llevan `*`; nota al pie.
+  Nuevo prop `fechaInicioCiclo` en `FertilizanteManualPanel` (pasado desde `App.jsx`).
 
 ### Completados (2026-06-19, sesión 5)
 
