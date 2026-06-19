@@ -317,6 +317,18 @@ const handleAddPlanItems = useCallback((items) => {
 ## Commits recientes
 
 ```
+(sesión 7, 2026-06-19)
+        feat: label "PRODUCTO FERTILIZANTE" encima del combobox en RecomendacionAsesor
+        — FertilizanteManualPanel.jsx: etiqueta PRODUCTO FERTILIZANTE antes del combobox
+
+        feat: atribuciones y menciones legales (PNOA, JCyL, FertiliCalc CC BY 4.0)
+        — MapPicker.jsx: PNOA attribution → "PNOA CC-BY 4.0 ign.es" (Orden FOM/2807/2015)
+        — App.jsx: footer ampliado — enlace Sativum ITACyL + CC BY 4.0
+          + "©Junta de Castilla y León (suelos.itacyl.es)" en línea propia
+        — exportPdf.js: cabecera "CC BY 4.0 ITACyL" + "(c)Junta de Castilla y Leon · suelos.itacyl.es"
+          (ASCII, sin Unicode)
+        — exportExcel.js: Notas → "©Junta de Castilla y León (IGCYL-NC) · suelos.itacyl.es"
+
 (sesión 6, 2026-06-19)
         feat: mineralizacion anual organicos (yearPercent) — issue #3
         — FertilizanteManualPanel: ORGANIC_SIEX_CODES, fetch detalle al seleccionar
@@ -377,6 +389,20 @@ _(sin issues activos)_
 ### En espera
 
 3. **CEC dinámico** — Cuando ITACyL publique capa ArcGIS de CEC, reemplazar valores por textura.
+
+### Completados (2026-06-19, sesión 7)
+
+- ✅ **Label "PRODUCTO FERTILIZANTE"** — `FertilizanteManualPanel.jsx`.
+  Etiqueta `PRODUCTO FERTILIZANTE` añadida encima del combobox de búsqueda de producto,
+  alineada con el estilo de las demás etiquetas del panel.
+
+- ✅ **Atribuciones y menciones legales** — `MapPicker.jsx`, `App.jsx`, `exportPdf.js`, `exportExcel.js`.
+  Implementadas todas las menciones/atribuciones legalmente requeridas:
+  - **PNOA (IGN):** atribución corregida a `PNOA CC-BY 4.0 ign.es` (Orden FOM/2807/2015) en el control Leaflet.
+  - **FertiliCalc/Sativum (ITACyL):** footer App.jsx enlaza Sativum ITACyL + `CC BY 4.0`.
+  - **Suelo ArcGIS (JCyL):** `©Junta de Castilla y León` + enlace `suelos.itacyl.es` en footer, cabecera PDF y hoja Notas Excel.
+    Licencia IGCYL-NC comercial: mención visible en app y en documentos exportados.
+  - OSM y SIGPAC ya estaban correctos (sin cambios).
 
 ### Completados (2026-06-19, sesión 6)
 
