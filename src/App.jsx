@@ -30,6 +30,7 @@ import CultivoAnteriorPanel  from './components/CultivoAnteriorPanel'
 import ResultadosCard           from './components/ResultadosCard'
 import AsesoramientoPanel        from './components/AsesoramientoPanel'
 import FertilizanteManualPanel   from './components/FertilizanteManualPanel'
+import MetodologiaModal          from './components/MetodologiaModal'
 import SativumApplicationDialog  from './components/SativumApplicationDialog'
 import { calcularNPK, calcularNAgua }  from './api/sativum-algo'
 import { FUENTE_SUBTERRANEA, FUENTE_SIN_RIEGO } from './data/sativum/fuentesAgua'
@@ -174,6 +175,7 @@ export default function App() {
   // Cada item: { id, origen:'sativum'|'manual', nombre, tipo, tipoSIEX,
   //              n, p2o5, k2o, cantidad, fechaAplicacion, esPersonalizado }
   const [planItems, setPlanItems] = useState([])
+  const [metodologiaOpen, setMetodologiaOpen] = useState(false)
 
   // Diálogo de aplicación Sativum
   const [sativumDialogOpen, setSativumDialogOpen] = useState(false)
@@ -702,8 +704,14 @@ export default function App() {
             <div style={S.brandSub}>Planificación de nutrientes · Unidad de producción | Hoja de cultivo | Recinto</div>
           </div>
         </div>
+        <button
+          style={S.infoBtn}
+          onClick={() => setMetodologiaOpen(true)}
+          title="Metodología y fuentes"
+        >ℹ️</button>
         <ModoIndicator activeId={activePolygonId} polygons={polygons} point={point} />
       </header>
+      <MetodologiaModal open={metodologiaOpen} onClose={() => setMetodologiaOpen(false)} />
 
       <div style={S.body}>
         <div style={S.mapWrap}>
@@ -966,13 +974,13 @@ export default function App() {
           )}
 
           <div style={S.footer}>
-            <strong>v0.2.0</strong> · FertiPRO ×{' '}
-            <a href="https://portal.api.itacyl.es/portal/apis/" target="_blank" rel="noreferrer" style={{ color: 'inherit' }}>Sativum (ITACyL)</a>
-            {' '}· FertiliCalc (Villalobos et al. 2020) ·{' '}
-            <a href="https://creativecommons.org/licenses/by/4.0/deed.es" target="_blank" rel="noreferrer" style={{ color: 'inherit' }}>CC BY 4.0</a>
-            <br />
-            Datos de suelo:{' '}
+            <button style={S.versionBtn} onClick={() => setMetodologiaOpen(true)} title="Metodología y fuentes">v0.2.0</button>
+            {' '}·{' '}
+            <a href="https://creativecommons.org/licenses/by/4.0/deed.es" target="_blank" rel="noreferrer" style={{ color: 'inherit' }}>CC BY 4.0 ITACyL</a>
+            {' '}·{' '}
             <a href="https://suelos.itacyl.es" target="_blank" rel="noreferrer" style={{ color: 'inherit' }}>©Junta de Castilla y León (suelos.itacyl.es)</a>
+            {' '}·{' '}
+            <a href="https://portal.api.itacyl.es/portal/apis/" target="_blank" rel="noreferrer" style={{ color: 'inherit' }}>Portal APIs ITACyL</a>
           </div>
         </aside>
       </div>
@@ -1019,7 +1027,12 @@ const S = {
   brandTitle:  { fontWeight: 700, fontSize: 15, letterSpacing: 0.3 },
   brandItacyl: { fontWeight: 400, fontSize: 13, opacity: 0.7 },
   brandSub:    { fontSize: 10, opacity: 0.70 },
-  modo:       { marginLeft: 'auto', textAlign: 'right', fontSize: 11 },
+  modo:       { textAlign: 'right', fontSize: 11 },
+  infoBtn: {
+    marginLeft: 'auto', background: 'none', border: 'none',
+    cursor: 'pointer', fontSize: 18, lineHeight: 1, padding: '0 4px',
+    opacity: 0.85, flexShrink: 0,
+  },
   modoLabel:  {
     padding: '2px 8px', borderRadius: 3, marginBottom: 2, fontWeight: 600,
   },
@@ -1043,6 +1056,11 @@ const S = {
     background: 'rgba(26,35,126,0.92)', color: '#fff',
     padding: '8px 18px', borderRadius: 20, fontSize: 13,
     pointerEvents: 'none', zIndex: 1000,
+  },
+  versionBtn: {
+    background: 'none', border: 'none', cursor: 'pointer',
+    color: 'inherit', fontWeight: 700, padding: 0,
+    fontSize: 'inherit', textDecoration: 'underline dotted',
   },
   footer: {
     margin: 12, padding: 10,
