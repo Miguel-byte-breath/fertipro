@@ -935,6 +935,7 @@ export default function App() {
               npkParaRec={resultados.npkParaRec}
               planItems={planItems}
               adjustedNutrient={resultados.adjustedNutrient}
+              fechaInicioCiclo={fechaInicioCiclo}
               onAdd={(items) => { handleAddPlanItems(items); setSativumDialogOpen(false) }}
               onClose={() => setSativumDialogOpen(false)}
             />

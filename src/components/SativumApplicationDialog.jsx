@@ -14,6 +14,7 @@
  */
 import { useState, useMemo, useCallback } from 'react'
 import { getRecomendacion, pToOxide, kToOxide } from '../api/sativum-fertilizers'
+import { calcNpkEfectivo } from '../utils/npkUtils'
 
 const P_TO_P2O5 = 2.2914
 const K_TO_K2O  = 1.2046
@@ -122,20 +123,21 @@ export default function SativumApplicationDialog({
   npkParaRec,
   planItems = [],
   adjustedNutrient = 'N',
+  fechaInicioCiclo = '',
   onAdd,
   onClose,
 }) {
-  // Lo ya cubierto por el plan actual (en oxide para P y K, elemento para N)
+  // Lo ya cubierto por el plan actual — usa valores EFECTIVOS (mineralización orgánicos)
   const covered = useMemo(() => planItems.reduce(
     (acc, item) => {
-      const dose = Number(item.cantidad) || 0
+      const { efN, efP2o5, efK2o } = calcNpkEfectivo(item, fechaInicioCiclo)
       return {
-        n:    acc.n    + ((item.n    ?? 0) * dose / 100),
-        p2o5: acc.p2o5 + ((item.p2o5 ?? 0) * dose / 100),
-        k2o:  acc.k2o  + ((item.k2o  ?? 0) * dose / 100),
+        n:    acc.n    + efN,
+        p2o5: acc.p2o5 + efP2o5,
+        k2o:  acc.k2o  + efK2o,
       }
     }, { n: 0, p2o5: 0, k2o: 0 }
-  ), [planItems])
+  ), [planItems, fechaInicioCiclo])
 
   // Totales en unidades de display
   const nTotal    = npkParaRec?.n ?? 0
