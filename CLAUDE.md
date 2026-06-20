@@ -61,6 +61,16 @@ src/
                                persiste en localStorage('fertipro_asesor')
                                auto-expande si localStorage ya tiene datos; badge con nombre si colapsado
                                props: asesor, onChange(obj)
+    MetodologiaModal.jsx       — modal metodología y fuentes ✅ (sesión 10 2026-06-20)
+                               abre desde botón ℹ️ en el header (marginLeft:'auto') y desde
+                               v0.2.0 clicable en el footer
+                               Secciones: Motor de cálculo · Cadena institucional · Datos de suelo
+                                          · APIs y documentación · Referencia bibliográfica
+                               Cadena documentada: FertiliCalc (Villalobos & Fereres) →
+                                 FaST Stage 1 CE (CyL piloto) → SATIVUM (ITACyL) →
+                                 Convenio FEGA-ITACyL BOE-A-2023-22205
+                               Guía SATIVUM v2.1.0: https://servicios.itacyl.es/resources/public/sativum/ServiciosBalanceNutrientes.docx
+                               props: open, onClose
     FertilizanteManualPanel.jsx — panel colapsable "Recomendación asesor" ✅
                                1º selector tipoSIEX (24 tipos RD 1051/2022) — filtra catálogo por materialSiexId
                                2º selector Fabricante — solo fabricantes del tipo SIEX seleccionado
@@ -369,6 +379,20 @@ const handleAddPlanItems = useCallback((items) => {
 ## Commits recientes
 
 ```
+(sesión 10, 2026-06-20)
+d6c3a98 feat: modal metodologia Sativum/FertiliCalc/FaST en header; footer simplificado
+        — MetodologiaModal.jsx: nuevo modal desde botón ℹ️ en header
+          Texto verificado contra manual Sativum v2.1.0 y fuentes primarias (BOE, fastplatform.eu)
+          Motor de cálculo: FertiPRO → Servicio Sativum API → FertiliCalc (Villalobos & Fereres)
+            conforme a Fitotecnia (no el artículo IJPP 2020, que es el DSS paper)
+          Cadena: FaST Stage 1 CE (CyL piloto, 2020-2021) → SATIVUM → BOE-A-2023-22205
+          ISA² es nombre oficial del programa CE (no nota al pie)
+        — App.jsx: import MetodologiaModal, estado metodologiaOpen,
+          botón ℹ️ en header (marginLeft:'auto', empuja ModoIndicator a la derecha),
+          S.modo sin marginLeft:'auto', S.infoBtn + S.versionBtn añadidos
+        — App.jsx footer simplificado: v0.2.0 (button→modal) · CC BY 4.0 ITACyL (link licencia)
+          · ©Junta de Castilla y León (suelos.itacyl.es) · Portal APIs ITACyL
+
 (sesión 9, 2026-06-20)
         feat: SueloRiegoCard — riego/suelo reestructurado, analisis propio, dotacion Sativum
                auto-fill, branding FertiPRO Add-on; fix ZVN RD47/2022; origen agua en PDF/Excel
@@ -474,6 +498,18 @@ ad8c2a3 feat: uso_sigpac + coef_regadio via servicio REST SIGPAC recinfo
 ### Activo (próxima sesión)
 
 _(sin issues activos)_
+
+### Completados (2026-06-20, sesión 10)
+
+- ✅ **MetodologiaModal** — modal accesible desde ℹ️ en header y desde v0.2.0 en footer.
+  Documenta la cadena FertiliCalc → FaST Stage 1 (CE, CyL piloto) → SATIVUM (ITACyL) →
+  Convenio FEGA-ITACyL (BOE-A-2023-22205). Texto verificado contra manual Sativum v2.1.0,
+  fastplatform.eu y el BOE. Referencia primaria: *Fitotecnia* (Villalobos & Fereres),
+  no el artículo IJPP 2020. Enlaza al Portal APIs ITACyL y a la Guía SATIVUM v2.1.0.
+
+- ✅ **Footer simplificado** — v0.2.0 (button→modal) · CC BY 4.0 ITACyL (link a licencia CC)
+  · ©Junta de Castilla y León (suelos.itacyl.es) · Portal APIs ITACyL.
+  v0.2.0 es la versión de FertiPRO (no de Sativum ni de FertiliCalc).
 
 ### Completados (2026-06-20, sesión 9)
 
