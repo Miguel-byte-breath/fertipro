@@ -532,41 +532,15 @@ ad8c2a3 feat: uso_sigpac + coef_regadio via servicio REST SIGPAC recinfo
 
 ### Activo (próxima sesión)
 
-- ⚠️ **Panel Medidas de Mitigación GEI — App.jsx pendiente de revisión manual**
+_(sin tareas pendientes)_
 
-  **Archivos creados correctamente (no tocar):**
-  - `src/data/sativum/medidasMitigacionGEI.js` ✓ — 16 medidas, 3 grupos
-  - `src/components/MedidasMitigacionPanel.jsx` ✓ — panel colapsable, badge verde
-  - `src/utils/exportPdf.js` ✓ — sección 8 GEI añadida
-  - `src/utils/exportExcel.js` ✓ — bloque GEI en hoja "Plan de Abonado"
+### Completados (2026-06-20, sesión 13)
 
-  **Problema:** `App.jsx` quedó truncado al intentar insertar el JSX del panel (el Edit tool
-  corrompió el archivo en disco a 919 líneas). Se intentó reparar via Python/bash pero el
-  sync mount Linux→Windows es poco fiable y Vite siguió viendo el archivo dañado.
-
-  **Qué falta hacer (manualmente en VS Code o en próxima sesión):**
-
-  1. Abrir `src/App.jsx` y verificar que tiene ~1091 líneas. Si tiene ~919, el archivo está
-     truncado y falta todo lo que va desde `ResultadosCard` hasta el final (footer, estilos, etc).
-
-  2. Si está truncado, verificar con:
-     ```powershell
-     (Get-Content C:\work\fertipro-api-sativum\src\App.jsx).Count
-     ```
-
-  3. El JSX del panel que hay que insertar (justo antes de `<div style={S.footer}>`):
-     ```jsx
-     <MedidasMitigacionPanel
-       seleccionadas={medidasGEI}
-       onChange={setMedidasGEI}
-     />
-     ```
-     El import (`import MedidasMitigacionPanel from './components/MedidasMitigacionPanel'`)
-     y el estado (`const [medidasGEI, setMedidasGEI] = useState([])`) ya están en el archivo.
-
-  **Lección aprendida:** Para archivos grandes, el Edit tool puede truncar el archivo si el
-  texto a reemplazar está cerca del final. En ese caso, usar bash/Python para escribir la
-  corrección (pero verificar siempre con `wc -l` antes y después).
+- ✅ **fix: MedidasMitigacionPanel visible** — commit `ae3ab99`.
+  El panel estaba en el DOM pero era invisible: `overflow: 'hidden'` en `S.card` aplastaba
+  la altura a 0 dentro del flex-column del aside. Fix: eliminar `overflow: 'hidden'` de `S.card`.
+  **Diagnóstico:** Ctrl+F encontraba el texto pero no se veía → elemento en DOM con altura 0.
+  Lección: ante "no se ve pero el código está" → revisar CSS overflow/height antes de nada.
 
 ### Completados (2026-06-20, sesión 12)
 
@@ -575,7 +549,6 @@ ad8c2a3 feat: uso_sigpac + coef_regadio via servicio REST SIGPAC recinfo
   UI muestra solo texto (sin código SIEX). Badge verde con nº seleccionadas cuando colapsado.
   Códigos SIEX aparecen en PDF (sección 8, tabla agrupada por categoría) y en Excel (bloque "Plan de Abonado").
   Estado `medidasGEI` en App.jsx pasado a ambos handlers de exportación.
-  ⚠️ Ver issue activo — el JSX de render en App.jsx puede necesitar verificación manual.
 
 ### Completados (2026-06-20, sesión 11)
 
