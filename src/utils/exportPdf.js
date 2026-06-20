@@ -140,6 +140,8 @@ export async function exportarPlanAbonadoPdf({
   pRiego               = 0,
   kRiego               = 0,
   asesor               = null,
+  analisisPropio       = false,
+  refAnalisisSuelo     = '',
   fertilizadoresManuales = [],  // alias legacy
   planItems            = null,  // nuevo: array unificado con origen:'sativum'|'manual'
   baseName             = 'fertipro_plan_nutrientes',
@@ -179,7 +181,7 @@ export async function exportarPlanAbonadoPdf({
   const nRiegoPct    = nRiego > 0    ? nRiego : null
   const p2o5Riego    = pRiego > 0    ? pRiego * P_TO_P2O5 : null
   const k2oRiego     = kRiego > 0    ? kRiego * K_TO_K2O  : null
-  const tieneRiego   = riego?.fuenteId !== 0 && (nRiegoPct || p2o5Riego || k2oRiego)
+  const tieneRiego   = riego?.sistemaExplotacion === 'regadio' && (nRiegoPct || p2o5Riego || k2oRiego)
 
   // ── Superficie total ──────────────────────────────────────────────────────
   const sup = supTotalHa != null && !isNaN(supTotalHa) && supTotalHa > 0
@@ -248,7 +250,7 @@ export async function exportarPlanAbonadoPdf({
   }
 
   // Cultivo actual: nombre + rendimiento + régimen hídrico
-  const regimenHidrico = riego?.fuenteId !== 0 ? 'Regadío' : 'Secano'
+  const regimenHidrico = riego?.sistemaExplotacion === 'regadio' ? 'Regadío' : 'Secano'
   const cultivoActualStr = rendimiento
     ? `${cultivo?.name ?? '—'} — ${fmtNum(rendimiento, 0)} kg/ha en ${regimenHidrico}`
     : (cultivo?.name ?? '—')
@@ -280,6 +282,16 @@ export async function exportarPlanAbonadoPdf({
     const regferStr = asesor.regfer ? `  |  REGFER: ${asesor.regfer}` : ''
     metaRow('Asesor responsable del plan', nombreCompleto + regferStr)
     if (asesor.nif) metaRow('NIF asesor', asesor.nif)
+  }
+
+  // Análisis de suelo personalizado
+  if (analisisPropio && refAnalisisSuelo) {
+    metaRow('Analisis de suelo (laboratorio)', refAnalisisSuelo)
+  }
+
+  // Referencia análisis agua
+  if (riego?.refAnalisisAgua) {
+    metaRow('Analisis agua de riego', riego.refAnalisisAgua)
   }
 
   y += 4
@@ -452,7 +464,7 @@ export async function exportarPlanAbonadoPdf({
   y = boxY + boxH + 6
 
   // ── 6. APORTE DEL AGUA DE RIEGO ──────────────────────────────────────────
-  const tieneAguaRiego = riego?.fuenteId !== 0 && Number(riego?.dotacionM3) > 0
+  const tieneAguaRiego = riego?.sistemaExplotacion === 'regadio' && Number(riego?.dotacionM3) > 0
   if (tieneAguaRiego) {
     const dotHa    = Number(riego.dotacionM3)
     const dotTotal = sup != null ? dotHa * sup : null
@@ -465,7 +477,7 @@ export async function exportarPlanAbonadoPdf({
 
     autoTable(doc, {
       startY: y,
-      head: [['FUENTE DE AGUA', 'DOTACION/HA', 'DOTACION TOTAL', 'UF N (kg/ha)', 'UF P2O5 (kg/ha)', 'UF K2O (kg/ha)']],
+      head: [['ORIGEN DEL AGUA', 'DOTACION/HA', 'DOTACION TOTAL', 'UF N (kg/ha)', 'UF P2O5 (kg/ha)', 'UF K2O (kg/ha)']],
       body: [[
         (riego.fuenteLabel ?? 'OTROS ORIGENES').toUpperCase(),
         `${fmtNum(dotHa, 0)} m³/ha`,

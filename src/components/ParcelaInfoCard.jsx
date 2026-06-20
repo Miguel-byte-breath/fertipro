@@ -58,7 +58,7 @@ export default function ParcelaInfoCard({ recintos, loading, error }) {
       {hayZvn && (
         <div style={PC.zvnAlert}>
           <strong>Zona Vulnerable a Nitratos</strong> — uno o más recintos de esta parcela
-          están incluidos en una ZVN (RD 1051/2022). Revisa los condicionantes
+          están incluidos en una ZVN (RD 47/2022). Revisa los condicionantes
           del programa de acción aplicable.
         </div>
       )}

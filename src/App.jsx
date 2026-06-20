@@ -24,7 +24,7 @@ import ParcelaInfoCard  from './components/ParcelaInfoCard'
 import GeometryPanel    from './components/GeometryPanel'
 import { getSigpacRecinto } from './api/sigpac'
 import { identifySativum, normalizarSuelo } from './api/sativum-suelo'
-import SueloCard        from './components/SueloCard'
+import SueloRiegoCard   from './components/SueloRiegoCard'
 import EstrategiaPanel       from './components/EstrategiaPanel'
 import CultivoAnteriorPanel  from './components/CultivoAnteriorPanel'
 import ResultadosCard           from './components/ResultadosCard'
@@ -54,7 +54,7 @@ const ESTADO = {
 }
 
 // CEC por defecto según textura simplificada (valores Sativum, meq/kg)
-// El usuario puede editarlo manualmente en SueloCard si tiene analítica propia.
+// El usuario puede editarlo manualmente en SueloRiegoCard si tiene analítica propia.
 const CEC_BY_SOIL_TYPE = {
   SANDY:      30,
   SANDY_LOAM: 75,
@@ -86,7 +86,20 @@ export default function App() {
   // ── Estado suelo / agua de riego ───────────────────────────────────────
   const [suelo,  setSuelo]  = useState(null)
   const [cec,    setCec]    = useState(220)
-  const [riego,  setRiego]  = useState({ fuenteId: 0, no3MgL: '', dotacionM3: '', pMgL: '', kMgL: '' })
+  const [riego,  setRiego]  = useState({
+    sistemaExplotacion: 'secano',   // 'secano' | 'regadio'
+    fuenteId:           0,          // SIEX origen agua (1-6); 0 = sin origen elegido
+    refAnalisisAgua:    '',         // referencia boletín análisis agua (texto libre)
+    no3MgL:             '',
+    dotacionM3:         '',
+    pMgL:               '',
+    kMgL:               '',
+  })
+
+  // ── Estado análisis de suelo personalizado ─────────────────────────────
+  const [analisisPropio,         setAnalisisPropio]         = useState(false)
+  const [refAnalisisSuelo,       setRefAnalisisSuelo]       = useState('')
+  const [sueloPersonalizado,     setSueloPersonalizado]     = useState({})
 
   // ── Estado cultivo anterior (rotación) ────────────────────────────────
   const [cultivoAnterior,       setCultivoAnterior]       = useState(null)
@@ -139,11 +152,23 @@ export default function App() {
   }, [cultivo?.id])
 
   // CEC por textura: se actualiza cuando carga el suelo ArcGIS.
-  // El usuario puede sobreescribir manualmente en SueloCard.
+  // El usuario puede sobreescribir manualmente en SueloRiegoCard.
   useEffect(() => {
     if (!suelo?.soilType) return
     setCec(CEC_BY_SOIL_TYPE[suelo.soilType] ?? 220)
   }, [suelo?.soilType])
+
+  // Auto-rellenar dotación de riego desde cultivo.irrigation al cambiar cultivo.
+  // Si el cultivo tiene dotación orientativa, se activa regadío por defecto.
+  useEffect(() => {
+    if (!cultivo) return
+    const irr = Number(cultivo.irrigation) || 0
+    setRiego(prev => ({
+      ...prev,
+      sistemaExplotacion: irr > 0 ? 'regadio' : 'secano',
+      dotacionM3:         irr > 0 ? irr : '',
+    }))
+  }, [cultivo?.id])
 
   // ── Plan de aplicaciones unificado (Sativum + manual) ───────────────────
   // Cada item: { id, origen:'sativum'|'manual', nombre, tipo, tipoSIEX,
@@ -182,11 +207,11 @@ export default function App() {
     setPlanItems([])   // resetear plan al recalcular
 
     try {
-      // Riego efectivo según fuente SIEX
-      const fuenteId = riego.fuenteId
+      // Riego efectivo según sistema de explotación y fuente SIEX
+      const tieneRiego = riego.sistemaExplotacion === 'regadio'
       let riegoOpts = null
-      if (fuenteId !== FUENTE_SIN_RIEGO) {
-        const no3 = fuenteId === FUENTE_SUBTERRANEA
+      if (tieneRiego) {
+        const no3 = riego.fuenteId === FUENTE_SUBTERRANEA
           ? (suelo?.no3Irrigation ?? riego.no3MgL)
           : riego.no3MgL
         const dot = riego.dotacionM3
@@ -215,8 +240,17 @@ export default function App() {
         quemaResiduos:  calculo.quemaResiduos,
       })
 
-      // Suelo mínimo si no hay datos ArcGIS
-      const sueloEfectivo = suelo ?? {
+      // Suelo efectivo: análisis propio del laboratorio o datos ArcGIS
+      const sueloBase = analisisPropio
+        ? {
+            soilType:      sueloPersonalizado.soilType      ?? 'LOAM',
+            organicMatter: sueloPersonalizado.organicMatter ?? 2,
+            ph:            sueloPersonalizado.ph            ?? null,
+            pOlsen:        sueloPersonalizado.pOlsen        ?? null,
+            kSoil:         sueloPersonalizado.kSoil         ?? null,
+          }
+        : suelo
+      const sueloEfectivo = sueloBase ?? {
         soilType:      'LOAM',
         organicMatter: 2,
         ph:            null,
@@ -250,17 +284,12 @@ export default function App() {
       console.debug('[NPK norm]', npkNorm)
 
       // N/P/K aportados por riego (client-side — /algo/ solo acepta N via n_other)
-      const dotEf  = Number(riego.dotacionM3) || 0
+      const dotEf      = Number(riego.dotacionM3) || 0
+      const esRegadio  = riego.sistemaExplotacion === 'regadio'
       // nRiego: la API ya lo descontó via n_other; lo calculamos para mostrarlo en display
-      const nRiego = riego.fuenteId !== FUENTE_SIN_RIEGO
-        ? calcularNAgua(Number(riego.no3MgL) || 0, dotEf)
-        : 0
-      const pRiego = (riego.fuenteId !== FUENTE_SIN_RIEGO && riego.pMgL && dotEf)
-        ? Number(riego.pMgL) * dotEf / 1000
-        : 0
-      const kRiego = (riego.fuenteId !== FUENTE_SIN_RIEGO && riego.kMgL && dotEf)
-        ? Number(riego.kMgL) * dotEf / 1000
-        : 0
+      const nRiego = esRegadio ? calcularNAgua(Number(riego.no3MgL) || 0, dotEf) : 0
+      const pRiego = (esRegadio && riego.pMgL && dotEf) ? Number(riego.pMgL) * dotEf / 1000 : 0
+      const kRiego = (esRegadio && riego.kMgL && dotEf) ? Number(riego.kMgL) * dotEf / 1000 : 0
 
       // npkParaRec: valores netos que debe cubrir el fertilizante (P/K ya descontados del riego)
       const npkParaRec = {
@@ -562,9 +591,11 @@ export default function App() {
         point,
         recinto: recintoEnriquecido,
         cultivo,
-        suelo,
+        suelo: analisisPropio ? sueloPersonalizado : suelo,
         cec,
         riego: { ...riego, fuenteLabel },
+        analisisPropio,
+        refAnalisisSuelo,
         calculo,
         fecha,
         fechaInicioCiclo,
@@ -637,14 +668,16 @@ export default function App() {
         fecha,
         fechaInicioCiclo,
         fechaFinCiclo,
-        recintos:    recintosList,
+        recintos:        recintosList,
         supTotalHa,
-        riego:       { ...riego, fuenteLabel },
-        npk:         resultados.npk,
-        recomendacion: null,
-        nRiego:      resultados.nRiego,
-        pRiego:      resultados.pRiego,
-        kRiego:      resultados.kRiego,
+        riego:           { ...riego, fuenteLabel },
+        analisisPropio,
+        refAnalisisSuelo,
+        npk:             resultados.npk,
+        recomendacion:   null,
+        nRiego:          resultados.nRiego,
+        pRiego:          resultados.pRiego,
+        kRiego:          resultados.kRiego,
         planItems,
         baseName,
       })
@@ -663,10 +696,10 @@ export default function App() {
     <div style={S.app}>
       <header style={S.header}>
         <div style={S.brand}>
-          <span style={S.logoBadge}>F</span>
+          <img src="/fertipro.png" alt="FertiPRO" style={S.logoImg} />
           <div>
-            <div style={S.brandTitle}>FertiPRO</div>
-            <div style={S.brandSub}>Simulador de necesidades de nutrientes</div>
+            <div style={S.brandTitle}>FertiPRO Add-on Sativum <span style={S.brandItacyl}>(ITACyL)</span></div>
+            <div style={S.brandSub}>Planificación de nutrientes · Unidad de producción | Hoja de cultivo | Recinto</div>
           </div>
         </div>
         <ModoIndicator activeId={activePolygonId} polygons={polygons} point={point} />
@@ -812,13 +845,20 @@ export default function App() {
           {/* ── Ficha agronómica del cultivo ── */}
           <CultivoCard cultivo={cultivo} />
 
-          <SueloCard
+          <SueloRiegoCard
             suelo={suelo}
             loading={cargando}
             cec={cec}
             onCecChange={setCec}
             riego={riego}
             onRiegoChange={setRiego}
+            analisisPropio={analisisPropio}
+            onAnalisisPropioChange={setAnalisisPropio}
+            refAnalisisSuelo={refAnalisisSuelo}
+            onRefAnalisisSueloChange={setRefAnalisisSuelo}
+            sueloPersonalizado={sueloPersonalizado}
+            onSueloPersonalizadoChange={setSueloPersonalizado}
+            cultivoIrrigation={cultivo?.irrigation ?? 0}
           />
 
           <CultivoAnteriorPanel
@@ -974,15 +1014,11 @@ const S = {
     display: 'flex', alignItems: 'center', gap: 12, flexShrink: 0,
     boxShadow: '0 2px 6px rgba(0,0,0,0.2)',
   },
-  brand: { display: 'flex', alignItems: 'center', gap: 10 },
-  logoBadge: {
-    width: 32, height: 32, borderRadius: 6,
-    background: '#3949ab', display: 'inline-flex',
-    alignItems: 'center', justifyContent: 'center',
-    fontWeight: 800, fontSize: 18,
-  },
-  brandTitle: { fontWeight: 700, fontSize: 16, letterSpacing: 0.5 },
-  brandSub:   { fontSize: 11, opacity: 0.75 },
+  brand:       { display: 'flex', alignItems: 'center', gap: 10 },
+  logoImg:     { height: 36, width: 'auto', display: 'block' },
+  brandTitle:  { fontWeight: 700, fontSize: 15, letterSpacing: 0.3 },
+  brandItacyl: { fontWeight: 400, fontSize: 13, opacity: 0.7 },
+  brandSub:    { fontSize: 10, opacity: 0.70 },
   modo:       { marginLeft: 'auto', textAlign: 'right', fontSize: 11 },
   modoLabel:  {
     padding: '2px 8px', borderRadius: 3, marginBottom: 2, fontWeight: 600,

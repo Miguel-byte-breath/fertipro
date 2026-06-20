@@ -120,7 +120,7 @@ export async function exportarRecintosSigpacExcel(parcelas, baseName = 'fertipro
     { 'Campo': 'Umbral "Completo"',        'Valor': '≥ 99,5 % del recinto ocupado por la parcela' },
     { 'Campo': 'Etiqueta "Recortado"',     'Valor': 'El usuario ha modificado la geometría de la parcela (tijera o edición de vértices)' },
     { 'Campo': 'Etiqueta "Parcial"',       'Valor': 'Parcela libre que intersecta una porción del recinto sin intervención del usuario' },
-    { 'Campo': 'Columna ZVN',              'Valor': 'S = recinto intersecta una Zona Vulnerable a Nitratos (RD 1051/2022) · N = no intersecta · vacío = no consultado' },
+    { 'Campo': 'Columna ZVN',              'Valor': 'S = recinto intersecta una Zona Vulnerable a Nitratos (RD 47/2022) · N = no intersecta · vacío = no consultado' },
     { 'Campo': 'Fuente ZVN',               'Valor': 'SIGPAC (FEGA) — servicio intersection/nitratos' },
   ]
   const wsNotas = XLSX.utils.json_to_sheet(notas)
@@ -210,6 +210,8 @@ export async function exportarPlanAbonado({
   cultivoAnterior = null,
   cultivoAnteriorParams = null,
   asesor = null,
+  analisisPropio = false,
+  refAnalisisSuelo = '',
   fertilizadoresManuales = [],  // alias legacy — usar planItems si se pasa
   planItems = null,             // nuevo: array unificado con origen:'sativum'|'manual'
   baseName = 'fertipro_plan_abonado',
@@ -236,7 +238,7 @@ export async function exportarPlanAbonado({
   const dot = Number(riego?.dotacionM3) || 0
   const p_r = Number(riego?.pMgL)      || 0
   const k_r = Number(riego?.kMgL)      || 0
-  const tieneRiego = riego?.fuenteId !== 0 && dot > 0
+  const tieneRiego = riego?.sistemaExplotacion === 'regadio' && dot > 0
 
   const nRiegoVal = tieneRiego && no3 > 0 ? no3 * dot / 1000 * (14 / 62) : 0
   const nRiego    = nRiegoVal > 0 ? num(nRiegoVal, 1) : null
@@ -306,6 +308,8 @@ export async function exportarPlanAbonado({
   const soilLabel = suelo?.soilType
     ? `${SOIL_TYPE_LABEL[suelo.soilType] ?? suelo.soilType} (${suelo.soilType})`
     : null
+  if (analisisPropio) row('Fuente datos suelo', 'Laboratorio propio')
+  if (refAnalisisSuelo) row('Ref. boletín análisis suelo', refAnalisisSuelo)
   row('Textura suelo',      soilLabel)
   row('Materia orgánica',   num(suelo?.organicMatter, 2), '%')
   row('pH',                 num(suelo?.ph, 1))
@@ -315,16 +319,16 @@ export async function exportarPlanAbonado({
 
   row('', null)
 
-  row('Fuente agua riego', riego?.fuenteLabel ?? (riego?.fuenteId === 0 ? 'Sin riego' : `Fuente ${riego?.fuenteId}`))
-  row('Sistema de explotación', riego?.fuenteId !== 0 ? 'Regadío' : 'Secano')
-  if (riego?.fuenteId !== 0) {
+  row('Sistema de explotación', riego?.sistemaExplotacion === 'regadio' ? 'Regadío' : 'Secano')
+  row('Origen del agua (SIEX)', riego?.sistemaExplotacion === 'regadio'
+    ? (riego?.fuenteLabel ?? (riego?.fuenteId > 0 ? `SIEX ${riego.fuenteId}` : 'Sin especificar'))
+    : 'Sin riego')
+  if (riego?.refAnalisisAgua) row('Ref. análisis agua', riego.refAnalisisAgua)
+  if (riego?.sistemaExplotacion === 'regadio') {
+    row('Dotación riego',    num(riego?.dotacionM3, 0),  'm³/ha')
     row('NO₃ agua riego',    num(riego?.no3MgL, 1),     'mg/L')
     row('P agua riego',      num(riego?.pMgL,   1),     'mg/L')
     row('K agua riego',      num(riego?.kMgL,   1),     'mg/L')
-    row('Dotación riego',    num(riego?.dotacionM3, 0),  'm³/ha')
-    if (suelo?.kIrrigation != null) {
-      row('K riego (ArcGIS)', num(suelo.kIrrigation, 1), 'mg/L')
-    }
     if (nRiego != null || pRiego > 0 || kRiego > 0) {
       if (nRiego != null) row('N aportado riego',    nRiego,                            'kg N/ha')
       if (pRiego  > 0)    row('P₂O₅ aportado riego', num(pRiego * P_TO_P2O5, 1),       'kg P₂O₅/ha')
