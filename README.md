@@ -1,28 +1,32 @@
-# FertiPRO
+# FertiPRO Add-on Sativum
 
-**Simulador web de planificación de abonado para cultivos agrícolas españoles.**
+**Módulo web de planificación de abonado para cultivos agrícolas españoles, construido sobre la API pública de Sativum (ITACyL).**
 
-Calcula las necesidades de fertilización NPK usando el motor **FertiliCalc** (F. Villalobos, ITACyL), selecciona fertilizantes del catálogo Sativum y genera un plan de aplicaciones exportable en Excel y PDF.
+Calcula las necesidades de fertilización NPK usando el motor **FertiliCalc** vía la API de Sativum, selecciona fertilizantes del catálogo oficial (1 253 productos), aplica la mineralización anual de enmiendas orgánicas según el RD 1051/2022, y genera un plan de aplicaciones exportable en Excel y PDF conforme al art. 6 del mismo real decreto.
 
 🌐 **Producción:** <https://fertipro.vercel.app>
 
 ---
 
-## ¿Qué hace FertiPRO?
+## ¿Qué hace FertiPRO Add-on Sativum?
 
-FertiPRO está pensado para **asesores agrícolas y técnicos** que necesitan elaborar planes de abonado conformes al RD 1051/2022 (Programa de Actuación de Zonas Vulnerables a Nitratos). El flujo de trabajo es:
+Pensado para **asesores agrícolas y técnicos** que necesitan elaborar planes de abonado conformes al RD 1051/2022. El flujo de trabajo completo es:
 
-1. **Localiza la parcela** — dibuja un polígono libre, carga un GeoJSON/shapefile o pincha directamente en el mapa. FertiPRO recupera automáticamente los recintos SIGPAC que intersectan la geometría, con superficie, uso del suelo, coeficiente de regadío y clasificación ZVN.
+1. **Localiza la parcela** — dibuja un polígono libre, carga un GeoJSON/shapefile o pincha directamente en el mapa. FertiPRO recupera automáticamente los recintos SIGPAC que intersectan la geometría: referencia catastral, superficie, uso del suelo, coeficiente de regadío y clasificación ZVN (Zona Vulnerable a Nitratos, RD 47/2022) con alerta visual si algún recinto está en ZVN.
 
-2. **Identifica el suelo** — consulta en tiempo real la capa de suelos de ITACyL (ArcGIS) para obtener textura, materia orgánica, pH, P Olsen, K y conductividad eléctrica del agua de riego.
+2. **Identifica el suelo** — consulta en tiempo real el MapServer ArcGIS de ITACyL para obtener textura, materia orgánica, pH, P Olsen, K y NO₃ del agua subterránea. También permite introducir datos propios de un análisis de laboratorio (ref. boletín + campos editables).
 
-3. **Configura el cultivo** — selecciona el cultivo actual y el precedente en la rotación, el rendimiento objetivo, la estrategia de abonado y el manejo de residuos.
+3. **Configura agua de riego y suelo** — panel unificado con toggle Secano/Regadío, selector de origen del agua (6 fuentes SIEX), dotación orientativa Sativum (m³/ha), y campos de calidad del agua (NO₃, P, K) que se auto-rellenan desde ArcGIS si el origen es agua subterránea.
 
-4. **Calcula las necesidades NPK** — el motor FertiliCalc (API Sativum/ITACyL) devuelve las unidades fertilizantes brutas N, P₂O₅ y K₂O, descontando automáticamente los aportes del agua de riego.
+4. **Configura el cultivo** — selecciona el cultivo actual y el precedente en la rotación, el rendimiento objetivo, la estrategia de abonado y el manejo de residuos.
 
-5. **Construye el plan de aplicaciones** — añade propuestas del catálogo Sativum (1 253 productos) o fertilizantes del asesor. Los productos orgánicos aplican la mineralización anual (yearPercent) según su categoría SIEX. Las barras de cobertura muestran el porcentaje cubierto en tiempo real.
+5. **Calcula las necesidades NPK** — el Add-on delega el cálculo directamente en el motor FertiliCalc de la API Sativum (ITACyL), siguiendo las instrucciones del portal del desarrollador y el manual de Sativum v2.1.0. El resultado son las unidades fertilizantes brutas N, P₂O₅ y K₂O, con descuento automático de los aportes del agua de riego.
 
-6. **Exporta** — descarga el plan en Excel (hojas Plan, Fertilizantes, Recintos SIGPAC y Notas) o en PDF con el formato del informe oficial Sativum.
+6. **Construye el plan de aplicaciones** — añade propuestas del catálogo Sativum (5 opciones por solicitud, ajustadas al mayor déficit NPK) o fertilizantes del asesor con filtro cascada Tipo SIEX → Fabricante → Producto. Los fertilizantes orgánicos aplican automáticamente la mineralización anual (`yearPercent0/1/2`) según categoría SIEX. Las barras de cobertura muestran el porcentaje cubierto en tiempo real.
+
+7. **Datos del asesor REGFER** — panel colapsable para registrar nombre, apellidos, NIF y nº REGFER del asesor responsable del plan, que se incluyen en los documentos exportados.
+
+8. **Exporta** — descarga el plan en **Excel** (hojas: Plan, Fertilizantes con eficacia orgánica, Recintos SIGPAC, Notas) o en **PDF** con cabecera de atribución, tabla de recintos con columna ZVN, bloque NPK visual, tabla de origen del agua de riego y plan de aplicaciones con acumulados.
 
 ---
 
@@ -37,7 +41,7 @@ FertiPRO está pensado para **asesores agrícolas y técnicos** que necesitan el
 | Exportación Excel | SheetJS (xlsx 0.18.5, Apache-2.0) |
 | Exportación PDF | jsPDF 4 + jsPDF-AutoTable 5 (MIT) |
 | SIGPAC | OGC API Features + REST recinfo/nitratos (FEGA HubCloud) |
-| Suelo | ArcGIS MapServer (Sativum/ITACyL) |
+| Suelo | ArcGIS MapServer (ITACyL) |
 | Motor NPK | API REST FertiliCalc (Sativum/ITACyL) |
 
 ---
@@ -48,12 +52,12 @@ FertiPRO está pensado para **asesores agrícolas y técnicos** que necesitan el
 
 - **Node.js** ≥ 18
 - **npm** ≥ 9
-- Cuenta en el [Portal del desarrollador del ITACyL](https://portal.api.itacyl.es/portal/) con una `SATIVUM_API_KEY` activa
+- Cuenta en el [Portal del desarrollador de ITACyL](https://portal.api.itacyl.es/portal/) con una `SATIVUM_API_KEY` activa
 
 ### Instalación
 
 ```powershell
-git clone https://github.com/<tu-usuario>/fertipro-api-sativum.git
+git clone https://github.com/Miguel-byte-breath/fertipro.git
 cd fertipro-api-sativum
 npm install
 ```
@@ -80,7 +84,7 @@ Arranca el servidor de Vite en `http://localhost:5173`. Las llamadas a `/api/*` 
 
 ### Modo desarrollo completo (con funciones serverless)
 
-Requiere tener la [Vercel CLI](https://vercel.com/docs/cli) instalada y haber enlazado el proyecto:
+Requiere la [Vercel CLI](https://vercel.com/docs/cli) instalada y el proyecto enlazado:
 
 ```powershell
 npx vercel login       # solo la primera vez o cuando caduca el token
@@ -126,24 +130,48 @@ SIGPAC HubCloud no requiere clave: sus endpoints son públicos.
 
 ```
 fertipro-api-sativum/
-├── api/                          Funciones serverless Vercel (proxies)
-│   ├── sativum-algo.js             POST /fertilicalc/algo/ — cálculo NPK
-│   ├── sativum-fertilizers.js      GET/POST /nutrients/fertilizers — catálogo y recomendación
-│   ├── sativum-crops.js            GET /nutrients/crops — catálogo de cultivos
-│   ├── sativum-suelo.js            GET ArcGIS identify — características del suelo
-│   ├── sigpac.js                   GET OGC API Features — recinto en un punto
-│   ├── sigpac-bbox.js              GET OGC API Features — recintos en bbox
-│   ├── sigpac-recinfo.js           GET REST recinfo — uso, coef. regadío, superficie
-│   └── sigpac-zvn.js               GET REST nitratos — clasificación ZVN
+├── api/                            Funciones serverless Vercel (proxies)
+│   ├── sativum-algo.js               POST /fertilicalc/algo/ — cálculo NPK
+│   ├── sativum-fertilizers.js        GET/POST /nutrients/fertilizers — catálogo y recomendación
+│   ├── sativum-crops.js              GET /nutrients/crops — catálogo de cultivos
+│   ├── sativum-suelo.js              GET ArcGIS identify — características del suelo
+│   ├── sigpac.js                     GET OGC API Features — recinto en un punto
+│   ├── sigpac-bbox.js                GET OGC API Features — recintos en bbox
+│   ├── sigpac-recinfo.js             GET REST recinfo — uso, coef. regadío, superficie
+│   └── sigpac-zvn.js                 GET REST nitratos — clasificación ZVN
 ├── public/
-│   └── fertipro.png              Logo de la aplicación (usado en cabecera PDF)
+│   └── fertipro.png                Logo de la aplicación (cabecera PDF y app)
 ├── src/
-│   ├── api/                      Wrappers cliente de los proxies serverless
-│   ├── components/               Componentes React (paneles, tarjetas, diálogos)
-│   ├── cultivos/                 Selector de cultivo (CultivoSelector)
-│   ├── data/sativum/             Tablas estáticas (tipos SIEX, fuentes agua, algoParams)
-│   ├── map/                      MapPicker — Leaflet + leaflet-geoman
-│   └── utils/                    exportExcel.js, exportPdf.js, geometry.js, recintosInterseccion.js
+│   ├── api/                        Wrappers cliente de los proxies serverless
+│   │   ├── sativum-algo.js           calcularNPK, calcularNAgua, ensamblarPayload
+│   │   ├── sativum-fertilizers.js    getRecomendacion, getFertilizadores, getFertilizador
+│   │   └── sativum-suelo.js          identifySativum, normalizarSuelo
+│   ├── components/                 Componentes React
+│   │   ├── AsesoramientoPanel.jsx    Panel REGFER del asesor (persiste en localStorage)
+│   │   ├── CultivoAnteriorPanel.jsx  Cultivo precedente en la rotación
+│   │   ├── EstrategiaPanel.jsx       Estrategia, laboreo, parámetros N avanzados
+│   │   ├── FertilizanteManualPanel.jsx  Plan de aplicaciones: catálogo Sativum + asesor manual
+│   │   ├── MetodologiaModal.jsx      Modal metodología: cadena FertiliCalc→FaST→Sativum
+│   │   ├── ParcelaInfoCard.jsx       Tabla recintos SIGPAC (superficie, uso, ZVN)
+│   │   ├── ResultadosCard.jsx        Visualización NPK + botón "Añadir aplicación Sativum"
+│   │   ├── SativumApplicationDialog.jsx  Modal: sliders % objetivo → 5 opciones catálogo
+│   │   └── SueloRiegoCard.jsx        Panel unificado suelo + agua de riego
+│   ├── cultivos/
+│   │   └── CultivoSelector.jsx       Combobox con búsqueda contra /nutrients/crops
+│   ├── data/sativum/               Tablas estáticas
+│   │   ├── algoParams.js             efficiency_factor/p_threshold/k_threshold por estrategia×textura
+│   │   ├── fuentesAgua.js            Catálogo SIEX fuentes de agua (ids 0-6)
+│   │   ├── soilTypesSimpl.json       Mapeo pixel ArcGIS → SANDY/LOAM/CLAY_LOAM etc.
+│   │   └── tiposMaterialFertilizante.js  24 tipos SIEX (RD 1051/2022)
+│   ├── map/
+│   │   └── MapPicker.jsx             Leaflet + leaflet-geoman, PNOA + OSM
+│   └── utils/
+│       ├── exportExcel.js            Plan en Excel (Plan, Fertilizantes, Recintos SIGPAC, Notas)
+│       ├── exportPdf.js              Plan en PDF (art. 6 RD 1051/2022)
+│       ├── geometry.js               centroide, exportarGeoJSON, exportarSHP
+│       ├── npkUtils.js               calcNpkEfectivo (mineralización orgánicos)
+│       └── recintosInterseccion.js   interseccionRecintos, enrichRecintos (ZVN + recinfo)
+├── App.jsx                         Raíz: estado global, flujo de cálculo, exportación
 ├── index.html
 ├── vite.config.js
 ├── vercel.json
@@ -156,21 +184,23 @@ fertipro-api-sativum/
 
 ### Motor de cálculo — FertiliCalc / API Sativum (ITACyL)
 
-El cálculo de necesidades NPK se realiza mediante el **servicio público FertiliCalc** de la API Sativum, desarrollado por el **Instituto Tecnológico Agrario de Castilla y León (ITACyL)** en el marco del convenio de colaboración con el Fondo Español de Garantía Agraria (FEGA). Este servicio es de acceso público para terceros y requiere una API key obtenida en el [Portal del desarrollador del ITACyL](https://portal.api.itacyl.es/portal/).
+El cálculo de necesidades NPK se delega íntegramente en el **servicio FertiliCalc** de la API Sativum, desarrollado por el **Instituto Tecnológico Agrario de Castilla y León (ITACyL)** en el marco del convenio de colaboración con el Fondo Español de Garantía Agraria (FEGA/MAPA). La integración sigue las instrucciones del [Portal del desarrollador de ITACyL](https://portal.api.itacyl.es/portal/) y la [Guía de Servicios Sativum v2.1.0](https://servicios.itacyl.es/resources/public/sativum/ServiciosBalanceNutrientes.docx).
+
+Este servicio es de acceso público para terceros y requiere una API key obtenida en el portal anterior.
 
 Los perfiles agronómicos de algunos cultivos (remolacha, girasol, soja) han sido revisados en el proyecto **ACORSAT**, financiado por FEADER (Submedida 16.2 PDR CyL).
 
-© Instituto Tecnológico Agrario de Castilla y León — Junta de Castilla y León · [sativum.es](https://www.sativum.es)
+© Instituto Tecnológico Agrario de Castilla y León — Junta de Castilla y León · [sativum.es](https://www.sativum.es) · Licencia [CC BY 4.0](https://creativecommons.org/licenses/by/4.0/deed.es)
 
-### Datos de suelo — ArcGIS MapServer (ITACyL)
+### Datos de suelo — ArcGIS MapServer (ITACyL / JCyL)
 
-Las características edafológicas (textura, materia orgánica, pH, P Olsen, K, conductividad eléctrica) proceden del **Visor de Suelos de Castilla y León** de ITACyL, accesibles a través de su servicio ArcGIS REST. Requiere la misma API key que el motor FertiliCalc.
+Las características edafológicas (textura, materia orgánica, pH, P Olsen, K, conductividad eléctrica) proceden del **Visor de Suelos de Castilla y León** de ITACyL, accesibles a través de su servicio ArcGIS REST.
 
-Fuente: [suelos.itacyl.es](https://suelos.itacyl.es) · © ITACyL — Junta de Castilla y León
+Fuente: [suelos.itacyl.es](https://suelos.itacyl.es) · © ITACyL — Junta de Castilla y León (IGCYL-NC)
 
 ### Recintos SIGPAC — FEGA (MAPA)
 
-Los datos de recintos, geometrías, usos del suelo, coeficientes de regadío y Zonas Vulnerables a Nitratos (ZVN) proceden del **Sistema de Información Geográfica de Parcelas Agrícolas (SIGPAC)**, gestionado por el **Fondo Español de Garantía Agraria (FEGA)** del Ministerio de Agricultura, Pesca y Alimentación.
+Los datos de recintos, geometrías, usos del suelo, coeficientes de regadío y Zonas Vulnerables a Nitratos (ZVN) proceden del **Sistema de Información Geográfica de Parcelas Agrícolas (SIGPAC)**, gestionado por el **Fondo Español de Garantía Agraria (FEGA)**.
 
 Distribuidos como **Datos de Alto Valor (HVD)** bajo licencia **[CC BY 4.0](https://creativecommons.org/licenses/by/4.0/deed.es)** conforme al Reglamento de Implementación UE 2023/138.
 
@@ -178,13 +208,15 @@ Endpoint: [sigpac-hubcloud.es](https://sigpac-hubcloud.es) · Fuente: FEGA — M
 
 ### Ortofoto base — PNOA (IGN)
 
-La capa de ortofoto base del mapa procede del **Plan Nacional de Ortofotografía Aérea (PNOA) Máxima Actualidad**, producido por el **Instituto Geográfico Nacional (IGN)** del Ministerio de Fomento.
+La capa de ortofoto base del mapa procede del **Plan Nacional de Ortofotografía Aérea (PNOA) Máxima Actualidad** del **Instituto Geográfico Nacional (IGN)**.
 
-Licencia: **CC BY 4.0** · © Instituto Geográfico Nacional de España · [ign.es](https://www.ign.es)
+Licencia: **CC BY 4.0** (Orden FOM/2807/2015) · © IGN · [ign.es](https://www.ign.es)
 
 ### Normativa de referencia
 
-La clasificación de Zonas Vulnerables a Nitratos (ZVN) y los tipos de material fertilizante (SIEX) se basan en el **Real Decreto 1051/2022**, de 27 de diciembre, por el que se establecen normas para la nutrición sostenible en los suelos agrícolas.
+- **RD 1051/2022**, de 27 de diciembre — nutrición sostenible en suelos agrícolas (plan de abonado, registro, SIEX).
+- **RD 47/2022** — Zonas Vulnerables a Nitratos (clasificación ZVN).
+- **RD 1047/2022** — ecorregímenes PAC (herramienta FaST).
 
 ### Dependencias de código abierto
 
@@ -203,13 +235,17 @@ La clasificación de Zonas Vulnerables a Nitratos (ZVN) y los tipos de material 
 
 ## Referencia académica
 
-El motor de cálculo FertiliCalc está basado en la metodología descrita en:
+El motor FertiliCalc en el que se basa la API Sativum está descrito en:
 
-> **Villalobos, F.J., Testi, L., Rizzalli, R., García-García, J.M. y Orgaz, F.** (2020). *Fitotecnia: principios de agronomía para una agricultura sostenible* (2.ª ed.). Mundi-Prensa, Madrid.
+> Villalobos, F. J., Delgado, A., López-Bernal, Á. & Quemada, M. (2020). *FertiliCalc: A Decision Support System for Fertilizer Management*. International Journal of Plant Production, 14, 299–308. https://doi.org/10.1007/s42106-019-00085-1
 
-Si utilizas FertiPRO en un contexto académico o técnico, cita también la fuente del servicio:
+La metodología agronómica de base se desarrolla en:
 
-> **ITACyL — Instituto Tecnológico Agrario de Castilla y León** (2024). *Sativum: servicios digitales para la nutrición de cultivos*. [https://www.sativum.es](https://www.sativum.es)
+> Villalobos, F. J. & Fereres, E. (Eds.) (2017). *Fitotecnia: principios de agronomía para una agricultura sostenible*. Madrid: Ediciones Mundi-Prensa. ISBN: 978-84-8476-524-0.
+
+Si utilizas FertiPRO en un contexto técnico, cita también el servicio:
+
+> ITACyL — Instituto Tecnológico Agrario de Castilla y León (2024). *Sativum: servicios digitales para la nutrición de cultivos*. [https://www.sativum.es](https://www.sativum.es)
 
 ---
 
