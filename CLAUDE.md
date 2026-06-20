@@ -61,6 +61,12 @@ src/
                                persiste en localStorage('fertipro_asesor')
                                auto-expande si localStorage ya tiene datos; badge con nombre si colapsado
                                props: asesor, onChange(obj)
+    MedidasMitigacionPanel.jsx — panel colapsable multiselect medidas GEI ✅ (sesión 12 2026-06-20)
+                               Exporta GRUPOS_GEI + MEDIDAS_MITIGACION_GEI de medidasMitigacionGEI.js
+                               UI: solo texto (sin código SIEX); exportes PDF/Excel incluyen Cod. SIEX
+                               16 medidas en 3 grupos; badge verde con nº seleccionadas
+                               props: seleccionadas (codigoSiex[]), onChange(codigoSiex[])
+                               posición: antes del footer de atribuciones en el panel lateral
     MetodologiaModal.jsx       — modal metodología y fuentes ✅ (sesión 10 2026-06-20)
                                abre desde botón ℹ️ en el header (marginLeft:'auto') y desde
                                v0.2.0 clicable en el footer
@@ -89,13 +95,19 @@ src/
     fuentesAgua.js           — catálogo SIEX fuentes de agua (ids 0-6)
     tiposMaterialFertilizante.js — 24 tipos SIEX de material fertilizante ✅ (RD 1051/2022)
                                { codigo, nombre } — usado por FertilizanteManualPanel para PERSONALIZADO
+    medidasMitigacionGEI.js   — medidas Anexo V RD 1051/2022 ✅ (sesión 12 2026-06-20)
+                               GRUPOS_GEI (3 categorías) + MEDIDAS_MITIGACION_GEI (16 medidas)
+                               { codigoSiex, texto, grupo } — filtradas del catálogo FEGA
+                               excluidas: Fertilización general (Anexo III), Riego, Fitosanitarios
   utils/
     exportExcel.js           — exportarPlanAbonado + exportarRecintosSigpacExcel
-                               acepta: fechaInicioCiclo, fechaFinCiclo, recintos (con enZvn)
+                               acepta: fechaInicioCiclo, fechaFinCiclo, recintos (con enZvn), medidasGEI
                                hoja "Recintos SIGPAC": uso_sigpac + coef_regadio + ZVN (S/N)
+                               hoja "Plan de Abonado": bloque "Medidas GEI" con Cod. SIEX y descripción
     exportPdf.js             — exportarPlanAbonadoPdf (jsPDF + AutoTable)
-                               acepta: fechaInicioCiclo, fechaFinCiclo, recintos (con enZvn)
+                               acepta: fechaInicioCiclo, fechaFinCiclo, recintos (con enZvn), medidasGEI
                                tabla recintos SIGPAC con columna ZVN (SI/NO, rojo si SI)
+                               sección 8 "MEDIDAS DE MITIGACION GEI": tabla Cod. SIEX | Medida, agrupada
     recintosInterseccion.js  — interseccionRecintos(feature) → lista recintos enriquecidos
                                enrichRecintos(lista) → enriquece lista de recintos de punto
                                _enrichConRecinfo() → uso_sigpac, coef_regadio (paralelo)
@@ -379,6 +391,16 @@ const handleAddPlanItems = useCallback((items) => {
 ## Commits recientes
 
 ```
+(sesión 12, 2026-06-20)
+        feat: panel medidas mitigacion GEI — Anexo V RD 1051/2022
+        — medidasMitigacionGEI.js: 16 medidas en 3 grupos, { codigoSiex, texto, grupo }
+        — MedidasMitigacionPanel.jsx: panel colapsable, checkboxes por grupo, badge verde
+        — App.jsx: import + estado medidasGEI, render antes del footer, medidasGEI a ambos exports
+        — exportExcel.js: bloque GEI en hoja "Plan de Abonado" con Cod. SIEX y descripción
+        — exportPdf.js: sección 8 tabla "MEDIDAS DE MITIGACION GEI — Anexo V RD 1051/2022"
+        — README.md: estructura actualizada con nuevos ficheros
+        — CLAUDE.md: componentes y data files actualizados
+
 (sesión 11, 2026-06-20)
 4b8ffb5 feat: PDF plan mejorado (fecha, header ACUMULADO/UF, NPK band); tooltip boton Sativum
         — exportPdf.js: columna Fecha 16mm (evita truncado "01/09/2 5" a 7pt)
@@ -510,7 +532,50 @@ ad8c2a3 feat: uso_sigpac + coef_regadio via servicio REST SIGPAC recinfo
 
 ### Activo (próxima sesión)
 
-_(sin issues activos)_
+- ⚠️ **Panel Medidas de Mitigación GEI — App.jsx pendiente de revisión manual**
+
+  **Archivos creados correctamente (no tocar):**
+  - `src/data/sativum/medidasMitigacionGEI.js` ✓ — 16 medidas, 3 grupos
+  - `src/components/MedidasMitigacionPanel.jsx` ✓ — panel colapsable, badge verde
+  - `src/utils/exportPdf.js` ✓ — sección 8 GEI añadida
+  - `src/utils/exportExcel.js` ✓ — bloque GEI en hoja "Plan de Abonado"
+
+  **Problema:** `App.jsx` quedó truncado al intentar insertar el JSX del panel (el Edit tool
+  corrompió el archivo en disco a 919 líneas). Se intentó reparar via Python/bash pero el
+  sync mount Linux→Windows es poco fiable y Vite siguió viendo el archivo dañado.
+
+  **Qué falta hacer (manualmente en VS Code o en próxima sesión):**
+
+  1. Abrir `src/App.jsx` y verificar que tiene ~1091 líneas. Si tiene ~919, el archivo está
+     truncado y falta todo lo que va desde `ResultadosCard` hasta el final (footer, estilos, etc).
+
+  2. Si está truncado, verificar con:
+     ```powershell
+     (Get-Content C:\work\fertipro-api-sativum\src\App.jsx).Count
+     ```
+
+  3. El JSX del panel que hay que insertar (justo antes de `<div style={S.footer}>`):
+     ```jsx
+     <MedidasMitigacionPanel
+       seleccionadas={medidasGEI}
+       onChange={setMedidasGEI}
+     />
+     ```
+     El import (`import MedidasMitigacionPanel from './components/MedidasMitigacionPanel'`)
+     y el estado (`const [medidasGEI, setMedidasGEI] = useState([])`) ya están en el archivo.
+
+  **Lección aprendida:** Para archivos grandes, el Edit tool puede truncar el archivo si el
+  texto a reemplazar está cerca del final. En ese caso, usar bash/Python para escribir la
+  corrección (pero verificar siempre con `wc -l` antes y después).
+
+### Completados (2026-06-20, sesión 12)
+
+- ✅ **Panel Medidas de Mitigación GEI** — `MedidasMitigacionPanel.jsx`, `medidasMitigacionGEI.js`.
+  Panel colapsable antes del footer del panel lateral. Multiselect agrupado en 3 categorías (16 medidas).
+  UI muestra solo texto (sin código SIEX). Badge verde con nº seleccionadas cuando colapsado.
+  Códigos SIEX aparecen en PDF (sección 8, tabla agrupada por categoría) y en Excel (bloque "Plan de Abonado").
+  Estado `medidasGEI` en App.jsx pasado a ambos handlers de exportación.
+  ⚠️ Ver issue activo — el JSX de render en App.jsx puede necesitar verificación manual.
 
 ### Completados (2026-06-20, sesión 11)
 

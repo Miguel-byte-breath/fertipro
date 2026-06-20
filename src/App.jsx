@@ -31,6 +31,7 @@ import ResultadosCard           from './components/ResultadosCard'
 import AsesoramientoPanel        from './components/AsesoramientoPanel'
 import FertilizanteManualPanel   from './components/FertilizanteManualPanel'
 import MetodologiaModal          from './components/MetodologiaModal'
+import MedidasMitigacionPanel   from './components/MedidasMitigacionPanel'
 import SativumApplicationDialog  from './components/SativumApplicationDialog'
 import { calcularNPK, calcularNAgua }  from './api/sativum-algo'
 import { FUENTE_SUBTERRANEA, FUENTE_SIN_RIEGO } from './data/sativum/fuentesAgua'
@@ -176,6 +177,9 @@ export default function App() {
   //              n, p2o5, k2o, cantidad, fechaAplicacion, esPersonalizado }
   const [planItems, setPlanItems] = useState([])
   const [metodologiaOpen, setMetodologiaOpen] = useState(false)
+
+  // ── Medidas de mitigación GEI (Anexo V RD 1051/2022) ───────────────────
+  const [medidasGEI, setMedidasGEI] = useState([])
 
   // Diálogo de aplicación Sativum
   const [sativumDialogOpen, setSativumDialogOpen] = useState(false)
@@ -609,12 +613,13 @@ export default function App() {
         cultivoAnteriorParams,
         asesor,
         planItems,
+        medidasGEI,
         baseName,
       })
     } finally {
       setExportingPlan(false)
     }
-  }, [cultivo, resultados, point, recinto, recintos, suelo, cec, riego, calculo, fecha, fechaInicioCiclo, fechaFinCiclo, asesor, planItems])
+  }, [cultivo, resultados, point, recinto, recintos, suelo, cec, riego, calculo, fecha, fechaInicioCiclo, fechaFinCiclo, asesor, planItems, medidasGEI])
 
   // ── Exportar plan de abonado PDF ──────────────────────────────────────
   const [exportingPlanPdf, setExportingPlanPdf] = useState(false)
@@ -681,6 +686,7 @@ export default function App() {
         pRiego:          resultados.pRiego,
         kRiego:          resultados.kRiego,
         planItems,
+        medidasGEI,
         baseName,
       })
     } catch (err) {
@@ -688,7 +694,7 @@ export default function App() {
     } finally {
       setExportingPlanPdf(false)
     }
-  }, [cultivo, resultados, recinto, riego, calculo, fecha, fechaInicioCiclo, fechaFinCiclo, cultivoAnterior, cultivoAnteriorParams, asesor, planItems, polygonsToExport])
+  }, [cultivo, resultados, recinto, riego, calculo, fecha, fechaInicioCiclo, fechaFinCiclo, cultivoAnterior, cultivoAnteriorParams, asesor, planItems, medidasGEI, polygonsToExport])
 
   // ── Render ─────────────────────────────────────────────────────────────
   const cargando      = estado === ESTADO.CARGANDO
@@ -972,6 +978,11 @@ export default function App() {
               )}
             </div>
           )}
+
+          <MedidasMitigacionPanel
+            seleccionadas={medidasGEI}
+            onChange={setMedidasGEI}
+          />
 
           <div style={S.footer}>
             <button style={S.versionBtn} onClick={() => setMetodologiaOpen(true)} title="Metodología y fuentes">v0.2.0</button>

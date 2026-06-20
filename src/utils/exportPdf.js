@@ -1,5 +1,6 @@
 import { jsPDF } from 'jspdf'
 import autoTable from 'jspdf-autotable'
+import { MEDIDAS_MITIGACION_GEI, GRUPOS_GEI } from '../data/sativum/medidasMitigacionGEI'
 
 /**
  * src/utils/exportPdf.js
@@ -144,6 +145,7 @@ export async function exportarPlanAbonadoPdf({
   refAnalisisSuelo     = '',
   fertilizadoresManuales = [],  // alias legacy
   planItems            = null,  // nuevo: array unificado con origen:'sativum'|'manual'
+  medidasGEI           = [],   // códigos SIEX seleccionados (Anexo V RD 1051/2022)
   baseName             = 'fertipro_plan_nutrientes',
 }) {
   const doc = new jsPDF({ orientation: 'portrait', unit: 'mm', format: 'a4' })
@@ -667,7 +669,69 @@ export async function exportarPlanAbonadoPdf({
     })
   }
 
-  // ── 8. PIE DE PÁGINA (paginación X/N) ─────────────────────────────────────
+  // ── 8. MEDIDAS DE MITIGACIÓN GEI (Anexo V RD 1051/2022) ──────────────────
+  const medidasSeleccionadas = Array.isArray(medidasGEI) && medidasGEI.length > 0
+    ? MEDIDAS_MITIGACION_GEI.filter(m => medidasGEI.includes(m.codigoSiex))
+    : []
+
+  if (medidasSeleccionadas.length > 0) {
+    y = doc.lastAutoTable?.finalY ?? y
+    y += 6
+
+    doc.setFontSize(8.5)
+    doc.setFont('helvetica', 'bold')
+    doc.setTextColor(...C_TITLE)
+    doc.text('MEDIDAS DE MITIGACION GEI — Anexo V RD 1051/2022', ML, y)
+    y += 5
+
+    // Agrupar por grupo
+    const geiBody = []
+    GRUPOS_GEI.forEach(grupo => {
+      const delGrupo = medidasSeleccionadas.filter(m => m.grupo === grupo)
+      if (delGrupo.length === 0) return
+      // Fila de cabecera de grupo
+      geiBody.push([{
+        content: grupo,
+        colSpan: 2,
+        styles: { fontStyle: 'bold', fillColor: [232, 245, 242], textColor: C_TEAL, fontSize: 7.5 },
+      }])
+      delGrupo.forEach(m => {
+        geiBody.push([
+          { content: `SIEX ${m.codigoSiex}`, styles: { halign: 'center', fontStyle: 'bold' } },
+          { content: m.texto, styles: { halign: 'left' } },
+        ])
+      })
+    })
+
+    autoTable(doc, {
+      startY:     y,
+      head:       [[
+        { content: 'Cod. SIEX', styles: { halign: 'center' } },
+        { content: 'Medida de mitigacion de GEI y amoniaco', styles: { halign: 'left' } },
+      ]],
+      body:       geiBody,
+      margin:     { left: ML, right: MR },
+      tableWidth: CW,
+      styles: {
+        fontSize:    7.5,
+        cellPadding: { top: 2, bottom: 2, left: 3, right: 3 },
+        lineColor:   C_BORDER, lineWidth: 0.2,
+        font:        'helvetica', textColor: C_LABEL, valign: 'middle',
+      },
+      headStyles: {
+        fillColor: [40, 100, 140],
+        textColor: [255, 255, 255],
+        fontStyle: 'bold', fontSize: 7.5,
+      },
+      columnStyles: {
+        0: { cellWidth: 20, halign: 'center' },
+        1: { cellWidth: CW - 20, halign: 'left' },
+      },
+    })
+    y = doc.lastAutoTable.finalY + 6
+  }
+
+  // ── 9. PIE DE PÁGINA (paginación X/N) ─────────────────────────────────────
   const totalPages = doc.internal.getNumberOfPages()
   for (let i = 1; i <= totalPages; i++) {
     doc.setPage(i)

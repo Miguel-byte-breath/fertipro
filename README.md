@@ -151,6 +151,7 @@ fertipro-api-sativum/
 │   │   ├── CultivoAnteriorPanel.jsx  Cultivo precedente en la rotación
 │   │   ├── EstrategiaPanel.jsx       Estrategia, laboreo, parámetros N avanzados
 │   │   ├── FertilizanteManualPanel.jsx  Plan de aplicaciones: catálogo Sativum + asesor manual
+│   │   ├── MedidasMitigacionPanel.jsx    Panel colapsable medidas GEI (Anexo V RD 1051/2022)
 │   │   ├── MetodologiaModal.jsx      Modal metodología: cadena FertiliCalc→FaST→Sativum
 │   │   ├── ParcelaInfoCard.jsx       Tabla recintos SIGPAC (superficie, uso, ZVN)
 │   │   ├── ResultadosCard.jsx        Visualización NPK + botón "Añadir aplicación Sativum"
@@ -161,6 +162,7 @@ fertipro-api-sativum/
 │   ├── data/sativum/               Tablas estáticas
 │   │   ├── algoParams.js             efficiency_factor/p_threshold/k_threshold por estrategia×textura
 │   │   ├── fuentesAgua.js            Catálogo SIEX fuentes de agua (ids 0-6)
+│   │   ├── medidasMitigacionGEI.js   16 medidas GEI filtradas del catálogo FEGA (Anexo V)
 │   │   ├── soilTypesSimpl.json       Mapeo pixel ArcGIS → SANDY/LOAM/CLAY_LOAM etc.
 │   │   └── tiposMaterialFertilizante.js  24 tipos SIEX (RD 1051/2022)
 │   ├── map/

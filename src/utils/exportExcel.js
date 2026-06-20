@@ -17,6 +17,7 @@
  * en "Exportar Excel".
  */
 import area from '@turf/area'
+import { MEDIDAS_MITIGACION_GEI } from '../data/sativum/medidasMitigacionGEI'
 
 /**
  * Descarga el Excel.
@@ -214,6 +215,7 @@ export async function exportarPlanAbonado({
   refAnalisisSuelo = '',
   fertilizadoresManuales = [],  // alias legacy — usar planItems si se pasa
   planItems = null,             // nuevo: array unificado con origen:'sativum'|'manual'
+  medidasGEI = [],              // códigos SIEX seleccionados (Anexo V RD 1051/2022)
   baseName = 'fertipro_plan_abonado',
 }) {
   // Compatibilidad: planItems tiene prioridad sobre fertilizadoresManuales
@@ -361,6 +363,16 @@ export async function exportarPlanAbonado({
     row('P neto',    num(pNeto, 1),                       'kg P/ha')
     row('K₂O neto',  num(kNeto * K_TO_K2O,  1),          'kg K₂O/ha')
     row('K neto',    num(kNeto, 1),                       'kg K/ha')
+  }
+
+  // ── Medidas de mitigación GEI (Anexo V RD 1051/2022) ────────────────────
+  if (Array.isArray(medidasGEI) && medidasGEI.length > 0) {
+    row('', null)
+    row('— Medidas de mitigacion GEI (Anexo V RD 1051/2022) —', null)
+    const medidasSeleccionadas = MEDIDAS_MITIGACION_GEI.filter(m => medidasGEI.includes(m.codigoSiex))
+    medidasSeleccionadas.forEach(m => {
+      row(`Cod. SIEX ${m.codigoSiex}`, m.texto)
+    })
   }
 
   const wsPlan = XLSX.utils.json_to_sheet(plan)
