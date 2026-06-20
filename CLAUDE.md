@@ -379,6 +379,19 @@ const handleAddPlanItems = useCallback((items) => {
 ## Commits recientes
 
 ```
+(sesión 11, 2026-06-20)
+4b8ffb5 feat: PDF plan mejorado (fecha, header ACUMULADO/UF, NPK band); tooltip boton Sativum
+        — exportPdf.js: columna Fecha 16mm (evita truncado "01/09/2 5" a 7pt)
+          header 2 niveles: UF (kg/ha) colSpan:3 + ACUMULADO colSpan:3 (simétrico)
+          "Dosis\nkg/ha" (sin paréntesis, evitaba wrap del ")")
+          atribución: "Motor: FertiliCalc (Villalobos et al. 2020) · Sativum · CC BY 4.0 ITACyL"
+          Bloque NPK: banda azul oscuro (BOX_HEADER_H=9), título "NECESIDADES NUTRICIONALES",
+            BADGE_R=9.5mm (era 7.5), BADGE_SEP=14mm; círculos blancos con borde azul
+        — ResultadosCard.jsx: title="5 propuestas del catálogo Sativum. Ajusta al 100% el
+          nutriente con mayor necesidad pendiente (habitualmente N) y optimiza el equilibrio
+          de los otros dos." en botón "+ Añadir aplicación Sativum"
+          Nota: adjustedNutrient se auto-selecciona por mayor delta en UF; el prop es fallback
+
 (sesión 10, 2026-06-20)
 d6c3a98 feat: modal metodologia Sativum/FertiliCalc/FaST en header; footer simplificado
         — MetodologiaModal.jsx: nuevo modal desde botón ℹ️ en header
@@ -498,6 +511,23 @@ ad8c2a3 feat: uso_sigpac + coef_regadio via servicio REST SIGPAC recinfo
 ### Activo (próxima sesión)
 
 _(sin issues activos)_
+
+### Completados (2026-06-20, sesión 11)
+
+- ✅ **PDF Plan de Aplicaciones mejorado** — `exportPdf.js`.
+  Columna Fecha ampliada a 16mm (evitaba truncado "01/09/2 5"). Header 2 niveles: "UF (kg/ha)"
+  sobre N/P2O5/K2O y "ACUMULADO" sobre sus acumulados (estructura simétrica). "Dosis\nkg/ha"
+  sin paréntesis (el ")" quedaba en línea propia). Atribución explícita a Sativum en cabecera.
+
+- ✅ **Bloque NPK rediseñado** — `exportPdf.js`.
+  Banda de cabecera azul oscuro con título "NECESIDADES NUTRICIONALES" en blanco. Círculos
+  blancos con borde azul, BADGE_R=9.5mm (+27%), BADGE_SEP=14mm. Fondo azul muy claro.
+
+- ✅ **Tooltip botón "+ Añadir aplicación Sativum"** — `ResultadosCard.jsx`.
+  `title` nativo: "5 propuestas del catálogo Sativum. Ajusta al 100% el nutriente con mayor
+  necesidad pendiente (habitualmente N) y optimiza el equilibrio de los otros dos."
+  Verificado: `adjustedNutrient` se auto-selecciona por mayor delta en UF en el dialog;
+  el prop de App.jsx es fallback (N si todo cero).
 
 ### Completados (2026-06-20, sesión 10)
 
