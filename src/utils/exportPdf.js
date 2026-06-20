@@ -407,14 +407,14 @@ export async function exportarPlanAbonadoPdf({
   doc.setTextColor(255, 255, 255)
   doc.text('NECESIDADES NUTRICIONALES', PW / 2, boxY + BOX_HEADER_H / 2 + 1.5, { align: 'center' })
 
-  let by = boxY + BOX_HEADER_H + 5
+  let by = boxY + BOX_HEADER_H + 8
 
   // Subtítulo centrado
   doc.setFontSize(7.5)
   doc.setFont('helvetica', 'normal')
   doc.setTextColor(...C_MUTED)
   doc.text(
-    'Cultivo actual segun rotacion y manejo del mismo · Motor FertiliCalc (Villalobos et al. 2020)',
+    'Cálculo realizado con la API Sativum (ITACyL) según rotación y manejo del mismo.',
     PW / 2, by, { align: 'center' }
   )
   by += 7
