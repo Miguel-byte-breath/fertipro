@@ -40,7 +40,20 @@ src/
                                muestra badge "⚠ ZVN" y alerta si algún recinto en ZVN
                                se renderiza tanto para polígono como para punto
     ResultadosCard.jsx       — display NPK + "Opciones propuestas (API Sativum)"
-    SueloCard.jsx            — análisis suelo ArcGIS + agua de riego + Sistema explotación
+    SueloRiegoCard.jsx       — panel unificado suelo + agua de riego ✅ (reemplaza SueloCard.jsx)
+                               props: suelo, loading, cec, onCecChange,
+                                      riego, onRiegoChange,
+                                      analisisPropio, onAnalisisPropioChange,
+                                      refAnalisisSuelo, onRefAnalisisSueloChange,
+                                      sueloPersonalizado, onSueloPersonalizadoChange,
+                                      cultivoIrrigation (m³/ha del API crops)
+                               Sección AGUA: toggle Secano/Regadío → sistemaExplotacion
+                                 origen dropdown (ids 1-6), ref análisis agua,
+                                 dotación (con nota "Orientativo Sativum" si dotacionEsSativum),
+                                 campos NO₃/P/K siempre visibles (ArcGIS read-only si subterránea)
+                               Sección SUELO: toggle ArcGIS/Laboratorio propio,
+                                 ref boletín (lab only), mismos campos (editables en lab)
+                               FUENTE_SUBTERRANEA = id 2 → auto-rellena NO₃ y K desde ArcGIS
     EstrategiaPanel.jsx      — estrategia, laboreo, params N avanzados
     CultivoAnteriorPanel.jsx — cultivo precedente en la rotación
     AsesoramientoPanel.jsx   — panel colapsable datos asesor REGFER ✅
@@ -128,8 +141,8 @@ queryCoords({ lon, lat, feature? })
 3. Tabla recintos SIGPAC: referencia PP-MM-AA-ZZ-PPP-PPP-R | Sup. (ha) | % | Uso | Coef.reg | ZVN  
    → celda ZVN="SI" en rojo si `r.enZvn`
 4. Recuadro NPK: 5 círculos (N · P2O5 · P · K2O · K) + superficie parcela
-5. Tabla "APORTE DEL AGUA DE RIEGO" (si riego activo): fuente | dotación/ha | dotación total | UF N | UF P2O5 | UF K2O
-   → sección standalone con cabecera azul (40,100,140); se renderiza solo si fuenteId≠0 y dotación>0
+5. Tabla "APORTE DEL ORIGEN DEL AGUA" (si riego activo): origen | dotación/ha | dotación total | UF N | UF P2O5 | UF K2O
+   → sección standalone con cabecera azul (40,100,140); se renderiza solo si sistemaExplotacion==='regadio' y dotación>0
 6. Tabla "PLAN DE APLICACIONES" (si hay planItems): columnas Origen | Fecha | Producto | Tipo SIEX | Dosis | N | P2O5 | K2O | N acum. | P2O5 acum. | K2O acum.
    fila TOTAL + fila cobertura % — ordenado por fechaAplicacion
    celda Origen: azul para 'sativum', verde para 'manual'
@@ -269,6 +282,37 @@ Y commitir **todo** lo que aparezca como modificado (`M`) o nuevo (`??`) antes d
 const [asesor, setAsesor] = useState(() => JSON.parse(localStorage.getItem('fertipro_asesor') || 'null') || { nRegfer:'', nombre:'', apellidos:'', nif:'', telefono:'', email:'' })
 useEffect(() => { localStorage.setItem('fertipro_asesor', JSON.stringify(asesor)) }, [asesor])
 
+// riego — sistemaExplotacion es campo explícito (sesión 9 2026-06-20)
+const [riego, setRiego] = useState({
+  sistemaExplotacion: 'secano',   // 'secano'|'regadio' — explícito, no derivado de fuenteId
+  fuenteId: 0,
+  refAnalisisAgua: '',
+  no3MgL: '', dotacionM3: '', pMgL: '', kMgL: '',
+})
+
+// análisis suelo propio (sesión 9 2026-06-20)
+const [analisisPropio, setAnalisisPropio] = useState(false)
+const [refAnalisisSuelo, setRefAnalisisSuelo] = useState('')
+const [sueloPersonalizado, setSueloPersonalizado] = useState({})
+
+// auto-fill dotación desde cultivo.irrigation (sesión 9 2026-06-20)
+// cultivo.irrigation = m³/ha recomendados; se sobreescribe al cambiar cultivo
+useEffect(() => {
+  if (!cultivo) return
+  const irr = Number(cultivo.irrigation) || 0
+  setRiego(prev => ({
+    ...prev,
+    sistemaExplotacion: irr > 0 ? 'regadio' : 'secano',
+    dotacionM3: irr > 0 ? irr : '',
+  }))
+}, [cultivo?.id])
+
+// sueloEfectivo — usa sueloPersonalizado si analisisPropio, si no ArcGIS
+const sueloBase = analisisPropio
+  ? { soilType: sueloPersonalizado.soilType ?? 'LOAM', ... }
+  : suelo
+const sueloEfectivo = sueloBase ?? { soilType: 'LOAM', ... }
+
 // planItems — plan de aplicaciones unificado (sativum + asesor), sesión 4 2026-06-18
 const [planItems, setPlanItems] = useState([])
 const [sativumDialogOpen, setSativumDialogOpen] = useState(false)
@@ -282,13 +326,21 @@ const handleAddPlanItems = useCallback((items) => {
 ```js
 { id: Date.now(), origen: 'sativum'|'manual', nombre, tipo, tipoSIEX,
   n, p2o5, k2o, cantidad, fechaAplicacion, esPersonalizado,
-  // campos orgánicos (pendiente implementar — issue #3):
   appliesAnnualEffectiveness, yearPercent0, yearPercent1, yearPercent2 }
 ```
 - `origen` — `'sativum'` (propuesta API) | `'manual'` (asesor)
 - `tipoSIEX` — nombre SIEX (string), obligatorio para manual; opcional para sativum
 - `esPersonalizado` — bool; cuando true, composición NPK fue introducida manualmente
-- `appliesAnnualEffectiveness` / `yearPercent0/1/2` — solo para orgánicos; se obtienen del detalle Sativum al seleccionar producto (un GET extra por selección). Ver backlog issue #3.
+- `appliesAnnualEffectiveness` / `yearPercent0/1/2` — solo para orgánicos; se obtienen del detalle Sativum al seleccionar producto (un GET extra por selección).
+
+**Cabecera (sesión 9):**
+```jsx
+<img src="/fertipro.png" alt="FertiPRO" style={S.logoImg} />   {/* favicon existente */}
+<div style={S.brandTitle}>FertiPRO Add-on Sativum <span style={S.brandItacyl}>(ITACyL)</span></div>
+<div style={S.brandSub}>Planificación de nutrientes · Unidad de producción | Hoja de cultivo | Recinto</div>
+```
+
+**Chequeos riego:** usar siempre `riego.sistemaExplotacion === 'regadio'` (nunca `fuenteId !== 0`).
 
 ## Arquitectura plan de abonado (sesión 4 — 2026-06-18)
 
@@ -317,6 +369,17 @@ const handleAddPlanItems = useCallback((items) => {
 ## Commits recientes
 
 ```
+(sesión 9, 2026-06-20)
+        feat: SueloRiegoCard — riego/suelo reestructurado, analisis propio, dotacion Sativum
+               auto-fill, branding FertiPRO Add-on; fix ZVN RD47/2022; origen agua en PDF/Excel
+        — SueloCard.jsx eliminado; nuevo SueloRiegoCard.jsx
+        — App.jsx: sistemaExplotacion explícito, analisisPropio, refAnalisisSuelo,
+          sueloPersonalizado, auto-fill dotación desde cultivo.irrigation,
+          sueloEfectivo usa sueloPersonalizado cuando analisisPropio
+        — exportPdf.js + exportExcel.js: 'origen del agua'; trigger usa sistemaExplotacion
+        — ParcelaInfoCard.jsx: RD 1051/2022 → RD 47/2022
+        — App.jsx cabecera: logo /fertipro.png + "FertiPRO Add-on Sativum (ITACyL)"
+
 (sesión 8, 2026-06-19)
 610bfbf fix: cobertura NPK usa valores efectivos (mineralización orgánicos)
         — src/utils/npkUtils.js: nuevo módulo compartido con calcNpkEfectivo exportada
@@ -411,6 +474,33 @@ ad8c2a3 feat: uso_sigpac + coef_regadio via servicio REST SIGPAC recinfo
 ### Activo (próxima sesión)
 
 _(sin issues activos)_
+
+### Completados (2026-06-20, sesión 9)
+
+- ✅ **SueloCard → SueloRiegoCard** — panel unificado suelo + agua. `SueloCard.jsx` eliminado.
+  Sección agua: toggle Secano/Regadío (`sistemaExplotacion`), origen dropdown, ref análisis agua,
+  dotación con nota "Orientativo Sativum" (`dotacionEsSativum`), campos NO₃/P/K siempre visibles
+  (ArcGIS read-only si `fuenteId=2`). Sección suelo: toggle ArcGIS/Laboratorio; en modo laboratorio
+  los mismos campos se vuelven editables; `handleToggleAnalisis` pre-rellena desde ArcGIS.
+
+- ✅ **cultivo.irrigation → auto-fill dotación** — campo `irrigation` de `/nutrients/crops` (m³/ha).
+  useEffect en App.jsx: al cambiar cultivo, si `irrigation > 0` → `sistemaExplotacion = 'regadio'`
+  + `dotacionM3 = irrigation`. SueloRiegoCard muestra nota "Orientativo Sativum..."
+
+- ✅ **sistemaExplotacion explícito** — reemplaza `fuenteId !== 0` en toda la app.
+  Estado: `riego.sistemaExplotacion: 'secano'|'regadio'`. Actualizado en App.jsx,
+  exportPdf.js, exportExcel.js, SueloRiegoCard.jsx.
+
+- ✅ **K riego ArcGIS conectado al cálculo** — campo `kMgL` (layer 8 ArcGIS) ahora se
+  auto-rellena en SueloRiegoCard y App.jsx lo usa en `kRiego` → descuento correcto en motor.
+
+- ✅ **Origen del agua** — renombrado en PDF y Excel: 'fuente del agua' → 'origen del agua'.
+
+- ✅ **Branding FertiPRO Add-on** — cabecera App.jsx: logo `/fertipro.png` (favicon existente),
+  título "FertiPRO Add-on Sativum (ITACyL)", subtítulo "Planificación de nutrientes · ...".
+
+- ✅ **fix: ZVN RD 47/2022** — `ParcelaInfoCard.jsx`: referencia normativa correcta
+  (antes ponía RD 1051/2022 que es la norma SIEX, no la de nitratos).
 
 ### Completados (2026-06-19, sesión 8)
 
