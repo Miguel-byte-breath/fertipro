@@ -233,7 +233,7 @@ export async function exportarPlanAbonadoPdf({
   doc.setFontSize(13)
   doc.setFont('helvetica', 'bold')
   doc.setTextColor(...C_LABEL)
-  doc.text('PLAN DE NUTRIENTES DE UNA PARCELA', PW / 2, y, { align: 'center' })
+  doc.text('PLAN DE ABONADO | BALANCE DE NUTRIENTES', PW / 2, y, { align: 'center' })
   y += 10
 
   // ── 3. METADATOS ──────────────────────────────────────────────────────────
@@ -301,6 +301,11 @@ export async function exportarPlanAbonadoPdf({
   // ── 4. TABLA RECINTOS SIGPAC ──────────────────────────────────────────────
   // Se dibuja solo si hay recintos. Sustituye la lista lineal de refs SIGPAC.
   if (recintos.length > 0) {
+    doc.setFontSize(9)
+    doc.setFont('helvetica', 'bold')
+    doc.setTextColor(...C_LABEL)
+    doc.text('Identificación de todos los recintos', ML, y)
+    y += 5
     const C_ZVN_BG  = [255, 235, 238]  // fondo fila ZVN
     const C_ZVN_TXT = [183,  28,  28]  // texto ZVN
 
