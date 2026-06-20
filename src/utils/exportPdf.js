@@ -216,7 +216,7 @@ export async function exportarPlanAbonadoPdf({
   doc.setFont('helvetica', 'normal')
   doc.setTextColor(...C_MUTED)
   doc.text('Plan de Nutrientes', PW - MR, y + 5, { align: 'right' })
-  doc.text('Motor: FertiliCalc (Villalobos et al. 2020) · CC BY 4.0 ITACyL', PW - MR, y + 9, { align: 'right' })
+  doc.text('Motor: FertiliCalc (Villalobos et al. 2020) · Sativum · CC BY 4.0 ITACyL', PW - MR, y + 9, { align: 'right' })
   doc.text('Suelo: (c)Junta de Castilla y Leon · suelos.itacyl.es', PW - MR, y + 13, { align: 'right' })
 
   y += 16
@@ -373,93 +373,105 @@ export async function exportarPlanAbonadoPdf({
   // ── 5. RECUADRO NPK ───────────────────────────────────────────────────────
   const boxX  = ML
   const boxW  = CW
-  const BADGE_R   = 7.5   // radio del círculo en mm
-  const BADGE_SEP = 11    // separación entre centros de círculos
-  const N_BADGES  = 5
+  const BADGE_R    = 9.5  // radio en mm (era 7.5 → +27%)
+  const BADGE_SEP  = 14   // separación entre centros (era 11)
+  const N_BADGES   = 5
   const totalBadgesW = (N_BADGES - 1) * BADGE_SEP + 2 * BADGE_R
-  const badgeStartX = boxX + (boxW - totalBadgesW) / 2 + BADGE_R
+  const badgeStartX  = boxX + (boxW - totalBadgesW) / 2 + BADGE_R
 
-  // Altura del recuadro: cabecera + objetivo/coste + círculos + margen
-  const boxPadTop    = 5
-  const lineHeaderH  = 10  // altura texto cabecera
-  const objetivoH    = 8
-  const badgeH       = BADGE_R * 2 + 10  // círculos + valores debajo
-  const boxH         = boxPadTop + lineHeaderH + objetivoH + badgeH + 6
-  const boxY         = y
+  // Dimensiones del recuadro
+  const BOX_HEADER_H = 9  // banda azul de cabecera
+  // boxH = header + padding + subtítulo + objetivo + gap + círculos(diámetro) + pad inferior
+  const boxH = BOX_HEADER_H + 5 + 6 + 8 + 6 + BADGE_R * 2 + 6
+  const boxY = y
 
-  // Marco
+  // Fondo claro del recuadro
+  doc.setFillColor(245, 248, 255)
+  doc.roundedRect(boxX, boxY, boxW, boxH, 3, 3, 'F')
+
+  // Banda de cabecera azul oscuro (esquinas superiores redondeadas, inferiores cuadradas)
+  doc.setFillColor(...C_TITLE)
+  doc.roundedRect(boxX, boxY, boxW, BOX_HEADER_H + 3, 3, 3, 'F')
+  doc.rect(boxX, boxY + BOX_HEADER_H / 2, boxW, BOX_HEADER_H / 2 + 3, 'F')
+
+  // Borde exterior (solo trazo, sin relleno)
   doc.setDrawColor(...C_BORDER)
-  doc.setFillColor(248, 250, 253)
-  doc.setLineWidth(0.4)
-  doc.roundedRect(boxX, boxY, boxW, boxH, 2, 2, 'FD')
+  doc.setLineWidth(0.5)
+  doc.roundedRect(boxX, boxY, boxW, boxH, 3, 3, 'S')
 
-  let by = boxY + boxPadTop
-
-  // Texto cabecera del recuadro
-  doc.setFontSize(8.5)
+  // Título blanco centrado sobre la banda azul
+  doc.setFontSize(9.5)
   doc.setFont('helvetica', 'bold')
-  doc.setTextColor(...C_LABEL)
-  const headerTxt = 'Necesidades nutricionales calculadas con FertiPRO para el cultivo actual según rotación y manejo del mismo:'
-  const headerLines = doc.splitTextToSize(headerTxt, boxW - 8)
-  doc.text(headerLines, boxX + 4, by)
-  by += headerLines.length * 4.5 + 2
+  doc.setTextColor(255, 255, 255)
+  doc.text('NECESIDADES NUTRICIONALES', PW / 2, boxY + BOX_HEADER_H / 2 + 1.5, { align: 'center' })
 
-  // Objetivo de producción
+  let by = boxY + BOX_HEADER_H + 5
+
+  // Subtítulo centrado
+  doc.setFontSize(7.5)
+  doc.setFont('helvetica', 'normal')
+  doc.setTextColor(...C_MUTED)
+  doc.text(
+    'Cultivo actual segun rotacion y manejo del mismo · Motor FertiliCalc (Villalobos et al. 2020)',
+    PW / 2, by, { align: 'center' }
+  )
+  by += 7
+
+  // Objetivo de producción + superficie
   doc.setFontSize(8.5)
   doc.setFont('helvetica', 'normal')
   doc.setTextColor(...C_MUTED)
-  doc.text('Objetivo de producción', boxX + 4, by)
+  doc.text('Objetivo de produccion', boxX + 6, by)
   doc.setFont('helvetica', 'bold')
   doc.setTextColor(...C_LABEL)
   doc.text(
     rendimiento ? `${fmtNum(rendimiento, 0)} kg/ha` : '—',
-    boxX + 50, by
+    boxX + 57, by
   )
   if (sup != null) {
     doc.setFont('helvetica', 'normal')
     doc.setTextColor(...C_MUTED)
-    doc.text(`Superficie: ${fmt(sup, 2)} ha`, boxX + boxW - 4, by, { align: 'right' })
+    doc.text(`Superficie: ${fmt(sup, 2)} ha`, boxX + boxW - 6, by, { align: 'right' })
   }
-  by += 8
+  by += 8 + 6  // fila objetivo + gap antes de círculos
 
-  // Círculos NPK
+  // Círculos NPK — blancos con borde azul oscuro, más grandes
   const badges = [
-    { label: 'N',     value: fmt(nBruto, 1) },
-    { label: 'P2O5', value: fmt(p2o5, 1) },
-    { label: 'P',     value: fmt(p, 1) },
-    { label: 'K2O',  value: fmt(k2o, 1) },
-    { label: 'K',     value: fmt(k, 1) },
+    { label: 'N',    value: fmt(nBruto, 1) },
+    { label: 'P2O5', value: fmt(p2o5,  1) },
+    { label: 'P',    value: fmt(p,     1) },
+    { label: 'K2O',  value: fmt(k2o,   1) },
+    { label: 'K',    value: fmt(k,     1) },
   ]
 
   badges.forEach((badge, i) => {
     const cx = badgeStartX + i * BADGE_SEP
     const cy = by + BADGE_R
 
-    // Círculo relleno
-    doc.setFillColor(...C_NPK_BG)
-    doc.setDrawColor(...C_NPK_BD)
-    doc.setLineWidth(0.35)
+    // Círculo blanco con borde azul oscuro
+    doc.setFillColor(255, 255, 255)
+    doc.setDrawColor(...C_TITLE)
+    doc.setLineWidth(0.6)
     doc.circle(cx, cy, BADGE_R, 'FD')
 
-    // Label (símbolo elemento)
-    doc.setFontSize(8)
+    // Símbolo del elemento (parte superior del círculo)
+    doc.setFontSize(9.5)
     doc.setFont('helvetica', 'bold')
     doc.setTextColor(...C_TITLE)
-    doc.text(badge.label, cx, cy - 1.5, { align: 'center' })
+    doc.text(badge.label, cx, cy - 2.5, { align: 'center' })
 
-    // Valor
-    doc.setFontSize(7.5)
-    doc.setFont('helvetica', 'normal')
+    // Valor numérico
+    doc.setFontSize(9)
+    doc.setFont('helvetica', 'bold')
     doc.setTextColor(...C_LABEL)
     doc.text(badge.value, cx, cy + 3.5, { align: 'center' })
 
-    // Unidad
-    doc.setFontSize(6)
+    // Unidad (parte inferior del círculo)
+    doc.setFontSize(6.5)
+    doc.setFont('helvetica', 'normal')
     doc.setTextColor(...C_MUTED)
-    doc.text('kg/ha', cx, cy + 6.5, { align: 'center' })
+    doc.text('kg/ha', cx, cy + 7.5, { align: 'center' })
   })
-
-  by += BADGE_R * 2 + 4
 
   y = boxY + boxH + 6
 
@@ -528,10 +540,22 @@ export async function exportarPlanAbonadoPdf({
       return a.fechaAplicacion.localeCompare(b.fechaAplicacion)
     })
 
+    const C_TITLE_LT = [40, 60, 160]  // azul más claro para sub-filas
     const planHead = [[
-      'Fecha', 'Origen', 'Producto / Fertilizante', 'Tipo SIEX',
-      'Dosis\n(kg/ha)', 'N\n(kg/ha)', 'P2O5\n(kg/ha)', 'K2O\n(kg/ha)',
-      'N acum.\n(kg/ha)', 'P2O5\nacum.\n(kg/ha)', 'K2O\nacum.\n(kg/ha)',
+      { content: 'Fecha',                   rowSpan: 2, styles: { valign: 'middle' } },
+      { content: 'Origen',                  rowSpan: 2, styles: { valign: 'middle' } },
+      { content: 'Producto / Fertilizante', rowSpan: 2, styles: { valign: 'middle', halign: 'left' } },
+      { content: 'Tipo SIEX',               rowSpan: 2, styles: { valign: 'middle' } },
+      { content: 'Dosis\nkg/ha',             rowSpan: 2, styles: { valign: 'middle', halign: 'right' } },
+      { content: 'UF (kg/ha)',  colSpan: 3,  styles: { halign: 'center', valign: 'middle' } },
+      { content: 'ACUMULADO',   colSpan: 3,  styles: { halign: 'center', valign: 'middle' } },
+    ], [
+      { content: 'N',    styles: { halign: 'right', fillColor: C_TITLE_LT, textColor: [255, 255, 255] } },
+      { content: 'P2O5', styles: { halign: 'right', fillColor: C_TITLE_LT, textColor: [255, 255, 255] } },
+      { content: 'K2O',  styles: { halign: 'right', fillColor: C_TITLE_LT, textColor: [255, 255, 255] } },
+      { content: 'N',    styles: { halign: 'right', fillColor: C_TITLE_LT, textColor: [255, 255, 255] } },
+      { content: 'P2O5', styles: { halign: 'right', fillColor: C_TITLE_LT, textColor: [255, 255, 255] } },
+      { content: 'K2O',  styles: { halign: 'right', fillColor: C_TITLE_LT, textColor: [255, 255, 255] } },
     ]]
 
     let sumN = 0; let sumP2o5 = 0; let sumK2o = 0
@@ -615,17 +639,17 @@ export async function exportarPlanAbonadoPdf({
         fontStyle: 'bold', fontSize: 7, halign: 'center',
       },
       columnStyles: {
-        0:  { cellWidth: 12, halign: 'center' },
-        1:  { cellWidth: 14, halign: 'center' },
-        2:  { cellWidth: 42, halign: 'left'   },
-        3:  { cellWidth: 20, halign: 'center' },
-        4:  { cellWidth: 12, halign: 'right'  },
-        5:  { cellWidth: 12, halign: 'right'  },
-        6:  { cellWidth: 14, halign: 'right'  },
-        7:  { cellWidth: 12, halign: 'right'  },
-        8:  { cellWidth: 13, halign: 'right', fontStyle: 'bold' },
-        9:  { cellWidth: 13, halign: 'right', fontStyle: 'bold' },
-        10: { cellWidth: 10, halign: 'right', fontStyle: 'bold' },
+        0:  { cellWidth: 16, halign: 'center' },  // Fecha: 12→16 (evita truncación DD/MM/YY)
+        1:  { cellWidth: 13, halign: 'center' },  // Origen: 14→13
+        2:  { cellWidth: 40, halign: 'left'   },  // Producto: 42→40
+        3:  { cellWidth: 18, halign: 'center' },  // Tipo SIEX: 20→18
+        4:  { cellWidth: 11, halign: 'right'  },  // Dosis: 12→11
+        5:  { cellWidth: 12, halign: 'right'  },  // N
+        6:  { cellWidth: 13, halign: 'right'  },  // P2O5: 14→13
+        7:  { cellWidth: 11, halign: 'right'  },  // K2O: 12→11
+        8:  { cellWidth: 14, halign: 'right', fontStyle: 'bold' },  // N acum: 13→14
+        9:  { cellWidth: 13, halign: 'right', fontStyle: 'bold' },  // P2O5 acum
+        10: { cellWidth: 13, halign: 'right', fontStyle: 'bold' },  // K2O acum: 10→13
       },
       alternateRowStyles: { fillColor: [250, 252, 255] },
       didParseCell(data) {

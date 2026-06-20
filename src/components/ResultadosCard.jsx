@@ -115,6 +115,7 @@ export default function ResultadosCard({
           type="button"
           onClick={onOpenSativumDialog}
           style={SR.btnSativum}
+          title="5 propuestas del catálogo Sativum. Ajusta al 100% el nutriente con mayor necesidad pendiente (habitualmente N) y optimiza el equilibrio de los otros dos."
         >
           + Añadir aplicación Sativum
         </button>
