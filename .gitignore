@@ -11,5 +11,8 @@ dist
 .vercel
 .env*.local
 
+# Ficheros temporales de Vite (generados en dev, no deben ir al repo)
+vite.config.js.timestamp-*.mjs
+
 # Contexto interno de sesión — no público
 CLAUDE.md
