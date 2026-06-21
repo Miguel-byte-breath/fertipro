@@ -10,3 +10,6 @@ dist
 
 .vercel
 .env*.local
+
+# Contexto interno de sesión — no público
+CLAUDE.md
