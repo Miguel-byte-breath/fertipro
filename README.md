@@ -2,7 +2,7 @@
 
 **Módulo web de planificación de abonado para cultivos agrícolas españoles, construido sobre la API pública de Sativum (ITACyL).**
 
-Calcula las necesidades de fertilización NPK usando el motor **FertiliCalc** vía la API de Sativum, selecciona fertilizantes del catálogo oficial (1 253 productos), aplica la mineralización anual de enmiendas orgánicas según el RD 1051/2022, y genera un plan de aplicaciones exportable en Excel y PDF conforme al art. 6 del mismo real decreto.
+Calcula las necesidades de fertilización NPK usando la API de Sativum (ITACyL). El cálculo lo realiza el algoritmo FertiliCalc, implementado en el servicio público de balance de nutrientes Sativum y en la Farm Advisory Tool for nutrients (FAST) de la Comisión Europea, conforme a *Fitotecnia: principios de agronomía para una agricultura sostenible* (F. Villalobos), con adaptaciones del ITACyL. Sobre ese cálculo, FertiPRO selecciona fertilizantes del catálogo oficial (1 253 productos), aplica la mineralización anual de enmiendas orgánicas según el RD 1051/2022, y genera un plan de aplicaciones exportable en Excel y PDF conforme al art. 6 del mismo real decreto.
 
 🌐 **Producción:** <https://fertipro.vercel.app>
 
