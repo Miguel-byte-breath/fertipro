@@ -586,88 +586,89 @@ export default function FertilizanteManualPanel({
             </button>
           )}
 
-          {/* ── Tabla de items del plan (todos, ordenados por fecha) ── */}
-          {nItems > 0 && (
-            <div style={{ marginTop: 12 }}>
-              <div style={S.sectionLabel}>
-                Plan de aplicaciones
-                <span style={{ fontWeight: 400, color: '#90a4ae', marginLeft: 6, fontSize: 9 }}>
-                  {nItems} producto{nItems !== 1 ? 's' : ''}
-                </span>
-              </div>
-              {itemsOrdenados.map(item => {
-                const dose = Number(item.cantidad) || 0
-                const ef   = calcNpkEfectivo(item, fechaInicioCiclo)
-                return (
-                  <div key={item.id} style={S.itemRow}>
-                    <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'flex-start' }}>
-                      <div style={{ flex: 1, minWidth: 0, marginRight: 4 }}>
-                        <div style={S.itemNombre}>{item.nombre}</div>
-                        <div style={S.itemMeta}>
-                          {item.origen === 'sativum'
-                            ? <span style={S.sativumBadge}>Sativum</span>
-                            : <span style={S.manualBadge}>Asesor</span>
-                          }
-                          {item.fechaAplicacion ? fmtFecha(item.fechaAplicacion) + ' · ' : ''}
-                          <strong>{Number(dose).toFixed(0)} kg/ha</strong>
-                          {item.tipoSIEX && (
-                            <span style={item.esPersonalizado ? S.custBadgePurple : S.custBadge}>
-                              {item.tipoSIEX}
-                            </span>
-                          )}
-                        </div>
-                      </div>
-                      <button type="button" onClick={() => handleEliminar(item.id)} style={S.deletBtn}>×</button>
-                    </div>
-                    <div style={S.itemNpk}>
-                      N <strong>{fmt1(ef.brutoN)}</strong>
-                      {' · '}P₂O₅ <strong>{fmt1(ef.brutoP2o5)}</strong>
-                      {' · '}K₂O <strong>{fmt1(ef.brutoK2o)}</strong> kg/ha
-                      {ef.esOrganico && (
-                        <div style={{ color: '#ef6c00', fontSize: 9, marginTop: 2 }}>
-                          🌿 efectivo este ciclo ({ef.pct}%): N {fmt1(ef.efN)} · P₂O₅ {fmt1(ef.efP2o5)} · K₂O {fmt1(ef.efK2o)} kg/ha
-                        </div>
+
+        </div>
+      )}
+
+      {/* ── Tabla de items del plan — siempre visible (independiente del panel) ── */}
+      {nItems > 0 && (
+        <div style={{ padding: '0 12px 10px' }}>
+          <div style={S.sectionLabel}>
+            Plan de aplicaciones
+            <span style={{ fontWeight: 400, color: '#90a4ae', marginLeft: 6, fontSize: 9 }}>
+              {nItems} producto{nItems !== 1 ? 's' : ''}
+            </span>
+          </div>
+          {itemsOrdenados.map(item => {
+            const dose = Number(item.cantidad) || 0
+            const ef   = calcNpkEfectivo(item, fechaInicioCiclo)
+            return (
+              <div key={item.id} style={S.itemRow}>
+                <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'flex-start' }}>
+                  <div style={{ flex: 1, minWidth: 0, marginRight: 4 }}>
+                    <div style={S.itemNombre}>{item.nombre}</div>
+                    <div style={S.itemMeta}>
+                      {item.origen === 'sativum'
+                        ? <span style={S.sativumBadge}>Sativum</span>
+                        : <span style={S.manualBadge}>Asesor</span>
+                      }
+                      {item.fechaAplicacion ? fmtFecha(item.fechaAplicacion) + ' · ' : ''}
+                      <strong>{Number(dose).toFixed(0)} kg/ha</strong>
+                      {item.tipoSIEX && (
+                        <span style={item.esPersonalizado ? S.custBadgePurple : S.custBadge}>
+                          {item.tipoSIEX}
+                        </span>
                       )}
                     </div>
                   </div>
-                )
-              })}
-
-              {/* ── Cobertura acumulada ── */}
-              {npkNeed && (
-                <div style={S.coverageWrap}>
-                  <div style={{ ...S.sectionLabel, marginBottom: 5 }}>Cobertura acumulada</div>
-                  <div style={{ display: 'flex', fontSize: 9, color: '#90a4ae', marginBottom: 4, gap: 4 }}>
-                    <span style={{ width: 34 }} />
-                    <span style={{ width: 52, textAlign: 'right' }}>Aportado</span>
-                    <span />
-                    <span style={{ width: 52, textAlign: 'right' }}>Necesidad</span>
-                    <span style={{ flex: 1 }} />
-                    <span style={{ width: 32, textAlign: 'right' }}>%</span>
-                  </div>
-                  <CoverageRow label="N"     aportado={acumulado.n}    necesidad={npkNeed.n}    />
-                  <CoverageRow label="P₂O₅" aportado={acumulado.p2o5} necesidad={npkNeed.p2o5} />
-                  <CoverageRow label="K₂O"  aportado={acumulado.k2o}  necesidad={npkNeed.k2o}  />
-                  <div style={{ fontSize: 9, color: '#b0bec5', marginTop: 4 }}>
-                    kg/ha · Necesidad neta = necesidades del cultivo descontado el riego
-                    {planItems.some(i => i.appliesAnnualEffectiveness) && (
-                      <span style={{ color: '#ef6c00' }}> · 🌿 Orgánicos: fracción mineralizable este ciclo</span>
-                    )}
-                  </div>
+                  <button type="button" onClick={() => handleEliminar(item.id)} style={S.deletBtn}>×</button>
                 </div>
-              )}
+                <div style={S.itemNpk}>
+                  N <strong>{fmt1(ef.brutoN)}</strong>
+                  {' · '}P₂O₅ <strong>{fmt1(ef.brutoP2o5)}</strong>
+                  {' · '}K₂O <strong>{fmt1(ef.brutoK2o)}</strong> kg/ha
+                  {ef.esOrganico && (
+                    <div style={{ color: '#ef6c00', fontSize: 9, marginTop: 2 }}>
+                      🌿 efectivo este ciclo ({ef.pct}%): N {fmt1(ef.efN)} · P₂O₅ {fmt1(ef.efP2o5)} · K₂O {fmt1(ef.efK2o)} kg/ha
+                    </div>
+                  )}
+                </div>
+              </div>
+            )
+          })}
 
-              {/* Botón limpiar todo */}
-              <button
-                type="button"
-                style={S.clearAllBtn}
-                onClick={() => onChange([])}
-              >
-                Limpiar plan
-              </button>
+          {/* ── Cobertura acumulada ── */}
+          {npkNeed && (
+            <div style={S.coverageWrap}>
+              <div style={{ ...S.sectionLabel, marginBottom: 5 }}>Cobertura acumulada</div>
+              <div style={{ display: 'flex', fontSize: 9, color: '#90a4ae', marginBottom: 4, gap: 4 }}>
+                <span style={{ width: 34 }} />
+                <span style={{ width: 52, textAlign: 'right' }}>Aportado</span>
+                <span />
+                <span style={{ width: 52, textAlign: 'right' }}>Necesidad</span>
+                <span style={{ flex: 1 }} />
+                <span style={{ width: 32, textAlign: 'right' }}>%</span>
+              </div>
+              <CoverageRow label="N"     aportado={acumulado.n}    necesidad={npkNeed.n}    />
+              <CoverageRow label="P₂O₅" aportado={acumulado.p2o5} necesidad={npkNeed.p2o5} />
+              <CoverageRow label="K₂O"  aportado={acumulado.k2o}  necesidad={npkNeed.k2o}  />
+              <div style={{ fontSize: 9, color: '#b0bec5', marginTop: 4 }}>
+                kg/ha · Necesidad neta = necesidades del cultivo descontado el riego
+                {planItems.some(i => i.appliesAnnualEffectiveness) && (
+                  <span style={{ color: '#ef6c00' }}> · 🌿 Orgánicos: fracción mineralizable este ciclo</span>
+                )}
+              </div>
             </div>
           )}
 
+          {/* Botón limpiar todo */}
+          <button
+            type="button"
+            style={S.clearAllBtn}
+            onClick={() => onChange([])}
+          >
+            Limpiar plan
+          </button>
         </div>
       )}
     </div>

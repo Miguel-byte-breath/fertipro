@@ -64,10 +64,10 @@ function SliderRow({ label, total, covered, target, onTarget }) {
         {/* Slider target */}
         <input
           type="range"
-          min={Math.ceil(covPct)}
+          min={0}
           max={100}
           step={1}
-          value={Math.max(Math.ceil(covPct), tgtPct)}
+          value={tgtPct}
           onChange={e => onTarget(Number(e.target.value))}
           style={SD.rangeInput}
         />
@@ -173,11 +173,16 @@ export default function SativumApplicationDialog({
     setSelected(null)
     setApiError(null)
     try {
-      const npkDelta    = { n: deltaN, p: deltaP, k: deltaK }
-      const pOx = deltaP * P_TO_P2O5
-      const kOx = deltaK * K_TO_K2O
-      const adjNutrient = (deltaN >= pOx && deltaN >= kOx && deltaN > 0) ? 'N'
-        : (pOx >= deltaN && pOx >= kOx && pOx > 0) ? 'P'
+      // Redondear deltas muy pequeños a 0 para evitar que la API reciba
+      // valores residuales (ej. 0.03 kg/ha) que impiden obtener resultados
+      const effN = deltaN < 0.5 ? 0 : deltaN
+      const effP = deltaP < 0.5 ? 0 : deltaP
+      const effK = deltaK < 0.5 ? 0 : deltaK
+      const npkDelta    = { n: effN, p: effP, k: effK }
+      const pOx = effP * P_TO_P2O5
+      const kOx = effK * K_TO_K2O
+      const adjNutrient = (effN >= pOx && effN >= kOx && effN > 0) ? 'N'
+        : (pOx >= effN && pOx >= kOx && pOx > 0) ? 'P'
         : (kOx > 0) ? 'K'
         : adjustedNutrient
       const data = await getRecomendacion(npkDelta, { adjustedNutrient: adjNutrient })
