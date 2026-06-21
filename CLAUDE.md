@@ -384,6 +384,8 @@ const handleAddPlanItems = useCallback((items) => {
 **Componentes afectados:**
 - `ResultadosCard.jsx` — muestra NPK bruto + barras de cobertura + botón Sativum
 - `SativumApplicationDialog.jsx` — modal: fecha primero → sliders → "Calcular opciones" → 5 opciones API
+                               props: npkParaRec, planItems, adjustedNutrient, fechaInicioCiclo, onAdd, onClose
+                               covered useMemo usa calcNpkEfectivo → valores efectivos (orgánicos corregidos)
 - `FertilizanteManualPanel.jsx` — filtro cascada SIEX→Fabricante→Producto; lista planItems ordenados; badges sativum/asesor
 - `exportExcel.js` — hoja "Fertilizantes" usa `allItems = planItems ?? fertilizadoresManuales`
 - `exportPdf.js` — sección 6 "PLAN DE APLICACIONES" (unificado, sin sección Sativum estática)
@@ -391,6 +393,37 @@ const handleAddPlanItems = useCallback((items) => {
 ## Commits recientes
 
 ```
+(sesión 15, 2026-06-21)
+6f381a6 docs: créditos FertiliCalc/FAST/Villalobos en README intro
+        — README.md: línea introductoria reescrita en dos frases:
+          (1) "Calcula las necesidades NPK usando la API de Sativum (ITACyL)."
+          (2) Línea de créditos: FertiliCalc → FAST (CE) → Fitotecnia (Villalobos)
+              con adaptaciones del ITACyL. Coherente con la cadena documentada
+              en MetodologiaModal.jsx y el correo institucional a ITACyL.
+        Repositorio: pendiente hacer público (decisión sesión 15).
+
+(sesión 14, 2026-06-20)
+        fix: SativumApplicationDialog usa NPK efectivo (mineralización orgánicos) en covered
+        — SativumApplicationDialog.jsx: import calcNpkEfectivo; prop fechaInicioCiclo='';
+          covered useMemo usa calcNpkEfectivo(item, fechaInicioCiclo) → efN/efP2o5/efK2o
+          corrige bug: dialog sumaba NPK bruto (ej. N 78.6) en vez de efectivo (N 23.6)
+          para orgánicos con yearPercent < 100, causando % ya cubierto inflados
+        — App.jsx: pasa fechaInicioCiclo={fechaInicioCiclo} a SativumApplicationDialog
+
+        fix: PDF bloque NPK — subtitulo con aire y atribucion Sativum
+        — exportPdf.js: by arranca a BOX_HEADER_H + 8 (era +5) → más espacio bajo banda
+          texto: 'Cálculo realizado con la API Sativum (ITACyL) según rotación y manejo del mismo.'
+          (sustituye 'Cultivo actual segun rotacion y manejo del mismo · Motor FertiliCalc...')
+
+        fix: PDF título y header recintos SIGPAC
+        — exportPdf.js: título 'PLAN DE ABONADO | BALANCE DE NUTRIENTES'
+          (era 'PLAN DE NUTRIENTES DE UNA PARCELA')
+          header 'Identificación de todos los recintos' (9pt bold C_LABEL) antes de la tabla
+
+(sesión 13, 2026-06-20)
+        fix: MedidasMitigacionPanel visible — commit ae3ab99
+        — App.jsx S.card: eliminado overflow:'hidden' que aplastaba la altura a 0
+
 (sesión 12, 2026-06-20)
         feat: panel medidas mitigacion GEI — Anexo V RD 1051/2022
         — medidasMitigacionGEI.js: 16 medidas en 3 grupos, { codigoSiex, texto, grupo }
@@ -533,6 +566,36 @@ ad8c2a3 feat: uso_sigpac + coef_regadio via servicio REST SIGPAC recinfo
 ### Activo (próxima sesión)
 
 _(sin tareas pendientes)_
+
+### Completados (2026-06-21, sesión 15)
+
+- ✅ **docs: créditos FertiliCalc/FAST/Villalobos en README** — `README.md`.
+  Línea introductoria partida en dos: presentación corta + línea de créditos explícita
+  (FertiliCalc → FAST CE → *Fitotecnia* Villalobos → adaptaciones ITACyL).
+  Motivado por el correo institucional a David Nafría (ITACyL) y la decisión de abrir
+  el repositorio a público como elemento de transparencia técnica.
+
+- ✅ **Revisión correo David Nafría (ITACyL)** — no es código, es contexto de proyecto.
+  Correo final: presenta el prototipo, referencia el proceso formal (Mercedes Iborra →
+  Dirección General de Producción Agrícola y Ganadera JCyL), pide valoración conceptual
+  sin cerrar alcance. Adjunto: ejemplo de plan de abonado validado contra Sativum.
+  Asunto: "Prototipo FertiPRO con motor Sativum – vuestra valoración conceptual".
+
+### Completados (2026-06-20, sesión 14)
+
+- ✅ **fix: SativumApplicationDialog — covered usa NPK efectivo** — `SativumApplicationDialog.jsx`, `App.jsx`.
+  Bug: el dialog sumaba NPK bruto de los planItems (ej. N 78.6 kg/ha del compost) en vez del
+  efectivo mineralización (N 23.6 kg/ha al 30%), mostrando % ya cubiertos inflados (42%/100%/23%
+  en lugar del correcto 13%/47%/7%). Fix: import `calcNpkEfectivo` + prop `fechaInicioCiclo`
+  (mismo patrón que ResultadosCard y FertilizanteManualPanel en sesión 8).
+
+- ✅ **fix: PDF bloque NPK — aire y subtítulo Sativum** — `exportPdf.js`.
+  Subtítulo separado 3mm más del borde inferior de la banda (BOX_HEADER_H + 8, era +5).
+  Texto: "Cálculo realizado con la API Sativum (ITACyL) según rotación y manejo del mismo."
+
+- ✅ **fix: PDF título y header recintos** — `exportPdf.js`.
+  Título: "PLAN DE ABONADO | BALANCE DE NUTRIENTES" (era "PLAN DE NUTRIENTES DE UNA PARCELA").
+  Añadido header "Identificación de todos los recintos" (9pt bold) antes de la tabla SIGPAC.
 
 ### Completados (2026-06-20, sesión 13)
 
