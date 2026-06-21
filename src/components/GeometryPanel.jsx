@@ -94,7 +94,7 @@ function EmptyState() {
         <li style={S.option}>
           <span style={S.optionIcon}>🗂️</span>
           <div>
-            <div style={S.optionTitle}>Cargar archivo</div>
+            <div style={S.optionTitle}>Cargar archivo (barra de herramientas del mapa)</div>
             <div style={S.optionDesc}>GeoJSON o Shapefile (.zip con .shp + .dbf)</div>
           </div>
         </li>
