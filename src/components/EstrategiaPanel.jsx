@@ -21,26 +21,22 @@ import { N_EQUATION_DEFAULTS, getAlgoParams, MAX_P_RATE, MAX_K_RATE } from '../d
 const ESTRATEGIAS = [
   {
     id: 'SUFFICIENCY',
-    label: 'Suficiencia',
-    desc: 'Cubre necesidades mínimas del cultivo',
+    label: 'Estrategia de suficiencia (mínimo fertilizante)',
     color: '#e8f5e9', border: '#a5d6a7', text: '#2e7d32',
   },
   {
     id: 'REDUCED',
-    label: 'Reducida',
-    desc: 'Aporte conservador, menor coste',
+    label: 'Acumulación y mantenimiento (abono reducido)',
     color: '#fff8e1', border: '#ffe082', text: '#f57f17',
   },
   {
     id: 'MAINTENANCE',
-    label: 'Mantenimiento',
-    desc: 'Equilibrio entre producción y suelo',
+    label: 'Mantenimiento (análisis de suelo no disponible)',
     color: '#e3f2fd', border: '#90caf9', text: '#1565c0',
   },
   {
     id: 'MAXIMUM',
-    label: 'Máxima',
-    desc: 'Optimiza producción potencial máxima',
+    label: 'Acumulación y mantenimiento (máximo rendimiento)',
     color: '#fce4ec', border: '#f48fb1', text: '#880e4f',
   },
 ]

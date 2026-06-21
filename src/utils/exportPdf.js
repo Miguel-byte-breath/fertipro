@@ -390,8 +390,17 @@ export async function exportarPlanAbonadoPdf({
 
   // Dimensiones del recuadro
   const BOX_HEADER_H = 9  // banda azul de cabecera
-  // boxH = header + padding + subtítulo + objetivo + gap + círculos(diámetro) + pad inferior
-  const boxH = BOX_HEADER_H + 5 + 6 + 8 + 6 + BADGE_R * 2 + 6
+  // boxH = header + padding + subtítulo + objetivo + estrategia + gap + círculos(diámetro) + pad inferior
+  const boxH = BOX_HEADER_H + 5 + 6 + 8 + 7 + 6 + BADGE_R * 2 + 6
+
+  // Etiqueta legible de la estrategia de cálculo
+  const ESTRATEGIA_LABEL = {
+    SUFFICIENCY: 'Estrategia de suficiencia (minimo fertilizante)',
+    REDUCED:     'Acumulacion y mantenimiento (abono reducido)',
+    MAINTENANCE: 'Mantenimiento (analisis de suelo no disponible)',
+    MAXIMUM:     'Acumulacion y mantenimiento (maximo rendimiento)',
+  }
+  const estrategiaLabel = ESTRATEGIA_LABEL[calculo?.strategy] ?? calculo?.strategy ?? '—'
   const boxY = y
 
   // Fondo claro del recuadro
@@ -442,7 +451,17 @@ export async function exportarPlanAbonadoPdf({
     doc.setTextColor(...C_MUTED)
     doc.text(`Superficie: ${fmt(sup, 2)} ha`, boxX + boxW - 6, by, { align: 'right' })
   }
-  by += 8 + 6  // fila objetivo + gap antes de círculos
+  by += 8  // fila objetivo
+
+  // Estrategia de cálculo
+  doc.setFontSize(8.5)
+  doc.setFont('helvetica', 'normal')
+  doc.setTextColor(...C_MUTED)
+  doc.text('Estrategia', boxX + 6, by)
+  doc.setFont('helvetica', 'bold')
+  doc.setTextColor(...C_LABEL)
+  doc.text(estrategiaLabel, boxX + 57, by)
+  by += 7 + 6  // fila estrategia + gap antes de círculos
 
   // Círculos NPK — blancos con borde azul oscuro, más grandes
   const badges = [
