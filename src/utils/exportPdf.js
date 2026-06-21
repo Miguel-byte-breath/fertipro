@@ -141,6 +141,8 @@ export async function exportarPlanAbonadoPdf({
   pRiego               = 0,
   kRiego               = 0,
   asesor               = null,
+  suelo                = null,
+  cec                  = null,
   analisisPropio       = false,
   refAnalisisSuelo     = '',
   fertilizadoresManuales = [],  // alias legacy
@@ -734,6 +736,121 @@ export async function exportarPlanAbonadoPdf({
       },
     })
     y = doc.lastAutoTable.finalY + 6
+  }
+
+  // ── ANEXO: DATOS DE SUELO Y AGUA DE RIEGO ───────────────────────────────────
+  if (suelo) {
+    doc.addPage()
+    let ay = MT
+
+    // Título del anexo
+    doc.setFontSize(11)
+    doc.setFont('helvetica', 'bold')
+    doc.setTextColor(...C_TITLE)
+    doc.text('DATOS DE SUELO Y AGUA DE RIEGO', PW / 2, ay, { align: 'center' })
+    ay += 4
+    doc.setDrawColor(...C_BORDER)
+    doc.setLineWidth(0.4)
+    doc.line(ML, ay, PW - MR, ay)
+    ay += 8
+
+    // ── Suelo ──────────────────────────────────────────────────────────────
+    const SOIL_LBL = {
+      SANDY:      'Arenosa',
+      SANDY_LOAM: 'Franco arenosa',
+      LOAM:       'Franca',
+      SILTY_LOAM: 'Franco limosa',
+      CLAY_LOAM:  'Franco arcillosa',
+      CLAY:       'Arcillosa',
+    }
+
+    doc.setFontSize(9)
+    doc.setFont('helvetica', 'bold')
+    doc.setTextColor(...C_LABEL)
+    doc.text('ANALISIS DE SUELO', ML, ay)
+    ay += 5
+
+    const fuenteSuelo = analisisPropio
+      ? (refAnalisisSuelo
+          ? `Laboratorio propio  |  Ref. boletin: ${refAnalisisSuelo}`
+          : 'Laboratorio propio')
+      : 'ArcGIS Sativum (ITACyL) — suelos.itacyl.es'
+
+    const sueloRows = [
+      ['Fuente datos suelo', fuenteSuelo],
+      ...(suelo.soilTypeUsdaLabel
+        ? [['Textura (USDA oficial, capa ArcGIS)', suelo.soilTypeUsdaLabel]]
+        : []),
+      ['Textura simplificada (Sativum)', SOIL_LBL[suelo.soilType] ?? suelo.soilType ?? '—'],
+      ['Materia organica', suelo.organicMatter != null ? `${fmt(suelo.organicMatter, 2)} %` : '—'],
+      ['pH', suelo.ph != null ? fmt(suelo.ph, 1) : '—'],
+      ['P Olsen', suelo.pOlsen != null ? `${fmt(suelo.pOlsen, 1)} ppm` : '—'],
+      ['K suelo', suelo.kSoil != null ? `${fmtNum(suelo.kSoil, 0)} ppm` : '—'],
+      ['CEC (capacidad intercambio cationico)', cec != null ? `${fmtNum(cec, 0)} meq/kg` : '—'],
+    ]
+
+    autoTable(doc, {
+      startY: ay,
+      body:   sueloRows,
+      margin:     { left: ML, right: MR },
+      tableWidth: CW,
+      styles: {
+        fontSize:    8.5,
+        cellPadding: { top: 2.5, bottom: 2.5, left: 4, right: 4 },
+        lineColor: C_BORDER, lineWidth: 0.2,
+        font: 'helvetica', textColor: C_LABEL, valign: 'middle',
+      },
+      columnStyles: {
+        0: { cellWidth: 82, fontStyle: 'bold', fillColor: [245, 247, 250] },
+        1: { cellWidth: CW - 82 },
+      },
+    })
+    ay = doc.lastAutoTable.finalY + 10
+
+    // ── Agua de riego ──────────────────────────────────────────────────────
+    doc.setFontSize(9)
+    doc.setFont('helvetica', 'bold')
+    doc.setTextColor(...C_LABEL)
+    doc.text('AGUA DE RIEGO', ML, ay)
+    ay += 5
+
+    const tieneRiegoAnexo = riego?.sistemaExplotacion === 'regadio'
+    const aguaRows = [
+      ['Sistema de explotacion', tieneRiegoAnexo ? 'Regadio' : 'Secano'],
+    ]
+    if (tieneRiegoAnexo) {
+      aguaRows.push([
+        'Origen del agua (SIEX)',
+        riego.fuenteLabel ?? (riego.fuenteId > 0 ? `SIEX ${riego.fuenteId}` : 'Sin especificar'),
+      ])
+      if (riego.refAnalisisAgua)
+        aguaRows.push(['Ref. analisis agua', riego.refAnalisisAgua])
+      if (Number(riego.dotacionM3) > 0)
+        aguaRows.push(['Dotacion riego', `${fmtNum(Number(riego.dotacionM3), 0)} m³/ha`])
+      if (Number(riego.no3MgL) > 0)
+        aguaRows.push(['NO3 agua de riego', `${fmt(Number(riego.no3MgL), 1)} mg/L`])
+      if (Number(riego.pMgL) > 0)
+        aguaRows.push(['P agua de riego', `${fmt(Number(riego.pMgL), 1)} mg/L`])
+      if (Number(riego.kMgL) > 0)
+        aguaRows.push(['K agua de riego', `${fmt(Number(riego.kMgL), 1)} mg/L`])
+    }
+
+    autoTable(doc, {
+      startY: ay,
+      body:   aguaRows,
+      margin:     { left: ML, right: MR },
+      tableWidth: CW,
+      styles: {
+        fontSize:    8.5,
+        cellPadding: { top: 2.5, bottom: 2.5, left: 4, right: 4 },
+        lineColor: C_BORDER, lineWidth: 0.2,
+        font: 'helvetica', textColor: C_LABEL, valign: 'middle',
+      },
+      columnStyles: {
+        0: { cellWidth: 82, fontStyle: 'bold', fillColor: [235, 245, 255] },
+        1: { cellWidth: CW - 82 },
+      },
+    })
   }
 
   // ── 9. PIE DE PÁGINA (paginación X/N) ─────────────────────────────────────

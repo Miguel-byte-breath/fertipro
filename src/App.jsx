@@ -672,6 +672,8 @@ export default function App() {
         cultivoAnteriorParams,
         calculo,
         asesor,
+        suelo:           analisisPropio ? { ...(suelo ?? {}), ...sueloPersonalizado } : suelo,
+        cec,
         fecha,
         fechaInicioCiclo,
         fechaFinCiclo,
@@ -694,7 +696,7 @@ export default function App() {
     } finally {
       setExportingPlanPdf(false)
     }
-  }, [cultivo, resultados, recinto, riego, calculo, fecha, fechaInicioCiclo, fechaFinCiclo, cultivoAnterior, cultivoAnteriorParams, asesor, planItems, medidasGEI, polygonsToExport])
+  }, [cultivo, resultados, recinto, suelo, sueloPersonalizado, cec, riego, calculo, fecha, fechaInicioCiclo, fechaFinCiclo, analisisPropio, refAnalisisSuelo, cultivoAnterior, cultivoAnteriorParams, asesor, planItems, medidasGEI, polygonsToExport])
 
   // ── Render ─────────────────────────────────────────────────────────────
   const cargando      = estado === ESTADO.CARGANDO
