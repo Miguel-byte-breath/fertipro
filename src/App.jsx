@@ -46,6 +46,8 @@ import { slugify } from './utils/slugify'
 import { interseccionRecintos, enrichRecintos, detectarTipoParcela } from './utils/recintosInterseccion'
 import { exportarRecintosSigpacExcel, exportarPlanAbonado } from './utils/exportExcel'
 import { exportarPlanAbonadoPdf } from './utils/exportPdf'
+import { importarPlanDesdeExcel } from './utils/importExcel'
+import { getCultivos } from './api/sativum-crops'
 import { FUENTES_AGUA } from './data/sativum/fuentesAgua'
 
 const ESTADO = {
@@ -142,8 +144,9 @@ export default function App() {
     algoOverrides:  {},
   })
 
-  // Reset rendimiento/residuos al cambiar cultivo
+  // Reset rendimiento/residuos al cambiar cultivo (suprimido durante import)
   useEffect(() => {
+    if (isImportingRef.current) return
     setCalculo(prev => ({
       ...prev,
       cropYield:      cultivo?.yieldMedium ?? null,
@@ -160,10 +163,9 @@ export default function App() {
     setCec(CEC_BY_SOIL_TYPE[suelo.soilType] ?? 220)
   }, [suelo?.soilType])
 
-  // Auto-rellenar dotación de riego desde cultivo.irrigation al cambiar cultivo.
-  // Si el cultivo tiene dotación orientativa, se activa regadío por defecto.
+  // Auto-rellenar dotación de riego desde cultivo.irrigation al cambiar cultivo (suprimido durante import).
   useEffect(() => {
-    if (!cultivo) return
+    if (!cultivo || isImportingRef.current) return
     const irr = Number(cultivo.irrigation) || 0
     setRiego(prev => ({
       ...prev,
@@ -177,6 +179,12 @@ export default function App() {
   //              n, p2o5, k2o, cantidad, fechaAplicacion, esPersonalizado }
   const [planItems, setPlanItems] = useState([])
   const [metodologiaOpen, setMetodologiaOpen] = useState(false)
+
+  // ── Importación de plan ──────────────────────────────────────────────────
+  const importFileRef          = useRef(null)
+  const isImportingRef         = useRef(false)   // suprime los useEffect de reset al cambiar cultivo
+  const preservePlanItemsRef   = useRef(false)   // true tras import → primer calcular no resetea planItems
+  const [importAlert, setImportAlert] = useState(null)   // string | null
 
   // ── Medidas de mitigación GEI (Anexo V RD 1051/2022) ───────────────────
   const [medidasGEI, setMedidasGEI] = useState([])
@@ -210,7 +218,10 @@ export default function App() {
   const handleCalcularNecesidades = useCallback(async () => {
     if (!cultivo) return
     setResultados({ npk: null, npkParaRec: null, adjustedNutrient: 'N', nRiego: 0, pRiego: 0, kRiego: 0, loading: true, error: null })
-    setPlanItems([])   // resetear plan al recalcular
+    if (!preservePlanItemsRef.current) {
+      setPlanItems([])   // resetear plan al recalcular
+    }
+    preservePlanItemsRef.current = false
 
     try {
       // Riego efectivo según sistema de explotación y fuente SIEX
@@ -698,6 +709,84 @@ export default function App() {
     }
   }, [cultivo, resultados, recinto, suelo, sueloPersonalizado, cec, riego, calculo, fecha, fechaInicioCiclo, fechaFinCiclo, analisisPropio, refAnalisisSuelo, cultivoAnterior, cultivoAnteriorParams, asesor, planItems, medidasGEI, polygonsToExport])
 
+  // ── Importar plan desde Excel ─────────────────────────────────────────
+  const handleImportarPlan = useCallback(async (e) => {
+    const file = e.target.files?.[0]
+    if (!file) return
+    e.target.value = ''   // permite volver a seleccionar el mismo fichero
+    try {
+      const data = await importarPlanDesdeExcel(file)
+
+      // ── Obtener objetos cultivo COMPLETOS desde la API ──────────────────
+      // El stub del import solo tiene id/name/plantSpeciesGroup/…
+      // cultivoToCropFeatures necesita ~15 campos más (dryMatter, n, p, k, hi, fres…).
+      // Resolvemos con getCultivos() — el proxy Vite redirige a producción.
+      // Si el fetch falla, usamos el stub del import (sirve para mostrar, no calcular).
+      const needsLookup = !!(data.cultivoName || data.cultivoAnteriorName)
+      const allCrops    = needsLookup ? await getCultivos().catch(() => []) : []
+
+      const findCrop = (name, id) => {
+        if (!name || !allCrops.length) return null
+        return allCrops.find(c => c.name === name)
+            || (id != null ? allCrops.find(c => c.id === id) : null)
+            || null
+      }
+
+      const cultivoFinal         = findCrop(data.cultivoName,         data.cultivoId)
+                                || data.cultivo      // fallback al stub (sin API)
+                                || null
+      const cultivoAnteriorFinal = findCrop(data.cultivoAnteriorName, data.cultivoAnterior?.id)
+                                || data.cultivoAnterior
+                                || null
+
+      // Activar flag ANTES de cualquier setState: suprime los useEffect que
+      // resetean calculo/riego cuando cambia cultivo?.id.
+      // Los efectos se ejecutan tras el commit, antes del próximo setTimeout(0).
+      isImportingRef.current = true
+
+      if (data.fecha)            setFecha(data.fecha)
+      if (data.fechaInicioCiclo) setFechaInicioCiclo(data.fechaInicioCiclo)
+      if (data.fechaFinCiclo)    setFechaFinCiclo(data.fechaFinCiclo)
+      if (data.asesor)           setAsesor(data.asesor)
+
+      // Cultivo actual — objeto completo de la API (o stub como fallback)
+      if (cultivoFinal) setCultivo(cultivoFinal)
+
+      // Cultivo anterior — ídem
+      if (cultivoAnteriorFinal)      setCultivoAnterior(cultivoAnteriorFinal)
+      if (data.cultivoAnteriorParams) setCultivoAnteriorParams(data.cultivoAnteriorParams)
+
+      if (data.calculo)          setCalculo(prev => ({ ...prev, ...data.calculo }))
+      if (data.suelo)            setSuelo(data.suelo)
+      if (data.cec != null)      setCec(data.cec)
+      setAnalisisPropio(data.analisisPropio ?? false)
+      if (data.refAnalisisSuelo != null) setRefAnalisisSuelo(data.refAnalisisSuelo)
+      if (data.sueloPersonalizado)       setSueloPersonalizado(data.sueloPersonalizado)
+      if (data.riego)     setRiego(prev => ({ ...prev, ...data.riego }))
+      if (data.planItems) {
+        setPlanItems(data.planItems)
+        preservePlanItemsRef.current = true   // primer calcular post-import no resetea el plan
+      }
+      if (data.mediasGEI) setMedidasGEI(data.mediasGEI)
+
+      // Desactivar el flag tras el commit+efectos (efectos → antes de setTimeout 0)
+      setTimeout(() => { isImportingRef.current = false }, 0)
+
+      // Toast de confirmación
+      const cultivoTxt   = cultivoFinal?.name         ? ` · Cultivo: "${cultivoFinal.name}"`         : ''
+      const anteriorTxt  = cultivoAnteriorFinal?.name ? ` · Precedente: "${cultivoAnteriorFinal.name}"` : ''
+      const geometriaTxt = cultivoFinal
+        ? ' Carga la geometría en el mapa para consultar SIGPAC.'
+        : ' Selecciona el cultivo en el buscador y carga la geometría en el mapa.'
+      setImportAlert(`Plan cargado${cultivoTxt}${anteriorTxt}.${geometriaTxt}`)
+    } catch (err) {
+      isImportingRef.current = false
+      setImportAlert(`Error al cargar el plan: ${err.message || 'formato no reconocido'}`)
+    }
+    // Limpiar el aviso tras 10 segundos
+    setTimeout(() => setImportAlert(null), 10_000)
+  }, [])
+
   // ── Render ─────────────────────────────────────────────────────────────
   const cargando      = estado === ESTADO.CARGANDO
   const isCentroid    = activePolygonId != null
@@ -712,6 +801,23 @@ export default function App() {
             <div style={S.brandSub}>Planificación de nutrientes · Unidad de producción | Hoja de cultivo | Recinto</div>
           </div>
         </div>
+
+        {/* ── Cargar plan desde Excel ── */}
+        <input
+          ref={importFileRef}
+          type="file"
+          accept=".xlsx"
+          style={{ display: 'none' }}
+          onChange={handleImportarPlan}
+        />
+        <button
+          style={S.importBtn}
+          onClick={() => importFileRef.current?.click()}
+          title="Cargar plan de abonado desde Excel (restaura fechas, suelo, riego, asesor y plan de aplicaciones)"
+        >
+          📂 Cargar plan
+        </button>
+
         <button
           style={S.infoBtn}
           onClick={() => setMetodologiaOpen(true)}
@@ -720,6 +826,13 @@ export default function App() {
         <ModoIndicator activeId={activePolygonId} polygons={polygons} point={point} />
       </header>
       <MetodologiaModal open={metodologiaOpen} onClose={() => setMetodologiaOpen(false)} />
+
+      {/* Toast no bloqueante para el resultado de la importación */}
+      {importAlert && (
+        <div style={S.importToast} onClick={() => setImportAlert(null)} title="Clic para cerrar">
+          {importAlert}
+        </div>
+      )}
 
       <div style={S.body}>
         <div style={S.mapWrap}>
@@ -1042,8 +1155,24 @@ const S = {
   brandItacyl: { fontWeight: 400, fontSize: 13, opacity: 0.7 },
   brandSub:    { fontSize: 10, opacity: 0.70 },
   modo:       { textAlign: 'right', fontSize: 11 },
+  importBtn: {
+    marginLeft: 'auto',
+    background: 'rgba(255,255,255,0.12)', border: '1px solid rgba(255,255,255,0.35)',
+    color: '#fff', borderRadius: 5, padding: '5px 12px',
+    fontSize: 12, fontWeight: 600, fontFamily: 'inherit',
+    cursor: 'pointer', flexShrink: 0, whiteSpace: 'nowrap',
+    letterSpacing: 0.2,
+  },
+  importToast: {
+    position: 'fixed', bottom: 28, left: '50%', transform: 'translateX(-50%)',
+    background: 'rgba(26,35,126,0.94)', color: '#fff',
+    padding: '12px 22px', borderRadius: 22, fontSize: 13,
+    zIndex: 2000, maxWidth: 560, textAlign: 'center',
+    boxShadow: '0 3px 12px rgba(0,0,0,0.35)', lineHeight: 1.5,
+    cursor: 'pointer',
+  },
   infoBtn: {
-    marginLeft: 'auto', background: 'none', border: 'none',
+    background: 'none', border: 'none',
     cursor: 'pointer', fontSize: 18, lineHeight: 1, padding: '0 4px',
     opacity: 0.85, flexShrink: 0,
   },

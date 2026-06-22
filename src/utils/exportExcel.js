@@ -280,8 +280,14 @@ export async function exportarPlanAbonado({
 
   row('', null)  // spacer
 
-  row('Cultivo',               cultivo?.name)
-  row('Grupo',                 cultivo?.plantSpeciesGroup)
+  row('Cultivo',                    cultivo?.name)
+  row('Cultivo ID Sativum',        cultivo?.id ?? null)
+  row('Cultivo plantSpeciesGroup', cultivo?.plantSpeciesGroup ?? null)   // para reimport sin API
+  row('Cultivo yieldMedium',       num(cultivo?.yieldMedium, 2))
+  row('Cultivo nfixCode',          cultivo?.nfixCode != null ? String(Number(cultivo.nfixCode)) : null)
+  row('Cultivo cv',                num(cultivo?.cv, 4))
+  row('Cultivo irrigation',        num(cultivo?.irrigation, 0))
+  row('Grupo',                     cultivo?.plantSpeciesGroup)
   row('Rendimiento objetivo',  num(calculo?.cropYield ?? cultivo?.yieldMedium, 2), 'kg/ha')
   const ESTRATEGIA_LABEL = {
     SUFFICIENCY: 'Estrategia de suficiencia (mínimo fertilizante)',
@@ -289,6 +295,7 @@ export async function exportarPlanAbonado({
     MAINTENANCE: 'Mantenimiento (análisis de suelo no disponible)',
     MAXIMUM:     'Acumulación y mantenimiento (máximo rendimiento)',
   }
+  row('Estrategia ID',         calculo?.strategy)                                       // ID crudo para import robusto
   row('Estrategia',            ESTRATEGIA_LABEL[calculo?.strategy] ?? calculo?.strategy)
   row('Laboreo',               calculo?.tillage          ? 'Sí' : 'No')
   row('Residuos recogidos',    calculo?.recogeResiduos   ? 'Sí' : 'No')
@@ -303,7 +310,12 @@ export async function exportarPlanAbonado({
 
   // Cultivo anterior
   if (cultivoAnterior) {
-    row('Cultivo precedente',         cultivoAnterior.name)
+    row('Cultivo precedente',                    cultivoAnterior.name)
+    row('Cultivo precedente ID',                 cultivoAnterior?.id ?? null)    // para reimport
+    row('Cultivo precedente plantSpeciesGroup',  cultivoAnterior?.plantSpeciesGroup ?? null)
+    row('Cultivo precedente yieldMedium',        num(cultivoAnterior?.yieldMedium, 2))
+    row('Cultivo precedente nfixCode',           cultivoAnterior?.nfixCode != null ? String(Number(cultivoAnterior.nfixCode)) : null)
+    row('Cultivo precedente cv',                 num(cultivoAnterior?.cv, 4))
     row('  Rendimiento precedente',   num(cultivoAnteriorParams?.cropYield ?? cultivoAnterior.yieldMedium, 2), 'kg/ha')
     row('  Laboreo tras cosecha',     cultivoAnteriorParams?.laboreo        ? 'Sí' : 'No')
     row('  Residuos precedente',      cultivoAnteriorParams?.recogeResiduos ? 'Recogidos' : 'Incorporados')
@@ -420,6 +432,10 @@ export async function exportarPlanAbonado({
         'N efectivo (kg/ha)':      ef.efN,            // null si no orgánico
         'P₂O₅ efectivo (kg/ha)':  ef.efP2o5,
         'K₂O efectivo (kg/ha)':   ef.efK2o,
+        'Año 0 (%)':              item.appliesAnnualEffectiveness ? (item.yearPercent0 ?? null) : null,
+        'Año 1 (%)':              item.appliesAnnualEffectiveness ? (item.yearPercent1 ?? null) : null,
+        'Año 2 (%)':              item.appliesAnnualEffectiveness ? (item.yearPercent2 ?? null) : null,
+        'Org. (ef. anual)':       item.appliesAnnualEffectiveness ? 'Sí' : null,
         'Fecha aplicación':        item.fechaAplicacion ?? null,
         'ΣN (kg/ha)':              num(sigN,    1),
         'ΣP₂O₅ (kg/ha)':          num(sigP2o5, 1),
@@ -446,6 +462,10 @@ export async function exportarPlanAbonado({
     { wch: 20 }, // N efectivo
     { wch: 22 }, // P₂O₅ efectivo
     { wch: 20 }, // K₂O efectivo
+    { wch:  9 }, // Año 0 (%)
+    { wch:  9 }, // Año 1 (%)
+    { wch:  9 }, // Año 2 (%)
+    { wch: 14 }, // Org. (ef. anual)
     { wch: 16 }, // Fecha aplicación
     { wch: 14 }, // ΣN
     { wch: 16 }, // ΣP₂O₅

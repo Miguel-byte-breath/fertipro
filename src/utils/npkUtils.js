@@ -29,7 +29,7 @@ export function calcNpkEfectivo(item, fechaInicioCiclo) {
   const brutoP2o5 = (item.p2o5 ?? 0) * dose / 100
   const brutoK2o  = (item.k2o  ?? 0) * dose / 100
 
-  if (!item.appliesAnnualEffectiveness || !item.fechaAplicacion || !fechaInicioCiclo) {
+  if (!item.appliesAnnualEffectiveness || !item.fechaAplicacion) {
     return {
       efN: brutoN, efP2o5: brutoP2o5, efK2o: brutoK2o,
       brutoN, brutoP2o5, brutoK2o,
@@ -37,7 +37,10 @@ export function calcNpkEfectivo(item, fechaInicioCiclo) {
     }
   }
 
-  const yearInicio = new Date(fechaInicioCiclo  + 'T00:00:00').getFullYear()
+  // Si no hay fecha de inicio de ciclo, usar el año en curso como referencia
+  // (delta = 0 → aplica yearPercent0). Es mejor que mostrar el bruto.
+  const cicloRef   = fechaInicioCiclo || new Date().toISOString().slice(0, 10)
+  const yearInicio = new Date(cicloRef             + 'T00:00:00').getFullYear()
   const yearAplic  = new Date(item.fechaAplicacion + 'T00:00:00').getFullYear()
   const delta = Math.min(2, Math.max(0, yearInicio - yearAplic))
   const pct   = item[`yearPercent${delta}`] ?? 100
