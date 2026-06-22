@@ -265,10 +265,12 @@ export async function exportarPlanAbonado({
   if (asesor?.nombre || asesor?.regfer) {
     const nombreCompleto = [asesor.nombre, asesor.apellidos].filter(Boolean).join(' ')
     row('Asesor responsable del plan', nombreCompleto || null)
-    if (asesor.regfer)   row('Nº REGFER', asesor.regfer)
-    if (asesor.nif)      row('NIF asesor', asesor.nif)
-    if (asesor.telefono) row('Teléfono asesor', asesor.telefono)
-    if (asesor.email)    row('Email asesor', asesor.email)
+    if (asesor.nombre)    row('Nombre asesor',    asesor.nombre)
+    if (asesor.apellidos) row('Apellidos asesor', asesor.apellidos)
+    if (asesor.regfer)    row('Nº REGFER', asesor.regfer)
+    if (asesor.nif)       row('NIF asesor', asesor.nif)
+    if (asesor.telefono)  row('Teléfono asesor', asesor.telefono)
+    if (asesor.email)     row('Email asesor', asesor.email)
   }
   row('Longitud', num(point?.lon, 5), '°')
   row('Latitud',  num(point?.lat, 5), '°')

@@ -200,17 +200,20 @@ export async function importarPlanDesdeExcel(file) {
   // Asesor
   const asesor = {
     regfer:    toStr(campos['Nº REGFER']),
-    nombre:    '',
-    apellidos: '',
+    nombre:    toStr(campos['Nombre asesor'])    || '',
+    apellidos: toStr(campos['Apellidos asesor']) || '',
     nif:       toStr(campos['NIF asesor']),
     telefono:  toStr(campos['Teléfono asesor']),
     email:     toStr(campos['Email asesor']),
   }
-  const nombreCompleto = campos['Asesor responsable del plan']
-  if (nombreCompleto) {
-    const parts      = String(nombreCompleto).trim().split(' ')
-    asesor.nombre    = parts[0] ?? ''
-    asesor.apellidos = parts.slice(1).join(' ')
+  // Backward compat: Excels anteriores no tienen campos separados → split del nombre completo
+  if (!asesor.nombre && !asesor.apellidos) {
+    const nombreCompleto = campos['Asesor responsable del plan']
+    if (nombreCompleto) {
+      const parts      = String(nombreCompleto).trim().split(' ')
+      asesor.nombre    = parts[0] ?? ''
+      asesor.apellidos = parts.slice(1).join(' ')
+    }
   }
 
   // ─── Cultivo actual ────────────────────────────────────────────────────────
