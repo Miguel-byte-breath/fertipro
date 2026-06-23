@@ -18,7 +18,12 @@ async function checkOnce(url) {
   const controller = new AbortController()
   const t = setTimeout(() => controller.abort(), TIMEOUT_MS)
   try {
-    const res = await fetch(url, { signal: controller.signal })
+    // cache: 'no-store' evita que el edge de Vercel sirva una respuesta cacheada
+    // &_hc=ts como segundo mecanismo de cache-busting (URL única por check)
+    const res = await fetch(`${url}&_hc=${Date.now()}`, {
+      signal: controller.signal,
+      cache:  'no-store',
+    })
     return res.status < 500 ? 'ok' : 'down'   // 4xx = vivo; 5xx = problema
   } catch {
     return 'down'
