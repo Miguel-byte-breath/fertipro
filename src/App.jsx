@@ -406,10 +406,13 @@ export default function App() {
     setRecintosLoading(true)
     setSuelo(null)
     try {
-      const [rec, arcgisData] = await Promise.all([
+      const [recResult, arcgisResult] = await Promise.allSettled([
         getSigpacRecinto(lon, lat),
         identifySativum(lon, lat),
       ])
+      const rec        = recResult.status === 'fulfilled'  ? recResult.value  : null
+      const arcgisData = arcgisResult.status === 'fulfilled' ? arcgisResult.value : null
+      if (recResult.status === 'rejected') showApiError('SIGPAC', recResult.reason)
       setRecinto(rec)
       setSuelo(normalizarSuelo(arcgisData))
       setEstado(ESTADO.LISTO)
@@ -434,8 +437,9 @@ export default function App() {
         setRecintosLoading(false)
       }
     } catch (err) {
-      showApiError('SIGPAC', err)
-      setError(err.message || 'Error consultando SIGPAC.')
+      // Aquí solo llegan errores de programación inesperados (Promise.allSettled no rechaza)
+      console.error('[queryCoords] error inesperado:', err)
+      setError(err.message || 'Error inesperado.')
       setEstado(ESTADO.ERROR)
       setRecintosLoading(false)
     }
