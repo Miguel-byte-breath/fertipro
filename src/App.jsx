@@ -839,6 +839,7 @@ export default function App() {
           cultivo:  cultivo.name,
           fecha_ini: fechaInicioCiclo,
           fecha_fin: fechaFinCiclo,
+          ...(riego.dotacionM3 ? { vol_disponible: Number(riego.dotacionM3) } : {}),
         }),
       })
       const data = await res.json()
@@ -856,7 +857,7 @@ export default function App() {
     } finally {
       setPlanRiegoLoading(false)
     }
-  }, [cultivo, fechaInicioCiclo, fechaFinCiclo, point, showApiError])
+  }, [cultivo, fechaInicioCiclo, fechaFinCiclo, point, riego.dotacionM3, showApiError])
 
   const handleExportarPlanRiego = useCallback(() => {
     if (!planRiego) return
