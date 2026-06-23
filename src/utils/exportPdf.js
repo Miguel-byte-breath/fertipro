@@ -1010,7 +1010,7 @@ export function exportarPlanRiegoPdf({ cultivo, fechaIni, fechaFin, planRiego })
       textColor: C_LABEL, valign: 'middle',
     },
     headStyles: {
-      fillColor: C_DARK, textColor: [255, 255, 255], fontStyle: 'bold', halign: 'right',
+      fillColor: C_TITLE, textColor: [255, 255, 255], fontStyle: 'bold', halign: 'right',
     },
     columnStyles: {
       0: { cellWidth: 22, halign: 'right' },
@@ -1022,12 +1022,12 @@ export function exportarPlanRiegoPdf({ cultivo, fechaIni, fechaFin, planRiego })
       if (data.row.index === programacion_semanal.length) {
         data.cell.styles.fillColor = [220, 235, 255]
         data.cell.styles.fontStyle = 'bold'
-        data.cell.styles.textColor = C_DARK
+        data.cell.styles.textColor = C_TITLE
       }
       // Celdas con riego: azul oscuro
       if (data.column.index === 2 && data.row.index < programacion_semanal.length) {
         const val = programacion_semanal[data.row.index]?.riego_neto_m3ha || 0
-        if (val > 0) data.cell.styles.textColor = C_DARK
+        if (val > 0) data.cell.styles.textColor = C_TITLE
         else         data.cell.styles.textColor = [180, 180, 180]
       }
     },
@@ -1066,7 +1066,7 @@ export function exportarPlanRiegoPdf({ cultivo, fechaIni, fechaFin, planRiego })
       textColor: C_LABEL, valign: 'middle', halign: 'right',
     },
     headStyles: {
-      fillColor: C_DARK, textColor: [255, 255, 255], fontStyle: 'bold', halign: 'right', fontSize: 7,
+      fillColor: C_TITLE, textColor: [255, 255, 255], fontStyle: 'bold', halign: 'right', fontSize: 7,
     },
     columnStyles: {
       0: { cellWidth: 18, halign: 'left' },
@@ -1081,7 +1081,7 @@ export function exportarPlanRiegoPdf({ cultivo, fechaIni, fechaFin, planRiego })
     didParseCell(data) {
       if (data.column.index === 7 && data.section === 'body') {
         const val = balance_mensual[data.row.index]?.asignado_m3ha || 0
-        if (val > 0) { data.cell.styles.textColor = C_DARK; data.cell.styles.fontStyle = 'bold' }
+        if (val > 0) { data.cell.styles.textColor = C_TITLE; data.cell.styles.fontStyle = 'bold' }
       }
     },
   })
