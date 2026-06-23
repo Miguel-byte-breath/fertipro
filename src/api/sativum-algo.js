@@ -176,20 +176,15 @@ export function ensamblarPayloadAlgo(cultivos, suelo, opts = {}) {
 export async function calcularNPK(cultivos, suelo, opts = {}) {
   const payload = ensamblarPayloadAlgo(cultivos, suelo, opts)
 
-  try {
-    const res  = await fetch('/api/sativum-algo', {
-      method:  'POST',
-      headers: { 'Content-Type': 'application/json' },
-      body:    JSON.stringify(payload),
-    })
-    const data = await res.json().catch(() => null)
-    if (!res.ok) {
-      if (res.status === 503 && data?.stub) return null
-      throw new Error(data?.error || `sativum-algo ${res.status}`)
-    }
-    return data
-  } catch (err) {
-    console.warn('[sativum-algo]', err.message)
-    return null
+  const res  = await fetch('/api/sativum-algo', {
+    method:  'POST',
+    headers: { 'Content-Type': 'application/json' },
+    body:    JSON.stringify(payload),
+  })
+  const data = await res.json().catch(() => null)
+  if (!res.ok) {
+    if (res.status === 503 && data?.stub) return null
+    throw new Error(data?.error || `Sativum error ${res.status}`)
   }
+  return data
 }

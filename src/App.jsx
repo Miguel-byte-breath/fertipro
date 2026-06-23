@@ -186,6 +186,26 @@ export default function App() {
   const isImportingRef         = useRef(false)   // suprime los useEffect de reset al cambiar cultivo
   const preservePlanItemsRef   = useRef(false)   // true tras import → primer calcular no resetea planItems
   const [importAlert, setImportAlert] = useState(null)   // string | null
+  const [apiError,    setApiError]    = useState(null)   // { msg, key } | null
+
+  // Muestra un toast de error de API y lo auto-descarta tras 10 s
+  const showApiError = useCallback((service, err) => {
+    const msg = err?.message || ''
+    let text
+    if (/timeout/i.test(msg) || err?.status === 504)
+      text = `${service} no responde. Reintenta en unos segundos.`
+    else if (/50[23]|no disponible|conectando/i.test(msg))
+      text = `${service} no está disponible ahora. Inténtalo en unos minutos.`
+    else
+      text = `Error en ${service}. ${msg || 'Inténtalo de nuevo.'}`
+    setApiError({ msg: text, key: Date.now() })
+  }, [])
+
+  useEffect(() => {
+    if (!apiError) return
+    const t = setTimeout(() => setApiError(null), 10000)
+    return () => clearTimeout(t)
+  }, [apiError?.key])
 
   // ── Medidas de mitigación GEI (Anexo V RD 1051/2022) ───────────────────
   const [medidasGEI, setMedidasGEI] = useState([])
@@ -339,9 +359,10 @@ export default function App() {
 
       setResultados({ npk: npkData, npkParaRec, adjustedNutrient: adjNutrient, nRiego, pRiego, kRiego, loading: false, error: null })
     } catch (err) {
+      showApiError('Sativum', err)
       setResultados({ npk: null, npkParaRec: null, adjustedNutrient: 'N', nRiego: 0, pRiego: 0, kRiego: 0, loading: false, error: err.message || 'Error en el cálculo.' })
     }
-  }, [cultivo, suelo, cec, riego, calculo, cultivoAnterior, cultivoAnteriorParams])
+  }, [cultivo, suelo, cec, riego, calculo, cultivoAnterior, cultivoAnteriorParams, showApiError])
 
   // ── Estado generación informe Excel SIGPAC ─────────────────────────────
   const [loadingExcel, setLoadingExcel] = useState(false)
@@ -409,11 +430,12 @@ export default function App() {
         setRecintosLoading(false)
       }
     } catch (err) {
+      showApiError('SIGPAC', err)
       setError(err.message || 'Error consultando SIGPAC.')
       setEstado(ESTADO.ERROR)
       setRecintosLoading(false)
     }
-  }, [])
+  }, [showApiError])
 
   // ── Modo punto libre (clic en mapa) ────────────────────────────────────
   const handleCoordSelect = useCallback(({ lon, lat }) => {
@@ -813,17 +835,20 @@ export default function App() {
       })
       const data = await res.json()
       if (!data.ok) {
-        setPlanRiegoError(data.error || 'Error desconocido en SIG Riego')
+        const errMsg = data.error || 'Error desconocido en SIG Riego'
+        showApiError('SIAR', { message: errMsg, status: res.status })
+        setPlanRiegoError(errMsg)
       } else {
         setPlanRiego(data)
         setPlanRiegoOpen(true)
       }
     } catch (err) {
+      showApiError('SIAR', err)
       setPlanRiegoError(err.message)
     } finally {
       setPlanRiegoLoading(false)
     }
-  }, [cultivo, fechaInicioCiclo, fechaFinCiclo, point])
+  }, [cultivo, fechaInicioCiclo, fechaFinCiclo, point, showApiError])
 
   const handleExportarPlanRiego = useCallback(() => {
     if (!planRiego) return
@@ -879,6 +904,13 @@ export default function App() {
       {importAlert && (
         <div style={S.importToast} onClick={() => setImportAlert(null)} title="Clic para cerrar">
           {importAlert}
+        </div>
+      )}
+
+      {/* Toast de error de API — SIGPAC / Sativum / SIAR (auto-descarta en 10 s) */}
+      {apiError && (
+        <div style={S.apiErrorToast} onClick={() => setApiError(null)} title="Clic para cerrar">
+          ⚠ {apiError.msg}
         </div>
       )}
 
@@ -1261,6 +1293,14 @@ const S = {
     background: 'rgba(26,35,126,0.94)', color: '#fff',
     padding: '12px 22px', borderRadius: 22, fontSize: 13,
     zIndex: 2000, maxWidth: 560, textAlign: 'center',
+    boxShadow: '0 3px 12px rgba(0,0,0,0.35)', lineHeight: 1.5,
+    cursor: 'pointer',
+  },
+  apiErrorToast: {
+    position: 'fixed', bottom: 76, left: '50%', transform: 'translateX(-50%)',
+    background: 'rgba(183,28,28,0.93)', color: '#fff',
+    padding: '12px 22px', borderRadius: 22, fontSize: 13,
+    zIndex: 2001, maxWidth: 560, textAlign: 'center',
     boxShadow: '0 3px 12px rgba(0,0,0,0.35)', lineHeight: 1.5,
     cursor: 'pointer',
   },
