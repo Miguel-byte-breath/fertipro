@@ -333,6 +333,7 @@ export async function exportarPlanAbonado({
   if (analisisPropio) row('Fuente datos suelo', 'Laboratorio propio')
   if (refAnalisisSuelo) row('Ref. boletín análisis suelo', refAnalisisSuelo)
   row('Textura suelo',      soilLabel)
+  row('Textura USDA',       suelo?.soilTypeUsdaLabel ?? null)
   row('Materia orgánica',   num(suelo?.organicMatter, 2), '%')
   row('pH',                 num(suelo?.ph, 1))
   row('P Olsen',            num(suelo?.pOlsen, 1),  'ppm')

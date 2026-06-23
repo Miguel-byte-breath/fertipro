@@ -286,11 +286,12 @@ export async function importarPlanDesdeExcel(file) {
   const soilTypeKey      = parseSoilTypeKey(campos['Textura suelo'])
 
   const sueloImportado = {
-    soilType:      soilTypeKey ?? 'LOAM',
-    organicMatter: toNum(campos['Materia orgánica']),
-    ph:            toNum(campos['pH']),
-    pOlsen:        toNum(campos['P Olsen']),
-    kSoil:         toNum(campos['K suelo']),
+    soilType:          soilTypeKey ?? 'LOAM',
+    soilTypeUsdaLabel: toStr(campos['Textura USDA']) || null,
+    organicMatter:     toNum(campos['Materia orgánica']),
+    ph:                toNum(campos['pH']),
+    pOlsen:            toNum(campos['P Olsen']),
+    kSoil:             toNum(campos['K suelo']),
   }
   // sueloPersonalizado: solo cuando el plan se generó con análisis propio
   const sueloPersonalizado = analisisPropio ? { ...sueloImportado } : {}
