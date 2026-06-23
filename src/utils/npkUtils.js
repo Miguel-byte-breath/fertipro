@@ -15,7 +15,7 @@
  * Para orgánicos:
  *   delta = year(fechaInicioCiclo) - year(fechaAplicacion), clamp [0,2]
  *   pct   = item.yearPercent{delta} ?? 100
- *   ef*   = bruto* × pct / 100
+ *   ef*   = bruto* x pct / 100
  *
  * @param {object} item          — planItem con campos n, p2o5, k2o, cantidad,
  *                                  fechaAplicacion, appliesAnnualEffectiveness,

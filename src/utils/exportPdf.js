@@ -902,3 +902,214 @@ export async function exportarPlanAbonadoPdf({
   // ── 8. DESCARGA ───────────────────────────────────────────────────────────
   doc.save(`${baseName}.pdf`)
 }
+
+// ─────────────────────────────────────────────────────────────────────────────
+// exportarPlanRiegoPdf
+// Genera y descarga el "Plan de Riego Semanal" en PDF.
+//
+// Params:
+//   cultivo   — objeto Sativum ({ name, ... })
+//   fechaIni  — 'YYYY-MM-DD'
+//   fechaFin  — 'YYYY-MM-DD'
+//   planRiego — respuesta de /api/calcular-riego
+//               { ok, redistribucion_termica, programacion_semanal[], balance_mensual[], estacion? }
+// ─────────────────────────────────────────────────────────────────────────────
+export function exportarPlanRiegoPdf({ cultivo, fechaIni, fechaFin, planRiego }) {
+  if (!planRiego?.ok) return
+
+  const doc = new jsPDF({ unit: 'mm', format: 'a4', orientation: 'portrait' })
+
+  const { redistribucion_termica, programacion_semanal = [], balance_mensual = [], estacion } = planRiego
+
+  // ── Helpers ──────────────────────────────────────────────────────────────
+  const fmtN  = (v, d = 0) => (v == null || isNaN(v)) ? '—' : Number(v).toLocaleString('es-ES', { minimumFractionDigits: d, maximumFractionDigits: d })
+  const fmtFecha = (iso) => {
+    if (!iso) return '—'
+    const [y, m, d] = iso.split('-')
+    return `${d}/${m}/${y}`
+  }
+  const totalRiego = programacion_semanal.reduce((s, r) => s + (r.riego_neto_m3ha || 0), 0)
+
+  // ── Layout ───────────────────────────────────────────────────────────────
+  let y = MT
+
+  // ── 1. CABECERA ──────────────────────────────────────────────────────────
+  // Banda azul oscuro
+  doc.setFillColor(...C_DARK)
+  doc.rect(0, 0, PW, 18, 'F')
+
+  // Logo FertiPRO (texto)
+  doc.setFont('helvetica', 'bold')
+  doc.setFontSize(13)
+  doc.setTextColor(255, 255, 255)
+  doc.text('FertiPRO', ML, 11)
+
+  // Título
+  doc.setFontSize(10)
+  doc.setFont('helvetica', 'normal')
+  doc.text('PLAN DE RIEGO SEMANAL', ML + 32, 11)
+
+  // Atribución derecha
+  doc.setFontSize(7)
+  doc.setTextColor(180, 210, 255)
+  doc.text('Datos climaticos: SIAR MAPA (ETo oficial) · Motor: SIG Riego Pro', PW - MR, 11, { align: 'right' })
+
+  y = 24
+
+  // ── 2. METADATOS ─────────────────────────────────────────────────────────
+  const meta = [
+    ['Cultivo', cultivo?.name || '—'],
+    ['Ciclo', `${fmtFecha(fechaIni)} - ${fmtFecha(fechaFin)}`],
+    ['Redistribucion termica', redistribucion_termica ? 'Activa' : 'No aplicada'],
+    ['Riego total asignado', `${fmtN(totalRiego)} m3/ha`],
+    ['Semanas con riego', `${programacion_semanal.filter(r => r.riego_neto_m3ha > 0).length} de ${programacion_semanal.length}`],
+  ]
+  if (estacion) meta.push(['Estacion SIAR mas proxima', estacion])
+
+  autoTable(doc, {
+    startY: y,
+    body:   meta,
+    margin:     { left: ML, right: MR },
+    tableWidth: CW,
+    styles: {
+      fontSize: 8.5, cellPadding: { top: 2.5, bottom: 2.5, left: 4, right: 4 },
+      lineColor: C_BORDER, lineWidth: 0.2, font: 'helvetica',
+      textColor: C_LABEL, valign: 'middle',
+    },
+    columnStyles: {
+      0: { cellWidth: 72, fontStyle: 'bold', fillColor: [235, 245, 255] },
+      1: { cellWidth: CW - 72 },
+    },
+  })
+
+  y = doc.lastAutoTable.finalY + 8
+
+  // ── 3. PROGRAMACIÓN SEMANAL ───────────────────────────────────────────────
+  doc.setFont('helvetica', 'bold')
+  doc.setFontSize(9)
+  doc.setTextColor(...C_LABEL)
+  doc.text('PROGRAMACION SEMANAL', ML, y)
+  y += 4
+
+  autoTable(doc, {
+    startY: y,
+    head: [['Semana', 'Periodo', 'Riego neto (m3/ha)']],
+    body: [
+      ...programacion_semanal.map(r => [
+        r.semana,
+        `${r.fecha_ini} - ${r.fecha_fin}`,
+        r.riego_neto_m3ha > 0 ? fmtN(r.riego_neto_m3ha) : '—',
+      ]),
+      ['', 'TOTAL', fmtN(totalRiego)],
+    ],
+    margin:     { left: ML, right: MR },
+    tableWidth: CW,
+    styles: {
+      fontSize: 8, cellPadding: { top: 2, bottom: 2, left: 4, right: 4 },
+      lineColor: C_BORDER, lineWidth: 0.2, font: 'helvetica',
+      textColor: C_LABEL, valign: 'middle',
+    },
+    headStyles: {
+      fillColor: C_DARK, textColor: [255, 255, 255], fontStyle: 'bold', halign: 'right',
+    },
+    columnStyles: {
+      0: { cellWidth: 22, halign: 'right' },
+      1: { cellWidth: CW - 22 - 38, halign: 'left' },
+      2: { cellWidth: 38, halign: 'right', fontStyle: 'bold' },
+    },
+    didParseCell(data) {
+      // Fila TOTAL: fondo azul claro
+      if (data.row.index === programacion_semanal.length) {
+        data.cell.styles.fillColor = [220, 235, 255]
+        data.cell.styles.fontStyle = 'bold'
+        data.cell.styles.textColor = C_DARK
+      }
+      // Celdas con riego: azul oscuro
+      if (data.column.index === 2 && data.row.index < programacion_semanal.length) {
+        const val = programacion_semanal[data.row.index]?.riego_neto_m3ha || 0
+        if (val > 0) data.cell.styles.textColor = C_DARK
+        else         data.cell.styles.textColor = [180, 180, 180]
+      }
+    },
+  })
+
+  y = doc.lastAutoTable.finalY + 10
+
+  // ── 4. BALANCE HÍDRICO MENSUAL ────────────────────────────────────────────
+  // Nueva página si no hay espacio suficiente
+  if (y > 220) { doc.addPage(); y = MT }
+
+  doc.setFont('helvetica', 'bold')
+  doc.setFontSize(9)
+  doc.setTextColor(...C_LABEL)
+  doc.text('BALANCE HIDRICO MENSUAL', ML, y)
+  y += 4
+
+  autoTable(doc, {
+    startY: y,
+    head: [['Mes', 'ETo\n(mm/dia)', 'Kc', 'ETc\n(mm)', 'P\n(mm)', 'Pe\n(mm)', 'NHN\n(m3/ha)', 'Asignado\n(m3/ha)']],
+    body: balance_mensual.map(r => [
+      r.mes,
+      fmtN(r.eto_mm_dia, 2),
+      fmtN(r.kc, 2),
+      fmtN(r.etc_mm),
+      fmtN(r.p_mm, 1),
+      fmtN(r.pe_mm, 1),
+      r.nhn_m3ha > 0 ? fmtN(r.nhn_m3ha) : '—',
+      r.asignado_m3ha > 0 ? fmtN(r.asignado_m3ha) : '—',
+    ]),
+    margin:     { left: ML, right: MR },
+    tableWidth: CW,
+    styles: {
+      fontSize: 7.5, cellPadding: { top: 2, bottom: 2, left: 3, right: 3 },
+      lineColor: C_BORDER, lineWidth: 0.2, font: 'helvetica',
+      textColor: C_LABEL, valign: 'middle', halign: 'right',
+    },
+    headStyles: {
+      fillColor: C_DARK, textColor: [255, 255, 255], fontStyle: 'bold', halign: 'right', fontSize: 7,
+    },
+    columnStyles: {
+      0: { cellWidth: 18, halign: 'left' },
+      1: { cellWidth: 20 },
+      2: { cellWidth: 14 },
+      3: { cellWidth: 18 },
+      4: { cellWidth: 18 },
+      5: { cellWidth: 18 },
+      6: { cellWidth: 24 },
+      7: { cellWidth: CW - 18 - 20 - 14 - 18 - 18 - 18 - 24 },
+    },
+    didParseCell(data) {
+      if (data.column.index === 7 && data.section === 'body') {
+        const val = balance_mensual[data.row.index]?.asignado_m3ha || 0
+        if (val > 0) { data.cell.styles.textColor = C_DARK; data.cell.styles.fontStyle = 'bold' }
+      }
+    },
+  })
+
+  // Nota al pie de tabla
+  const noteY = doc.lastAutoTable.finalY + 3
+  doc.setFont('helvetica', 'italic')
+  doc.setFontSize(6.5)
+  doc.setTextColor(...C_MUTED)
+  doc.text('NHN = Necesidad Hidrica Neta (ETc - Pe)  ·  Pe = Precipitacion efectiva  ·  Fuente climatica: SIAR MAPA (ETo oficial)', ML, noteY)
+
+  // ── 5. PIE DE PÁGINA ─────────────────────────────────────────────────────
+  const totalPages = doc.internal.getNumberOfPages()
+  for (let i = 1; i <= totalPages; i++) {
+    doc.setPage(i)
+    const footerY = doc.internal.pageSize.getHeight() - MB + 2
+    doc.setDrawColor(...C_BORDER)
+    doc.setLineWidth(0.3)
+    doc.line(ML, footerY, PW - MR, footerY)
+    doc.setFontSize(8)
+    doc.setFont('helvetica', 'normal')
+    doc.setTextColor(...C_MUTED)
+    doc.text(`Pagina ${i}/${totalPages}`, PW / 2, footerY + 5, { align: 'center' })
+    doc.text('FertiPRO', ML, footerY + 5)
+    doc.text(`Generado: ${new Date().toLocaleDateString('es-ES')}`, PW - MR, footerY + 5, { align: 'right' })
+  }
+
+  // ── 6. DESCARGA ───────────────────────────────────────────────────────────
+  const nombreCultivo = cultivo?.name ? cultivo.name.replace(/\s+/g, '_').slice(0, 30) : 'cultivo'
+  doc.save(`plan_riego_${nombreCultivo}.pdf`)
+}

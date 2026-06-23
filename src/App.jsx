@@ -32,6 +32,7 @@ import AsesoramientoPanel        from './components/AsesoramientoPanel'
 import FertilizanteManualPanel   from './components/FertilizanteManualPanel'
 import MetodologiaModal          from './components/MetodologiaModal'
 import MedidasMitigacionPanel   from './components/MedidasMitigacionPanel'
+import PlanRiegoModal           from './components/PlanRiegoModal'
 import SativumApplicationDialog  from './components/SativumApplicationDialog'
 import { calcularNPK, calcularNAgua }  from './api/sativum-algo'
 import { FUENTE_SUBTERRANEA, FUENTE_SIN_RIEGO } from './data/sativum/fuentesAgua'
@@ -45,7 +46,7 @@ import {
 import { slugify } from './utils/slugify'
 import { interseccionRecintos, enrichRecintos, detectarTipoParcela } from './utils/recintosInterseccion'
 import { exportarRecintosSigpacExcel, exportarPlanAbonado } from './utils/exportExcel'
-import { exportarPlanAbonadoPdf } from './utils/exportPdf'
+import { exportarPlanAbonadoPdf, exportarPlanRiegoPdf } from './utils/exportPdf'
 import { importarPlanDesdeExcel } from './utils/importExcel'
 import { getCultivos } from './api/sativum-crops'
 import { FUENTES_AGUA } from './data/sativum/fuentesAgua'
@@ -188,6 +189,12 @@ export default function App() {
 
   // ── Medidas de mitigación GEI (Anexo V RD 1051/2022) ───────────────────
   const [medidasGEI, setMedidasGEI] = useState([])
+
+  // ── Plan de riego (SIG Riego Pro) ─────────────────────────────────────
+  const [planRiego,        setPlanRiego]        = useState(null)
+  const [planRiegoOpen,    setPlanRiegoOpen]    = useState(false)
+  const [planRiegoLoading, setPlanRiegoLoading] = useState(false)
+  const [planRiegoError,   setPlanRiegoError]   = useState(null)
 
   // Diálogo de aplicación Sativum
   const [sativumDialogOpen, setSativumDialogOpen] = useState(false)
@@ -787,6 +794,47 @@ export default function App() {
     setTimeout(() => setImportAlert(null), 10_000)
   }, [])
 
+  // ── Plan de riego: obtener desde SIG Riego Pro ────────────────────────
+  const handleObtenerPlanRiego = useCallback(async () => {
+    if (!cultivo || !fechaInicioCiclo || !fechaFinCiclo || !point) return
+    setPlanRiegoLoading(true)
+    setPlanRiegoError(null)
+    try {
+      const res = await fetch('/api/plan-riego', {
+        method:  'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body:    JSON.stringify({
+          lat:      point.lat,
+          lon:      point.lon,
+          cultivo:  cultivo.name,
+          fecha_ini: fechaInicioCiclo,
+          fecha_fin: fechaFinCiclo,
+        }),
+      })
+      const data = await res.json()
+      if (!data.ok) {
+        setPlanRiegoError(data.error || 'Error desconocido en SIG Riego')
+      } else {
+        setPlanRiego(data)
+        setPlanRiegoOpen(true)
+      }
+    } catch (err) {
+      setPlanRiegoError(err.message)
+    } finally {
+      setPlanRiegoLoading(false)
+    }
+  }, [cultivo, fechaInicioCiclo, fechaFinCiclo, point])
+
+  const handleExportarPlanRiego = useCallback(() => {
+    if (!planRiego) return
+    exportarPlanRiegoPdf({
+      cultivo,
+      fechaIni: fechaInicioCiclo,
+      fechaFin: fechaFinCiclo,
+      planRiego,
+    })
+  }, [cultivo, fechaInicioCiclo, fechaFinCiclo, planRiego])
+
   // ── Render ─────────────────────────────────────────────────────────────
   const cargando      = estado === ESTADO.CARGANDO
   const isCentroid    = activePolygonId != null
@@ -1100,6 +1148,38 @@ export default function App() {
             onChange={setMedidasGEI}
           />
 
+          {/* ── Botón Plan de Riego ── */}
+          {(() => {
+            const disabled = !cultivo || !fechaInicioCiclo || !fechaFinCiclo || !point
+            const tooltip  = disabled
+              ? 'Selecciona cultivo, punto en mapa y fechas de ciclo para obtener el plan de riego'
+              : `Obtener plan de riego semanal para ${cultivo?.name}`
+            return (
+              <div style={{ padding: '10px 12px 2px' }}>
+                <button
+                  onClick={handleObtenerPlanRiego}
+                  disabled={disabled || planRiegoLoading}
+                  title={tooltip}
+                  style={{
+                    width: '100%', padding: '8px 12px', borderRadius: 6, fontSize: 13,
+                    fontWeight: 600, cursor: disabled ? 'not-allowed' : 'pointer',
+                    border: 'none',
+                    background: disabled ? '#e0e0e0' : '#1565c0',
+                    color:      disabled ? '#9e9e9e' : '#fff',
+                    transition: 'background 0.15s',
+                  }}
+                >
+                  {planRiegoLoading ? '⏳ Calculando riego…' : '💧 Plan de Riego Semanal'}
+                </button>
+                {planRiegoError && (
+                  <div style={{ fontSize: 10, color: '#c62828', marginTop: 4, padding: '3px 6px', background: '#ffebee', borderRadius: 3 }}>
+                    ⚠️ {planRiegoError}
+                  </div>
+                )}
+              </div>
+            )
+          })()}
+
           <div style={S.footer}>
             <button style={S.versionBtn} onClick={() => setMetodologiaOpen(true)} title="Metodología y fuentes">v0.2.0</button>
             {' '}·{' '}
@@ -1111,6 +1191,19 @@ export default function App() {
           </div>
         </aside>
       </div>
+
+      {/* ── Modal Plan de Riego ── */}
+      {planRiegoOpen && planRiego && (
+        <PlanRiegoModal
+          planRiego={planRiego}
+          cultivo={cultivo}
+          fechaIni={fechaInicioCiclo}
+          fechaFin={fechaFinCiclo}
+          onClose={() => setPlanRiegoOpen(false)}
+          onExportarPdf={handleExportarPlanRiego}
+        />
+      )}
+
     </div>
   )
 }
