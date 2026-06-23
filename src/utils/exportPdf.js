@@ -935,7 +935,7 @@ export function exportarPlanRiegoPdf({ cultivo, fechaIni, fechaFin, planRiego })
 
   // ── 1. CABECERA ──────────────────────────────────────────────────────────
   // Banda azul oscuro
-  doc.setFillColor(...C_DARK)
+  doc.setFillColor(...C_TITLE)
   doc.rect(0, 0, PW, 18, 'F')
 
   // Logo FertiPRO (texto)
