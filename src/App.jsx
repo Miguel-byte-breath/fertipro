@@ -33,6 +33,7 @@ import FertilizanteManualPanel   from './components/FertilizanteManualPanel'
 import MetodologiaModal          from './components/MetodologiaModal'
 import MedidasMitigacionPanel   from './components/MedidasMitigacionPanel'
 import PlanRiegoModal           from './components/PlanRiegoModal'
+import { useApiStatus }         from './hooks/useApiStatus'
 import SativumApplicationDialog  from './components/SativumApplicationDialog'
 import { calcularNPK, calcularNAgua }  from './api/sativum-algo'
 import { FUENTE_SUBTERRANEA, FUENTE_SIN_RIEGO } from './data/sativum/fuentesAgua'
@@ -70,6 +71,9 @@ const CEC_BY_SOIL_TYPE = {
 }
 
 export default function App() {
+  // ── Healthcheck APIs externas ──────────────────────────────────────────
+  const apiStatus = useApiStatus()
+
   // ── Estado punto / recinto SIGPAC ──────────────────────────────────────
   const [estado,   setEstado]   = useState(ESTADO.IDLE)
   const [point,    setPoint]    = useState(null)
@@ -896,6 +900,20 @@ export default function App() {
           onClick={() => setMetodologiaOpen(true)}
           title="Metodología y fuentes"
         >ℹ️</button>
+
+        {/* Badge de estado APIs — solo visible cuando algo está caído */}
+        {(apiStatus.sativum === 'down' || apiStatus.sigpac === 'down') && (
+          <span
+            style={S.apiStatusBadge}
+            title="Servicio externo no disponible. Los cálculos pueden fallar."
+          >
+            ⚠ {[
+              apiStatus.sativum === 'down' && 'Sativum',
+              apiStatus.sigpac  === 'down' && 'SIGPAC',
+            ].filter(Boolean).join(' · ')}
+          </span>
+        )}
+
         <ModoIndicator activeId={activePolygonId} polygons={polygons} point={point} />
       </header>
       <MetodologiaModal open={metodologiaOpen} onClose={() => setMetodologiaOpen(false)} />
@@ -1295,6 +1313,12 @@ const S = {
     zIndex: 2000, maxWidth: 560, textAlign: 'center',
     boxShadow: '0 3px 12px rgba(0,0,0,0.35)', lineHeight: 1.5,
     cursor: 'pointer',
+  },
+  apiStatusBadge: {
+    fontSize: 11, fontWeight: 700, color: '#fff',
+    background: 'rgba(230,81,0,0.92)', borderRadius: 10,
+    padding: '2px 8px', marginLeft: 4, letterSpacing: 0.2,
+    whiteSpace: 'nowrap', flexShrink: 0,
   },
   apiErrorToast: {
     position: 'fixed', bottom: 76, left: '50%', transform: 'translateX(-50%)',
