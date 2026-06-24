@@ -26,7 +26,9 @@ Pensado para **asesores agrícolas y técnicos** que necesitan elaborar planes d
 
 7. **Datos del asesor REGFER** — panel colapsable para registrar nombre, apellidos, NIF y nº REGFER del asesor responsable del plan, que se incluyen en los documentos exportados.
 
-8. **Exporta** — descarga el plan en **Excel** (hojas: Plan, Fertilizantes con eficacia orgánica, Recintos SIGPAC, Notas) o en **PDF** con cabecera de atribución, tabla de recintos con columna ZVN, bloque NPK visual, tabla de origen del agua de riego y plan de aplicaciones con acumulados.
+8. **Plan de riego semanal** — el botón "💧 Plan de Riego Semanal" consulta en tiempo real la climatología oficial del **SiAR (MAPA)** para la ubicación de la parcela. La petición viaja desde FertiPRO Add-on Sativum a una función serverless propia, que a su vez llama al servicio [SIG Riego Pro](https://sig-riego-rdc-siar-pm.vercel.app) vía HTTP. Ese servicio recupera la ETo y Pe mensuales del SiAR, aplica el coeficiente de cultivo Kc (FAO-56 Rev.1) según las fases fenológicas del ciclo seleccionado, y devuelve la programación semanal (m³/ha por semana) y el balance hídrico mensual (ETc, Pe, NHN, volumen asignado). El resultado se presenta en un modal y se puede exportar como PDF independiente.
+
+9. **Exporta** — descarga el plan de abonado en **Excel** (hojas: Plan, Fertilizantes con eficacia orgánica, Recintos SIGPAC, Notas) o en **PDF** con cabecera de atribución, tabla de recintos con columna ZVN, bloque NPK visual, tabla de origen del agua de riego y plan de aplicaciones con acumulados.
 
 ---
 
@@ -43,6 +45,7 @@ Pensado para **asesores agrícolas y técnicos** que necesitan elaborar planes d
 | SIGPAC | OGC API Features + REST recinfo/nitratos (FEGA HubCloud) |
 | Suelo | ArcGIS MapServer (ITACyL) |
 | Motor NPK | API REST FertiliCalc (Sativum/ITACyL) |
+| Plan de riego | SIG Riego Pro (SiAR/MAPA) — integración vía HTTP |
 
 ---
 
@@ -213,6 +216,14 @@ Endpoint: [sigpac-hubcloud.es](https://sigpac-hubcloud.es) · Fuente: FEGA — M
 La capa de ortofoto base del mapa procede del **Plan Nacional de Ortofotografía Aérea (PNOA) Máxima Actualidad** del **Instituto Geográfico Nacional (IGN)**.
 
 Licencia: **CC BY 4.0** (Orden FOM/2807/2015) · © IGN · [ign.es](https://www.ign.es)
+
+### Datos climatológicos — SiAR (MAPA)
+
+El plan de riego semanal se basa en datos de evapotranspiración de referencia (ETo) y precipitación efectiva (Pe) mensuales del **Sistema de Información Agroclimática para el Regadío (SiAR)** del Ministerio de Agricultura, Pesca y Alimentación (MAPA). FertiPRO Add-on Sativum accede a ellos a través del servicio [SIG Riego Pro](https://sig-riego-rdc-siar-pm.vercel.app), que construye la climatología media de los tres años completos cerrados anteriores al ciclo de cultivo y distribuye el balance mensual en programación semanal.
+
+El uso del SiAR como referencia técnica para la dosis y frecuencia de riego está recogido en el **RD 1051/2022 – Anexo IX**.
+
+Fuente: SiAR — MAPA · [mapa.gob.es](https://www.mapa.gob.es)
 
 ### Normativa de referencia
 
