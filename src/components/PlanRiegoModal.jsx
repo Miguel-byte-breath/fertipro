@@ -99,7 +99,12 @@ export default function PlanRiegoModal({ planRiego, cultivo, fechaIni, fechaFin,
 
   const { redistribucion_termica, programacion_semanal = [], balance_mensual = [], estacion } = planRiego
 
-  const totalRiego = programacion_semanal.reduce((s, r) => s + (r.riego_neto_m3ha || 0), 0)
+  const totalRiego    = programacion_semanal.reduce((s, r) => s + (r.riego_neto_m3ha  || 0), 0)
+  const totEtc        = balance_mensual.reduce((s, r) => s + (r.etc_mm        || 0), 0)
+  const totP          = balance_mensual.reduce((s, r) => s + (r.p_mm          || 0), 0)
+  const totPe         = balance_mensual.reduce((s, r) => s + (r.pe_mm         || 0), 0)
+  const totNhn        = balance_mensual.reduce((s, r) => s + (r.nhn_m3ha      || 0), 0)
+  const totAsignado   = balance_mensual.reduce((s, r) => s + (r.asignado_m3ha || 0), 0)
 
   return (
     <div style={S.overlay} onClick={e => { if (e.target === e.currentTarget) onClose() }}>
@@ -196,6 +201,16 @@ export default function PlanRiegoModal({ planRiego, cultivo, fechaIni, fechaFin,
                       <td style={{ ...S.td, color: row.asignado_m3ha > 0 ? '#1565c0' : '#aaa', fontWeight: 600 }}>{fmt(row.asignado_m3ha)}</td>
                     </tr>
                   ))}
+                  <tr style={{ background: '#e3eaf5', fontWeight: 700 }}>
+                    <td style={{ ...S.tdLeft, color: '#1a3a6b' }}>TOTAL</td>
+                    <td style={S.td}>—</td>
+                    <td style={S.td}>—</td>
+                    <td style={{ ...S.td, color: '#1a3a6b' }}>{fmt(totEtc)}</td>
+                    <td style={{ ...S.td, color: '#1a3a6b' }}>{fmt(totP, 1)}</td>
+                    <td style={{ ...S.td, color: '#1a3a6b' }}>{fmt(totPe, 1)}</td>
+                    <td style={{ ...S.td, color: '#c62828' }}>{totNhn > 0 ? fmt(totNhn) : '—'}</td>
+                    <td style={{ ...S.td, color: '#1565c0' }}>{totAsignado > 0 ? fmt(totAsignado) : '—'}</td>
+                  </tr>
                 </tbody>
               </table>
             </div>
