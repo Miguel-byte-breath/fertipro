@@ -8,7 +8,7 @@ Calcula las necesidades de fertilización NPK usando la API de Sativum (ITACyL).
 
 ---
 
-## ¿Qué hace FertiPRO Add-on Sativum?
+## Flujo de trabajo
 
 Pensado para **asesores agrícolas y técnicos** que necesitan elaborar planes de abonado conformes al RD 1051/2022. El flujo de trabajo completo es:
 
@@ -29,6 +29,20 @@ Pensado para **asesores agrícolas y técnicos** que necesitan elaborar planes d
 8. **Plan de riego semanal** — el botón "💧 Plan de Riego Semanal" consulta en tiempo real la climatología oficial del **SiAR (MAPA)** para la ubicación de la parcela. La petición viaja desde FertiPRO Add-on Sativum a una función serverless propia, que a su vez llama al servicio [SIG Riego Pro](https://sig-riego-rdc-siar-pm.vercel.app) vía HTTP. Ese servicio recupera la ETo y Pe mensuales del SiAR, aplica el coeficiente de cultivo Kc (FAO-56 Rev.1) según las fases fenológicas del ciclo seleccionado, y devuelve la programación semanal (m³/ha por semana) y el balance hídrico mensual (ETc, Pe, NHN, volumen asignado). El resultado se presenta en un modal y se puede exportar como PDF independiente.
 
 9. **Exporta** — descarga el plan de abonado en **Excel** (hojas: Plan, Fertilizantes con eficacia orgánica, Recintos SIGPAC, Notas) o en **PDF** con cabecera de atribución, tabla de recintos con columna ZVN, bloque NPK visual, tabla de origen del agua de riego y plan de aplicaciones con acumulados.
+
+---
+
+## Cargar un plan existente
+
+Si ya tienes un plan exportado en Excel, puedes recuperar el estado completo de la sesión sin introducir los datos de nuevo.
+
+1. **Importa el plan** — pulsa **"Importar plan"** en la cabecera y selecciona el archivo `.xlsx` exportado previamente. Aparecerá una confirmación con el cultivo reconocido y un aviso de que la geometría debe cargarse manualmente (no se guarda en el Excel).
+
+2. **Carga la parcela en el mapa** — usa la barra de herramientas del mapa para dibujar el polígono o importar un GeoJSON/shapefile. FertiPRO consulta automáticamente los recintos SIGPAC (superficie, uso del suelo, ZVN) y el servicio de suelos de ITACyL. Si el plan usaba análisis de laboratorio propio, esos valores tienen prioridad sobre los de ArcGIS.
+
+3. **Revisa los datos restaurados** — comprueba que todo es coherente con la parcela: recintos SIGPAC y alertas ZVN, cultivo actual y precedente, estrategia de abonado, suelo y agua de riego, y el plan de aplicaciones con su cobertura NPK acumulada.
+
+4. **Calcula las necesidades NPK** — pulsa **"Calcular necesidades NPK"** una sola vez. Una segunda pulsación reinicia el plan de aplicaciones y tendrás que añadir de nuevo los fertilizantes.
 
 ---
 
