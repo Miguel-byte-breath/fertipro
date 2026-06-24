@@ -1049,19 +1049,28 @@ export function exportarPlanRiegoPdf({ cultivo, fechaIni, fechaFin, planRiego })
   doc.text('BALANCE HIDRICO MENSUAL', ML, y)
   y += 4
 
+  const totEtc      = balance_mensual.reduce((s, r) => s + (r.etc_mm        || 0), 0)
+  const totP        = balance_mensual.reduce((s, r) => s + (r.p_mm          || 0), 0)
+  const totPe       = balance_mensual.reduce((s, r) => s + (r.pe_mm         || 0), 0)
+  const totNhn      = balance_mensual.reduce((s, r) => s + (r.nhn_m3ha      || 0), 0)
+  const totAsignado = balance_mensual.reduce((s, r) => s + (r.asignado_m3ha || 0), 0)
+
   autoTable(doc, {
     startY: y,
     head: [['Mes', 'ETo\n(mm/dia)', 'Kc', 'ETc\n(mm)', 'P\n(mm)', 'Pe\n(mm)', 'NHN\n(m3/ha)', 'Asignado\n(m3/ha)']],
-    body: balance_mensual.map(r => [
-      r.mes,
-      fmtN(r.eto_mm_dia, 2),
-      fmtN(r.kc, 2),
-      fmtN(r.etc_mm),
-      fmtN(r.p_mm, 1),
-      fmtN(r.pe_mm, 1),
-      r.nhn_m3ha > 0 ? fmtN(r.nhn_m3ha) : '—',
-      r.asignado_m3ha > 0 ? fmtN(r.asignado_m3ha) : '—',
-    ]),
+    body: [
+      ...balance_mensual.map(r => [
+        r.mes,
+        fmtN(r.eto_mm_dia, 2),
+        fmtN(r.kc, 2),
+        fmtN(r.etc_mm),
+        fmtN(r.p_mm, 1),
+        fmtN(r.pe_mm, 1),
+        r.nhn_m3ha > 0 ? fmtN(r.nhn_m3ha) : '—',
+        r.asignado_m3ha > 0 ? fmtN(r.asignado_m3ha) : '—',
+      ]),
+      ['TOTAL', '—', '—', fmtN(totEtc), fmtN(totP, 1), fmtN(totPe, 1), totNhn > 0 ? fmtN(totNhn) : '—', totAsignado > 0 ? fmtN(totAsignado) : '—'],
+    ],
     margin:     { left: ML, right: MR },
     tableWidth: CW,
     styles: {
@@ -1083,7 +1092,12 @@ export function exportarPlanRiegoPdf({ cultivo, fechaIni, fechaFin, planRiego })
       7: { cellWidth: CW - 18 - 20 - 14 - 18 - 18 - 18 - 24 },
     },
     didParseCell(data) {
-      if (data.column.index === 7 && data.section === 'body') {
+      const isTotalRow = data.section === 'body' && data.row.index === balance_mensual.length
+      if (isTotalRow) {
+        data.cell.styles.fillColor = [220, 235, 255]
+        data.cell.styles.fontStyle = 'bold'
+        data.cell.styles.textColor = C_TITLE
+      } else if (data.column.index === 7 && data.section === 'body') {
         const val = balance_mensual[data.row.index]?.asignado_m3ha || 0
         if (val > 0) { data.cell.styles.textColor = C_TITLE; data.cell.styles.fontStyle = 'bold' }
       }
