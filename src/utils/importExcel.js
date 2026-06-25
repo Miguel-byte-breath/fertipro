@@ -254,6 +254,7 @@ export async function importarPlanDesdeExcel(file) {
     laboreo:        campos['Laboreo tras cosecha'] === 'Sí',
     recogeResiduos: campos['Residuos precedente'] === 'Recogidos',
     quemaResiduos:  campos['Quema residuos precedente'] === 'Sí',
+    fRes:           toNum(campos['F_res precedente']),   // null si no existe (Excel antiguo → auto B7)
   } : null
 
   // ─── Estrategia ────────────────────────────────────────────────────────────

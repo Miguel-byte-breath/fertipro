@@ -30,19 +30,26 @@ const NO3_TO_N = 14 / 62  // 0.2258
  * @param {object} [opts]
  * @param {boolean} [opts.recogeResiduos]  — ¿recoge residuos? (false = deja en campo)
  * @param {boolean} [opts.quemaResiduos]   — ¿quema residuos?
+ * @param {number|null} [opts.fResOverride] — override manual del usuario (null = auto B7)
  * @returns {object} crop_features listo para el payload
  */
 function cultivoToCropFeatures(cultivo, opts = {}) {
-  const { recogeResiduos = false, quemaResiduos = false } = opts
+  const { recogeResiduos = false, quemaResiduos = false, fResOverride = null } = opts
 
-  // Regla del residuo: Cereales con fres=10 y no recoge paja → f_res=100
-  let fRes = cultivo.fres ?? 100
-  if (
-    cultivo.plantSpeciesGroup?.toUpperCase() === 'CEREALS' &&
-    cultivo.fres === 10 &&
-    !recogeResiduos
-  ) {
-    fRes = 100
+  // f_res: override manual del usuario prevalece; si no, regla B7 para cereales
+  let fRes
+  if (fResOverride !== null && fResOverride !== undefined) {
+    fRes = fResOverride
+  } else {
+    fRes = cultivo.fres ?? 100
+    // Regla B7: Cereales con fres=10 y no recoge paja → f_res=100
+    if (
+      cultivo.plantSpeciesGroup?.toUpperCase() === 'CEREALS' &&
+      cultivo.fres === 10 &&
+      !recogeResiduos
+    ) {
+      fRes = 100
+    }
   }
 
   return {
@@ -90,7 +97,7 @@ export function calcularNAgua(no3MgL, dotacionM3) {
 /**
  * Ensambla el payload completo para POST /fertilicalc/algo/.
  *
- * @param {object[]} cultivos   — array de { cultivo, cropYield, cv, recogeResiduos, quemaResiduos }
+ * @param {object[]} cultivos   — array de { cultivo, cropYield, cv, recogeResiduos, quemaResiduos, fRes }
  * @param {object}   suelo      — resultado de normalizarSuelo()
  * @param {object}   opts
  * @param {string}   opts.strategy          — SUFFICIENCY|REDUCED|MAINTENANCE|MAXIMUM
@@ -119,13 +126,12 @@ export function ensamblarPayloadAlgo(cultivos, suelo, opts = {}) {
   // n_other = deposición atmosférica (10) + N del agua de riego
   const nOther = (N_EQUATION_DEFAULTS.n_other + nAgua)
 
-  const rotation = cultivos.map(({ cultivo, cropYield, cv = 0, recogeResiduos = false, quemaResiduos = false }) => ({
+  const rotation = cultivos.map(({ cultivo, cropYield, cv = 0, recogeResiduos = false, quemaResiduos = false, fRes = null }) => ({
     crop_yield:       cropYield,
     cv:               cv,
     collect_residues: recogeResiduos,
     burn_residues:    quemaResiduos,
-    // green_manure: pendiente verificar nombre exacto del campo en API Sativum
-    crop_features:    cultivoToCropFeatures(cultivo, { recogeResiduos, quemaResiduos }),
+    crop_features:    cultivoToCropFeatures(cultivo, { recogeResiduos, quemaResiduos, fResOverride: fRes }),
   }))
 
   console.debug('[algo payload] rotation:', JSON.stringify(rotation))

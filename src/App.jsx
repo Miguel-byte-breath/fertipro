@@ -117,6 +117,7 @@ export default function App() {
     laboreo:        false,
     recogeResiduos: false,
     quemaResiduos:  false,
+    fRes:           null,   // null = auto (B7 para cereales / default catálogo para el resto)
   })
 
   // ── Estado asesor responsable (REGFER) — persiste en localStorage ─────
@@ -277,6 +278,7 @@ export default function App() {
           cv:             cultivoAnterior.cv ?? 0,    // CV = 0 default en Sativum; no afecta al cálculo actual
           recogeResiduos: cultivoAnteriorParams.recogeResiduos,
           quemaResiduos:  cultivoAnteriorParams.quemaResiduos,
+          fRes:           cultivoAnteriorParams.fRes,  // null = auto (B7 / default catálogo)
         })
       }
       // Cultivo actual

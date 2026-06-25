@@ -321,9 +321,18 @@ export async function exportarPlanAbonado({
     row('  Rendimiento precedente',   num(cultivoAnteriorParams?.cropYield ?? cultivoAnterior.yieldMedium, 2), 'kg/ha')
     row('  Laboreo tras cosecha',     cultivoAnteriorParams?.laboreo        ? 'Sí' : 'No')
     row('  Residuos precedente',      cultivoAnteriorParams?.recogeResiduos ? 'Recogidos' : 'Incorporados')
-    if (cultivoAnteriorParams?.recogeResiduos) {
+    // Quema: solo para cereales; independiente de si se recogen o no
+    if (cultivoAnterior?.plantSpeciesGroup?.toUpperCase() === 'CEREALS') {
       row('  Quema residuos precedente', cultivoAnteriorParams?.quemaResiduos ? 'Sí' : 'No')
     }
+    // f_res: valor efectivo (override usuario si lo hay, si no B7 / default catálogo)
+    const isCerealPrec  = cultivoAnterior?.plantSpeciesGroup?.toUpperCase() === 'CEREALS'
+    const recogePrec    = cultivoAnteriorParams?.recogeResiduos ?? false
+    const autoFResPrec  = (isCerealPrec && cultivoAnterior?.fres === 10 && !recogePrec) ? 100 : (cultivoAnterior?.fres ?? 100)
+    const efectiveFResPrec = (cultivoAnteriorParams?.fRes !== null && cultivoAnteriorParams?.fRes !== undefined)
+      ? cultivoAnteriorParams.fRes
+      : autoFResPrec
+    row('  F_res precedente',          efectiveFResPrec, '%')
     row('', null)
   }
 

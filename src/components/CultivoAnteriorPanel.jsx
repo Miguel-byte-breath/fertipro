@@ -9,7 +9,7 @@
  *
  * Props:
  *   cultivo          — objeto cultivo anterior | null
- *   params           — { cropYield, laboreo, recogeResiduos, quemaResiduos }
+ *   params           — { cropYield, laboreo, recogeResiduos, quemaResiduos, fRes }
  *   onCultivoChange  — (cultivo | null) => void
  *   onParamsChange   — (params) => void
  */
@@ -20,12 +20,29 @@ function esCereal(c) {
   return c?.plantSpeciesGroup?.toUpperCase() === 'CEREALS'
 }
 
+/**
+ * Calcula el f_res automático (B7) según cultivo y si se recoge la paja.
+ * Igual que la lógica de cultivoToCropFeatures en sativum-algo.js.
+ */
+function computeAutoFRes(cultivo, recogeResiduos) {
+  if (!cultivo) return null
+  if (
+    cultivo.plantSpeciesGroup?.toUpperCase() === 'CEREALS' &&
+    cultivo.fres === 10 &&
+    !recogeResiduos
+  ) return 100
+  return cultivo.fres ?? 100
+}
+
 export default function CultivoAnteriorPanel({ cultivo, params, onCultivoChange, onParamsChange }) {
   const [open, setOpen] = useState(false)
 
   const set = patch => onParamsChange({ ...params, ...patch })
 
   const mostrarResiduos = cultivo != null
+  const esCerealCultivo = esCereal(cultivo)
+  const labelResiduos   = esCerealCultivo ? '¿Se recoge la paja?' : 'Recoge residuos del campo'
+  const autoFRes        = computeAutoFRes(cultivo, params.recogeResiduos)
 
   return (
     <div style={SC.card}>
@@ -91,13 +108,15 @@ export default function CultivoAnteriorPanel({ cultivo, params, onCultivoChange,
                     <input
                       type="checkbox"
                       checked={params.recogeResiduos}
-                      onChange={e => set({ recogeResiduos: e.target.checked, quemaResiduos: false })}
+                      onChange={e => set({ recogeResiduos: e.target.checked, fRes: null })}
                       style={{ marginRight: 6 }}
                     />
-                    <span>Recoge residuos del campo</span>
+                    <span>{labelResiduos}</span>
                   </label>
-                  {params.recogeResiduos && (
-                    <label style={{ ...SC.checkRow, marginLeft: 20 }}>
+
+                  {/* Quema residuos — solo cereales, independiente de recogeResiduos */}
+                  {esCerealCultivo && (
+                    <label style={SC.checkRow}>
                       <input
                         type="checkbox"
                         checked={params.quemaResiduos}
@@ -107,10 +126,24 @@ export default function CultivoAnteriorPanel({ cultivo, params, onCultivoChange,
                       <span>Quema los residuos</span>
                     </label>
                   )}
-                  {/* Regla B7: solo cereales con fres=10 */}
-                  {esCereal(cultivo) && cultivo?.fres === 10 && !params.recogeResiduos && (
-                    <div style={SC.ruleBox}>Paja incorporada → <code>f_res = 100</code></div>
-                  )}
+
+                  {/* Residuos en campo (f_res) — editable, auto-relleno por regla B7 */}
+                  <div style={SC.row}>
+                    <span style={SC.rowLbl}>Residuos en campo</span>
+                    <span style={{ display: 'flex', alignItems: 'center', gap: 4 }}>
+                      <input
+                        type="number"
+                        value={params.fRes ?? ''}
+                        placeholder={autoFRes !== null ? String(autoFRes) : ''}
+                        min={0}
+                        max={100}
+                        step={5}
+                        onChange={e => set({ fRes: e.target.value === '' ? null : Number(e.target.value) })}
+                        style={SC.numInput}
+                      />
+                      <span style={SC.unit}>%</span>
+                    </span>
+                  </div>
                 </>
               )}
             </>
@@ -152,9 +185,4 @@ const SC = {
     fontSize: 12, cursor: 'pointer', padding: '3px 0',
   },
   hint:    { fontSize: 11, color: '#90a4ae', fontStyle: 'italic' },
-  ruleBox: {
-    fontSize: 10, color: '#e65100',
-    background: '#fff3e0', border: '1px solid #ffe0b2',
-    borderRadius: 4, padding: '3px 8px', marginTop: 2,
-  },
 }
