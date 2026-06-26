@@ -1129,5 +1129,5 @@ export function exportarPlanRiegoPdf({ cultivo, fechaIni, fechaFin, planRiego })
 
   // ── 6. DESCARGA ───────────────────────────────────────────────────────────
   const nombreCultivo = cultivo?.name ? cultivo.name.replace(/\s+/g, '_').slice(0, 30) : 'cultivo'
-  doc.save(`plan_riego_${nombreCultivo}.pdf`)
+  doc.save(`fertipro_plan_riego_${nombreCultivo}.pdf`)
 }
