@@ -224,6 +224,9 @@ export default function App() {
   // Diálogo de aplicación Sativum
   const [sativumDialogOpen, setSativumDialogOpen] = useState(false)
 
+  // Panel lateral — arranca abierto en escritorio, cerrado en móvil
+  const [sidebarOpen, setSidebarOpen] = useState(() => window.innerWidth >= 768)
+
   // Handler unificado: acepta un item o array de items
   const handleAddPlanItems = useCallback((items) => {
     const arr = Array.isArray(items) ? items : [items]
@@ -961,7 +964,20 @@ export default function App() {
           {cargando && <div style={S.hintLoad}>⏳ Consultando SIGPAC…</div>}
         </div>
 
-        <aside style={S.aside}>
+        <aside style={{
+          ...S.aside,
+          ...(window.innerWidth < 768 && {
+            width: sidebarOpen ? Math.min(380, Math.round(window.innerWidth * 0.82)) : 36,
+            minWidth: sidebarOpen ? undefined : 36,
+            transition: 'width 0.25s ease',
+            overflow: sidebarOpen ? 'auto' : 'hidden',
+          }),
+        }}>
+          {window.innerWidth < 768 && (
+            <button onClick={() => setSidebarOpen(o => !o)} style={S.sidebarToggle}>
+              {sidebarOpen ? '▶' : '◀'}
+            </button>
+          )}
 
           {/* ── Geometría + recintos SIGPAC — primer bloque, antes del cultivo ── */}
           <GeometryPanel
@@ -1351,6 +1367,13 @@ const S = {
     display: 'flex', flexDirection: 'column',
     overflow: 'auto',
     boxShadow: '-2px 0 8px rgba(0,0,0,0.08)',
+  },
+  sidebarToggle: {
+    position: 'sticky', top: 0, zIndex: 10, flexShrink: 0,
+    background: '#1a237e', color: '#fff',
+    border: 'none', borderBottom: '1px solid rgba(255,255,255,0.15)',
+    padding: '12px 0', cursor: 'pointer', fontSize: 16,
+    display: 'flex', alignItems: 'center', justifyContent: 'center',
   },
   hintIdle: {
     position: 'absolute', bottom: 24, left: '50%', transform: 'translateX(-50%)',
