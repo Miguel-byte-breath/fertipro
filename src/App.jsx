@@ -969,8 +969,9 @@ export default function App() {
           ...(window.innerWidth < 768 && {
             width: sidebarOpen ? Math.min(380, Math.round(window.innerWidth * 0.82)) : 36,
             minWidth: sidebarOpen ? undefined : 36,
-            transition: 'width 0.25s ease',
+            transition: 'width 0.25s ease, opacity 0.2s ease',
             overflow: sidebarOpen ? 'auto' : 'hidden',
+            opacity: sidebarOpen ? 1 : 0.6,
           }),
         }}>
           {window.innerWidth < 768 && (
