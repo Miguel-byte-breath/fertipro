@@ -975,7 +975,7 @@ export default function App() {
             width: sidebarOpen ? Math.min(380, Math.round(window.innerWidth * 0.82)) : 0,
             minWidth: 0,
             transition: 'width 0.25s ease',
-            overflow: 'hidden',
+            overflow: sidebarOpen ? 'auto' : 'hidden',
           }),
         }}>
 
