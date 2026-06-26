@@ -962,23 +962,22 @@ export default function App() {
             </div>
           )}
           {cargando && <div style={S.hintLoad}>⏳ Consultando SIGPAC…</div>}
-        </div>
-
-        <aside style={{
-          ...S.aside,
-          ...(window.innerWidth < 768 && {
-            width: sidebarOpen ? Math.min(380, Math.round(window.innerWidth * 0.82)) : 36,
-            minWidth: sidebarOpen ? undefined : 36,
-            transition: 'width 0.25s ease, opacity 0.2s ease',
-            overflow: sidebarOpen ? 'auto' : 'hidden',
-            opacity: sidebarOpen ? 1 : 0.6,
-          }),
-        }}>
           {window.innerWidth < 768 && (
             <button onClick={() => setSidebarOpen(o => !o)} style={S.sidebarToggle}>
               {sidebarOpen ? '▶' : '◀'}
             </button>
           )}
+        </div>
+
+        <aside style={{
+          ...S.aside,
+          ...(window.innerWidth < 768 && {
+            width: sidebarOpen ? Math.min(380, Math.round(window.innerWidth * 0.82)) : 0,
+            minWidth: 0,
+            transition: 'width 0.25s ease',
+            overflow: 'hidden',
+          }),
+        }}>
 
           {/* ── Geometría + recintos SIGPAC — primer bloque, antes del cultivo ── */}
           <GeometryPanel
@@ -1370,10 +1369,12 @@ const S = {
     boxShadow: '-2px 0 8px rgba(0,0,0,0.08)',
   },
   sidebarToggle: {
-    position: 'sticky', top: 0, zIndex: 10, flexShrink: 0,
+    position: 'absolute', right: 0, top: '50%', transform: 'translateY(-50%)',
+    zIndex: 1001,
     background: '#1a237e', color: '#fff',
-    border: 'none', borderBottom: '1px solid rgba(255,255,255,0.15)',
-    padding: '12px 0', cursor: 'pointer', fontSize: 16,
+    border: 'none', borderRadius: '4px 0 0 4px',
+    width: 28, height: 52,
+    cursor: 'pointer', fontSize: 15,
     display: 'flex', alignItems: 'center', justifyContent: 'center',
   },
   hintIdle: {
