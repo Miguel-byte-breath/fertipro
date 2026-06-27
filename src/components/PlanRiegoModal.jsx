@@ -97,7 +97,11 @@ function fmtFecha(iso) {
 export default function PlanRiegoModal({ planRiego, cultivo, fechaIni, fechaFin, onClose, onExportarPdf }) {
   if (!planRiego) return null
 
-  const { redistribucion_termica, programacion_semanal = [], balance_mensual = [], estacion } = planRiego
+  const { redistribucion_termica, programacion_semanal = [], balance_mensual = [], estacion, meses_sin_datos = [] } = planRiego
+
+  const estacionesDistintas = [...new Set(balance_mensual.map(r => r.estacion).filter(Boolean))]
+  const multiEstacion = estacionesDistintas.length > 1
+  const hayAnio1 = balance_mensual.some(r => r.anios_datos === 1)
 
   const totalRiego    = programacion_semanal.reduce((s, r) => s + (r.riego_neto_m3ha  || 0), 0)
   const totEtc        = balance_mensual.reduce((s, r) => s + (r.etc_mm        || 0), 0)
@@ -116,7 +120,11 @@ export default function PlanRiegoModal({ planRiego, cultivo, fechaIni, fechaFin,
             <div style={S.headerTitle}>Plan de Riego Semanal</div>
             <div style={S.headerSub}>
               {cultivo?.name || '—'} · {fmtFecha(fechaIni)} – {fmtFecha(fechaFin)}
-              {estacion && ` · Estación SIAR: ${estacion}`}
+              {multiEstacion
+                ? ` · Estación SIAR: múltiple (ver tabla)`
+                : estacion
+                  ? ` · Estación SIAR: ${estacion}`
+                  : null}
             </div>
           </div>
           <button style={S.closeBtn} onClick={onClose} title="Cerrar">×</button>
@@ -186,19 +194,21 @@ export default function PlanRiegoModal({ planRiego, cultivo, fechaIni, fechaFin,
                     <th style={S.th}>Pe (mm)</th>
                     <th style={S.th}>NHN (m³/ha)</th>
                     <th style={S.th}>Asignado (m³/ha)</th>
+                    {multiEstacion && <th style={S.thLeft}>Estación</th>}
                   </tr>
                 </thead>
                 <tbody>
                   {balance_mensual.map((row, i) => (
                     <tr key={i}>
                       <td style={S.tdLeft}>{row.mes}</td>
-                      <td style={S.td}>{fmt(row.eto_mm_dia, 2)}</td>
+                      <td style={S.td}>{fmt(row.eto_mm_dia, 2)}{row.anios_datos === 1 ? ' *' : ''}</td>
                       <td style={S.td}>{fmt(row.kc, 2)}</td>
                       <td style={S.td}>{fmt(row.etc_mm, 0)}</td>
                       <td style={S.td}>{fmt(row.p_mm, 1)}</td>
                       <td style={S.td}>{fmt(row.pe_mm, 1)}</td>
                       <td style={{ ...S.td, color: row.nhn_m3ha > 0 ? '#c62828' : '#aaa' }}>{fmt(row.nhn_m3ha)}</td>
                       <td style={{ ...S.td, color: row.asignado_m3ha > 0 ? '#1565c0' : '#aaa', fontWeight: 600 }}>{fmt(row.asignado_m3ha)}</td>
+                      {multiEstacion && <td style={S.tdLeft}>{row.estacion || '—'}</td>}
                     </tr>
                   ))}
                   <tr style={{ background: '#e3eaf5', fontWeight: 700 }}>
@@ -210,13 +220,20 @@ export default function PlanRiegoModal({ planRiego, cultivo, fechaIni, fechaFin,
                     <td style={{ ...S.td, color: '#1a3a6b' }}>{fmt(totPe, 1)}</td>
                     <td style={{ ...S.td, color: '#c62828' }}>{totNhn > 0 ? fmt(totNhn) : '—'}</td>
                     <td style={{ ...S.td, color: '#1565c0' }}>{totAsignado > 0 ? fmt(totAsignado) : '—'}</td>
+                    {multiEstacion && <td style={S.td}>—</td>}
                   </tr>
                 </tbody>
               </table>
             </div>
             <div style={{ fontSize: 10, color: '#888', marginTop: 6 }}>
               NHN = Necesidad Hídrica Neta (ETc − Pe) · Pe = Precipitación efectiva · Datos climáticos: SIAR MAPA
+              {hayAnio1 && ' · * ETo basada en 1 año (estación nueva, sin media climatológica)'}
             </div>
+            {meses_sin_datos.length > 0 && (
+              <div style={{ fontSize: 11, color: '#e65100', background: '#fff3e0', borderRadius: 4, padding: '5px 10px', marginTop: 6 }}>
+                ⚠ Sin datos SIAR para los meses: {meses_sin_datos.join(', ')}. ETo asumida 0 en esos meses.
+              </div>
+            )}
           </div>
 
         </div>
