@@ -101,6 +101,7 @@ export default function PlanRiegoModal({ planRiego, cultivo, fechaIni, fechaFin,
 
   const estacionesDistintas = [...new Set(balance_mensual.map(r => r.estacion).filter(Boolean))]
   const multiEstacion = estacionesDistintas.length > 1
+  const hayEstacion = estacionesDistintas.length > 0
   const hayAnio1 = balance_mensual.some(r => r.anios_datos === 1)
 
   const totalRiego    = programacion_semanal.reduce((s, r) => s + (r.riego_neto_m3ha  || 0), 0)
@@ -194,7 +195,7 @@ export default function PlanRiegoModal({ planRiego, cultivo, fechaIni, fechaFin,
                     <th style={S.th}>Pe (mm)</th>
                     <th style={S.th}>NHN (m³/ha)</th>
                     <th style={S.th}>Asignado (m³/ha)</th>
-                    {multiEstacion && <th style={S.thLeft}>Estación</th>}
+                    {hayEstacion && <th style={S.thLeft}>Estación</th>}
                   </tr>
                 </thead>
                 <tbody>
@@ -208,7 +209,7 @@ export default function PlanRiegoModal({ planRiego, cultivo, fechaIni, fechaFin,
                       <td style={S.td}>{fmt(row.pe_mm, 1)}</td>
                       <td style={{ ...S.td, color: row.nhn_m3ha > 0 ? '#c62828' : '#aaa' }}>{fmt(row.nhn_m3ha)}</td>
                       <td style={{ ...S.td, color: row.asignado_m3ha > 0 ? '#1565c0' : '#aaa', fontWeight: 600 }}>{fmt(row.asignado_m3ha)}</td>
-                      {multiEstacion && <td style={S.tdLeft}>{row.estacion || '—'}</td>}
+                      {hayEstacion && <td style={S.tdLeft}>{row.estacion || '—'}</td>}
                     </tr>
                   ))}
                   <tr style={{ background: '#e3eaf5', fontWeight: 700 }}>
@@ -220,7 +221,7 @@ export default function PlanRiegoModal({ planRiego, cultivo, fechaIni, fechaFin,
                     <td style={{ ...S.td, color: '#1a3a6b' }}>{fmt(totPe, 1)}</td>
                     <td style={{ ...S.td, color: '#c62828' }}>{totNhn > 0 ? fmt(totNhn) : '—'}</td>
                     <td style={{ ...S.td, color: '#1565c0' }}>{totAsignado > 0 ? fmt(totAsignado) : '—'}</td>
-                    {multiEstacion && <td style={S.td}>—</td>}
+                    {hayEstacion && <td style={S.td}>—</td>}
                   </tr>
                 </tbody>
               </table>
