@@ -150,7 +150,7 @@ export default function EstrategiaPanel({ cultivo, params, onChange, soilType = 
       {openAvanzado && (
         <div style={SA.accordionBody}>
           <div style={SA.accordionNote}>
-            Overrides de <code>n_equation_parameter</code>. Vaciar = usar default.
+            Overrides de <code>n_equation_parameter</code>. Valores por defecto aplicados si no se modifican.
           </div>
           <ParamInput
             label="N inorgánico final"
