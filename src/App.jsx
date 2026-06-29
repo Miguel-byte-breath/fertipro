@@ -1366,6 +1366,7 @@ const S = {
     width: 400, background: '#fff',
     display: 'flex', flexDirection: 'column',
     overflow: 'auto',
+    minHeight: 0,
     boxShadow: '-2px 0 8px rgba(0,0,0,0.08)',
   },
   sidebarToggle: {
