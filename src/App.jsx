@@ -1308,8 +1308,18 @@ function ModoIndicator({ activeId, polygons, point }) {
   )
 }
 
+// 100dvh = dynamic viewport height: excluye la barra de dirección/navegación del móvil.
+// Sin esto, 100vh en Android Chrome hace que el panel no llegue al final del scroll.
+// Fallback a 100vh para navegadores sin soporte (iOS Safari < 15.4, Chrome < 108).
+const APP_HEIGHT =
+  typeof CSS !== 'undefined' &&
+  typeof CSS.supports === 'function' &&
+  CSS.supports('height', '100dvh')
+    ? '100dvh'
+    : '100vh'
+
 const S = {
-  app: { display: 'flex', flexDirection: 'column', height: '100vh', background: '#f5f7fa' },
+  app: { display: 'flex', flexDirection: 'column', height: APP_HEIGHT, background: '#f5f7fa' },
   header: {
     background: '#1a237e', color: '#fff',
     padding: '10px 20px',
