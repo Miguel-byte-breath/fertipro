@@ -201,6 +201,8 @@ export default function App() {
       text = `${service} no responde. Reintenta en unos segundos.`
     else if (/50[23]|no disponible|conectando/i.test(msg))
       text = `${service} no está disponible ahora. Inténtalo en unos minutos.`
+    else if (/\b403\b/.test(msg) || err?.status === 403)
+      text = `${service} no está disponible ahora mismo. Vuelve a intentarlo más tarde; si persiste, contacta con soporte.`
     else
       text = `Error en ${service}. ${msg || 'Inténtalo de nuevo.'}`
     setApiError({ msg: text, key: Date.now() })
