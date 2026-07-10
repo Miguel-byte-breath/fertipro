@@ -35,7 +35,10 @@ export default async function handler(req, res) {
       upstream = await fetch(UPSTREAM, {
         method:  'POST',
         headers: { 'Content-Type': 'application/json', 'Accept': 'application/json' },
-        body:    JSON.stringify({ lat, lon, cultivo, fecha_ini, fecha_fin, vol_disponible }),
+        // origen:'sativum' — le dice a calcular-riego.js que busque solo en
+        // cultivos_sativum.json, no en el catálogo canónico del gemelo FertiPRO
+        // (motor propio). Ver CLAUDE.md, sesión 2026-07-10 ("separación por origen").
+        body:    JSON.stringify({ lat, lon, cultivo, fecha_ini, fecha_fin, vol_disponible, origen: 'sativum' }),
         signal:  controller.signal,
       })
     } finally {
