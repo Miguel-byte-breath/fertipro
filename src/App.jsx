@@ -1100,6 +1100,13 @@ export default function App() {
           {/* ── Ficha agronómica del cultivo ── */}
           <CultivoCard cultivo={cultivo} />
 
+          <CultivoAnteriorPanel
+            cultivo={cultivoAnterior}
+            params={cultivoAnteriorParams}
+            onCultivoChange={setCultivoAnterior}
+            onParamsChange={setCultivoAnteriorParams}
+          />
+
           <SueloRiegoCard
             suelo={suelo}
             loading={cargando}
@@ -1114,13 +1121,6 @@ export default function App() {
             sueloPersonalizado={sueloPersonalizado}
             onSueloPersonalizadoChange={setSueloPersonalizado}
             cultivoIrrigation={cultivo?.irrigation ?? 0}
-          />
-
-          <CultivoAnteriorPanel
-            cultivo={cultivoAnterior}
-            params={cultivoAnteriorParams}
-            onCultivoChange={setCultivoAnterior}
-            onParamsChange={setCultivoAnteriorParams}
           />
 
           <EstrategiaPanel
