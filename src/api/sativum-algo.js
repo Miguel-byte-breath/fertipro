@@ -103,7 +103,8 @@ export function calcularNAgua(no3MgL, dotacionM3) {
  * @param {string}   opts.strategy          — SUFFICIENCY|REDUCED|MAINTENANCE|MAXIMUM
  * @param {boolean}  [opts.tillage=false]   — ¿laboreo?
  * @param {number}   [opts.cec=220]         — CEC manual (meq/kg) hasta que ITACyL publique capa
- * @param {object}   [opts.riego]           — { no3MgL, dotacionM3 } agua de riego
+ * @param {object}   [opts.riego]           — ya no se usa aquí (ver nota junto a n_other más abajo);
+ *                                            se ignora si el caller lo sigue pasando
  * @param {object}   [opts.nEcuacion]       — overrides avanzados de n_equation_parameter
  * @returns {object} payload listo para enviar al proxy /api/sativum-algo
  */
@@ -112,7 +113,6 @@ export function ensamblarPayloadAlgo(cultivos, suelo, opts = {}) {
     strategy      = 'MAINTENANCE',
     tillage       = false,
     cec           = 220,
-    riego         = null,
     nEcuacion     = {},
     algoOverrides = {},   // overrides opcionales de los ajustes del algoritmo
   } = opts
@@ -120,11 +120,18 @@ export function ensamblarPayloadAlgo(cultivos, suelo, opts = {}) {
   const soilType = suelo.soilType ?? 'LOAM'
   const params   = getAlgoParams(strategy, soilType)
 
-  // N extra del agua de riego
-  const nAgua = riego ? calcularNAgua(riego.no3MgL, riego.dotacionM3) : 0
-
-  // n_other = deposición atmosférica (10) + N del agua de riego
-  const nOther = (N_EQUATION_DEFAULTS.n_other + nAgua)
+  // n_other = solo deposición atmosférica (10). El agua de riego NO se mete
+  // aquí: la necesidad bruta del cultivo (n devuelto por /algo/) es la misma
+  // haya riego o no — es agronómicamente independiente del origen del agua.
+  // Si se sumara nAgua aquí (como se hacía antes), con aportes de agua altos
+  // (p.ej. NO₃ de origen subterráneo) la ecuación puede quedar negativa y la
+  // API recorta el resultado a 0, perdiendo el dato de la necesidad real.
+  // El descuento del agua de riego se aplica después, client-side, sobre el
+  // N bruto ya devuelto (ver App.jsx: npkParaRec.n = max(0, n - nRiego)),
+  // igual que ya se hace con P y K. Confirmado con Miguel (2026-07-10) tras
+  // detectar el caso real: origen subterráneo con NO₃ alto → n_other tan
+  // grande que /algo/ devolvía n=0 en vez del bruto esperado (190.3).
+  const nOther = N_EQUATION_DEFAULTS.n_other
 
   const rotation = cultivos.map(({ cultivo, cropYield, cv = 0, recogeResiduos = false, quemaResiduos = false, fRes = null }) => ({
     crop_yield:       cropYield,

@@ -231,7 +231,7 @@ export default function FertilizanteManualPanel({
   }, [catalogoFiltradoSiex, fabricante, busquedaDelay, tipoSIEX])
 
   const npkNeed = useMemo(() => {
-    // npkParaRec ya tiene descontado el aporte del riego (N via n_other, P/K client-side)
+    // npkParaRec ya tiene descontado el aporte del riego (N/P/K, todo client-side — ver App.jsx)
     if (npkParaRec) {
       return {
         n:    npkParaRec.n ?? 0,

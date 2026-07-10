@@ -182,7 +182,8 @@ export async function exportarPlanAbonadoPdf({
 
   // ── NPK values ────────────────────────────────────────────────────────────
   const { n, p, k }  = extraerNPK(npk)
-  const nBruto       = (n ?? 0) + (nRiego ?? 0)
+  // n ya es el N bruto (independiente del riego, ver sativum-algo.js) — no se suma nRiego aquí
+  const nBruto       = n ?? 0
   const p2o5         = p * P_TO_P2O5
   const k2o          = k * K_TO_K2O
   const nRiegoPct    = nRiego > 0    ? nRiego : null

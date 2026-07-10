@@ -244,8 +244,8 @@ export async function exportarPlanAbonado({
 
   const nRiegoVal = tieneRiego && no3 > 0 ? no3 * dot / 1000 * (14 / 62) : 0
   const nRiego    = nRiegoVal > 0 ? num(nRiegoVal, 1) : null
-  // N bruto = N_motor (ya neto, el motor lo descontó via n_other) + N_riego
-  const nBruto    = num((nVal ?? 0) + nRiegoVal, 1)
+  // nVal ya es el N bruto (independiente del riego, ver sativum-algo.js) — no se suma nRiego aquí
+  const nBruto    = num(nVal ?? 0, 1)
   const pRiego  = tieneRiego && p_r > 0 ? p_r * dot / 1000 : 0   // kg P/ha
   const kRiego  = tieneRiego && k_r > 0 ? k_r * dot / 1000 : 0   // kg K/ha
 
@@ -371,7 +371,7 @@ export async function exportarPlanAbonado({
   row('', null)
 
   // Bloque NPK: bruto (necesidad total cultivo) → cubierto riego → neto (fertilizante)
-  // N bruto = N_motor + N_riego (el motor ya descontó el N del riego via n_other)
+  // N bruto = nVal directo (ya es el total, independiente del riego, ver sativum-algo.js)
   row('— Necesidades brutas (cultivo) —', null)
   row('N bruto',    nBruto,                       'kg N/ha')
   row('P₂O₅ bruto', num(p * P_TO_P2O5, 1),       'kg P₂O₅/ha')

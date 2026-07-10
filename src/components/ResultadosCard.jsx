@@ -35,9 +35,9 @@ function extraerNPK(npkData) {
 
 // ── NpkGrid ───────────────────────────────────────────────────────────────────
 function NpkGrid({ n, p, k, nRiego = 0 }) {
-  const nBruto = (n ?? 0) + nRiego
+  // n ya es el N bruto (independiente del riego, ver sativum-algo.js) — no se suma nRiego aquí
   const rows = [
-    { label: 'N',     primary: nBruto,        puro: null, puroLabel: null },
+    { label: 'N',     primary: n ?? 0,        puro: null, puroLabel: null },
     { label: 'P₂O₅', primary: pToOxide(p),    puro: p,   puroLabel: 'P' },
     { label: 'K₂O',  primary: kToOxide(k),    puro: k,   puroLabel: 'K' },
   ]

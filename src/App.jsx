@@ -338,17 +338,19 @@ export default function App() {
       }
       console.debug('[NPK norm]', npkNorm)
 
-      // N/P/K aportados por riego (client-side — /algo/ solo acepta N via n_other)
+      // N/P/K aportados por riego (client-side — ya NO se meten en la llamada a /algo/,
+      // ver nota en sativum-algo.js: n_other solo lleva deposición atmosférica)
       const dotEf      = Number(riego.dotacionM3) || 0
       const esRegadio  = riego.sistemaExplotacion === 'regadio'
-      // nRiego: la API ya lo descontó via n_other; lo calculamos para mostrarlo en display
+      // nRiego: npkNorm.n es ahora el N bruto (independiente del riego); nRiego se resta
+      // aparte, abajo, igual que ya se hacía con P y K
       const nRiego = esRegadio ? calcularNAgua(Number(riego.no3MgL) || 0, dotEf) : 0
       const pRiego = (esRegadio && riego.pMgL && dotEf) ? Number(riego.pMgL) * dotEf / 1000 : 0
       const kRiego = (esRegadio && riego.kMgL && dotEf) ? Number(riego.kMgL) * dotEf / 1000 : 0
 
-      // npkParaRec: valores netos que debe cubrir el fertilizante (P/K ya descontados del riego)
+      // npkParaRec: valores netos que debe cubrir el fertilizante (N/P/K ya descontados del riego)
       const npkParaRec = {
-        n: npkNorm.n,
+        n: Math.max(0, npkNorm.n - nRiego),
         p: Math.max(0, npkNorm.p - pRiego),
         k: Math.max(0, npkNorm.k - kRiego),
       }
