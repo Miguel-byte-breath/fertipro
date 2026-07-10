@@ -120,21 +120,27 @@ export default function SueloRiegoCard({
   const esRegadio          = sistemaExplotacion === 'regadio'
   const esSubterr          = fuenteId === FUENTE_SUBTERRANEA
 
-  // Auto-rellenar NO₃ desde ArcGIS cuando fuente = subterránea
+  // Auto-rellenar NO₃ y K desde ArcGIS cuando fuente = subterránea.
+  //
+  // Un solo efecto para los dos campos, a propósito: antes había dos useEffect
+  // separados (uno por NO₃, otro por K) que, al llegar juntos desde la misma
+  // respuesta ArcGIS, disparaban en el mismo commit y cada uno llamaba a
+  // onRiegoChange (=setRiego, reemplazo total del objeto, no merge) leyendo el
+  // mismo `riego` obsoleto del cierre. El segundo efecto en pisar "ganaba" y el
+  // campo del primero (no3MgL) se perdía siempre — confirmado con una
+  // reproducción real en React (jsdom) y con los números de la app: en modo
+  // subterránea, K2O se descontaba bien pero el N mostrado en "Necesidades
+  // NPK" salía a 0 (mismo bug ya arreglado en fertipro, ver su CLAUDE.md).
   useEffect(() => {
-    if (esSubterr && suelo?.no3Irrigation != null) {
-      onRiegoChange({ ...riego, no3MgL: suelo.no3Irrigation })
+    if (!esSubterr) return
+    const next = {}
+    if (suelo?.no3Irrigation != null) next.no3MgL = suelo.no3Irrigation
+    if (suelo?.kIrrigation != null) next.kMgL = suelo.kIrrigation
+    if (Object.keys(next).length > 0) {
+      onRiegoChange({ ...riego, ...next })
     }
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [esSubterr, suelo?.no3Irrigation])
-
-  // Auto-rellenar K desde ArcGIS cuando fuente = subterránea
-  useEffect(() => {
-    if (esSubterr && suelo?.kIrrigation != null) {
-      onRiegoChange({ ...riego, kMgL: suelo.kIrrigation })
-    }
-    // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [esSubterr, suelo?.kIrrigation])
+  }, [esSubterr, suelo?.no3Irrigation, suelo?.kIrrigation])
 
   // ── handlers ──────────────────────────────────────────────────────────────
 
