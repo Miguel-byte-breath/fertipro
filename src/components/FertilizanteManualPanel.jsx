@@ -640,7 +640,7 @@ export default function FertilizanteManualPanel({
           {/* ── Cobertura acumulada ── */}
           {npkNeed && (
             <div style={S.coverageWrap}>
-              <div style={{ ...S.sectionLabel, marginBottom: 5 }}>Cobertura acumulada</div>
+              <div style={{ ...S.sectionLabel, marginBottom: 5 }}>Calculado vs Planificado</div>
               <div style={{ display: 'flex', fontSize: 9, color: '#90a4ae', marginBottom: 4, gap: 4 }}>
                 <span style={{ width: 34 }} />
                 <span style={{ width: 52, textAlign: 'right' }}>Aportado</span>
