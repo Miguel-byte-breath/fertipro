@@ -189,7 +189,6 @@ export default function App() {
   // ── Importación de plan ──────────────────────────────────────────────────
   const importFileRef          = useRef(null)
   const isImportingRef         = useRef(false)   // suprime los useEffect de reset al cambiar cultivo
-  const preservePlanItemsRef   = useRef(false)   // true tras import → primer calcular no resetea planItems
   const [importAlert, setImportAlert] = useState(null)   // string | null
   const [apiError,    setApiError]    = useState(null)   // { msg, key } | null
 
@@ -255,10 +254,13 @@ export default function App() {
   const handleCalcularNecesidades = useCallback(async () => {
     if (!cultivo) return
     setResultados({ npk: null, npkParaRec: null, adjustedNutrient: 'N', nRiego: 0, pRiego: 0, kRiego: 0, loading: true, error: null })
-    if (!preservePlanItemsRef.current) {
-      setPlanItems([])   // resetear plan al recalcular
-    }
-    preservePlanItemsRef.current = false
+    // El plan de aplicaciones (planItems) ya NO se resetea al recalcular — un cambio de
+    // cultivo/estrategia/laboreo puede afectar a los productos ya registrados, pero es el
+    // asesor quien decide si siguen siendo válidos (barra de cobertura NPK como aviso visual)
+    // o los elimina uno a uno. Alineado con el comportamiento del gemelo `fertipro` (motor
+    // propio), donde planItems ya vivía desacoplado del cálculo del balance. Confirmado con
+    // Miguel 2026-07-13: evitar la reintroducción manual de productos penaliza más al asesor
+    // que la responsabilidad de revisar el plan tras un cambio de inputs.
 
     try {
       // Riego efectivo según sistema de explotación y fuente SIEX
@@ -811,7 +813,6 @@ export default function App() {
       if (data.riego)     setRiego(prev => ({ ...prev, ...data.riego }))
       if (data.planItems) {
         setPlanItems(data.planItems)
-        preservePlanItemsRef.current = true   // primer calcular post-import no resetea el plan
       }
       if (data.mediasGEI) setMedidasGEI(data.mediasGEI)
 
