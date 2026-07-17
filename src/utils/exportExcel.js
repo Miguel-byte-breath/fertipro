@@ -250,6 +250,7 @@ export async function exportarPlanAbonado({
   const kRiego  = tieneRiego && k_r > 0 ? k_r * dot / 1000 : 0   // kg K/ha
 
   // NPK neto = bruto - riego (floor 0)
+  const nNeto = Math.max(0, (nVal ?? 0) - nRiegoVal)
   const pNeto = Math.max(0, (pVal ?? 0) - pRiego)
   const kNeto = Math.max(0, (kVal ?? 0) - kRiego)
 
@@ -388,7 +389,7 @@ export async function exportarPlanAbonado({
 
     row('', null)
     row('— A cubrir con fertilizante (neto) —', null)
-    row('N neto',    n,                                   'kg N/ha')   // = N_motor (ya neto)
+    row('N neto',    num(nNeto, 1),                        'kg N/ha')
     row('P₂O₅ neto', num(pNeto * P_TO_P2O5, 1),          'kg P₂O₅/ha')
     row('P neto',    num(pNeto, 1),                       'kg P/ha')
     row('K₂O neto',  num(kNeto * K_TO_K2O,  1),          'kg K₂O/ha')
