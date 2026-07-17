@@ -15,23 +15,10 @@
  */
 import { useState } from 'react'
 import CultivoSelector from '../cultivos/CultivoSelector'
+import { computeAutoFRes, fResEditable } from '../utils/fresRule'
 
 function esCereal(c) {
   return c?.plantSpeciesGroup?.toUpperCase() === 'CEREALS'
-}
-
-/**
- * Calcula el f_res automático (B7) según cultivo y si se recoge la paja.
- * Igual que la lógica de cultivoToCropFeatures en sativum-algo.js.
- */
-function computeAutoFRes(cultivo, recogeResiduos) {
-  if (!cultivo) return null
-  if (
-    cultivo.plantSpeciesGroup?.toUpperCase() === 'CEREALS' &&
-    cultivo.fres === 10 &&
-    !recogeResiduos
-  ) return 100
-  return cultivo.fres ?? 100
 }
 
 export default function CultivoAnteriorPanel({ cultivo, params, onCultivoChange, onParamsChange }) {
@@ -43,6 +30,7 @@ export default function CultivoAnteriorPanel({ cultivo, params, onCultivoChange,
   const esCerealCultivo = esCereal(cultivo)
   const labelResiduos   = esCerealCultivo ? '¿Se recoge la paja?' : 'Recoge residuos del campo'
   const autoFRes        = computeAutoFRes(cultivo, params.recogeResiduos)
+  const editableFRes    = fResEditable(params.recogeResiduos)
 
   return (
     <div style={SC.card}>
@@ -127,23 +115,31 @@ export default function CultivoAnteriorPanel({ cultivo, params, onCultivoChange,
                     </label>
                   )}
 
-                  {/* Residuos en campo (f_res) — editable, auto-relleno por regla B7 */}
+                  {/* Residuos en campo (f_res) — solo editable si se recogen los residuos;
+                      si no, queda fijo en el auto (100%, o 100% también si solo se marca
+                      "quema residuos" sin recoger — quemar no exporta nada del campo) */}
                   <div style={SC.row}>
                     <span style={SC.rowLbl}>Residuos en campo</span>
                     <span style={{ display: 'flex', alignItems: 'center', gap: 4 }}>
                       <input
                         type="number"
-                        value={params.fRes ?? ''}
+                        value={editableFRes ? (params.fRes ?? '') : (autoFRes ?? '')}
                         placeholder={autoFRes !== null ? String(autoFRes) : ''}
                         min={0}
                         max={100}
                         step={5}
+                        disabled={!editableFRes}
                         onChange={e => set({ fRes: e.target.value === '' ? null : Number(e.target.value) })}
-                        style={SC.numInput}
+                        style={editableFRes ? SC.numInput : { ...SC.numInput, ...SC.numInputDisabled }}
                       />
                       <span style={SC.unit}>%</span>
                     </span>
                   </div>
+                  {!editableFRes && (
+                    <div style={SC.hint}>
+                      Fijo en {autoFRes}% — marca "{labelResiduos}" para poder editarlo.
+                    </div>
+                  )}
                 </>
               )}
             </>
@@ -179,6 +175,9 @@ const SC = {
     border: '1px solid #cfd8dc', borderRadius: 3,
     fontSize: 12, fontFamily: 'monospace', textAlign: 'right',
     color: '#263238',
+  },
+  numInputDisabled: {
+    background: '#f5f7fa', color: '#90a4ae', cursor: 'not-allowed',
   },
   checkRow:{
     display: 'flex', alignItems: 'center',

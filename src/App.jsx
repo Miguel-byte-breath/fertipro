@@ -145,6 +145,7 @@ export default function App() {
     cropYield:      null,
     recogeResiduos: false,
     quemaResiduos:  false,
+    fRes:           null,   // null = auto (B7 para cereales / default catálogo para el resto)
     abonoVerde:     false,
     nEcuacion:      {},
     algoOverrides:  {},
@@ -158,6 +159,7 @@ export default function App() {
       cropYield:      cultivo?.yieldMedium ?? null,
       recogeResiduos: false,
       quemaResiduos:  false,
+      fRes:           null,
       abonoVerde:     false,
     }))
   }, [cultivo?.id])
@@ -295,6 +297,7 @@ export default function App() {
         cv:             cultivo.cv ?? 0,    // CV = 0 default en Sativum; no afecta al cálculo actual
         recogeResiduos: calculo.recogeResiduos,
         quemaResiduos:  calculo.quemaResiduos,
+        fRes:           calculo.fRes,  // null = auto (B7 / default catálogo)
       })
 
       // Suelo efectivo: análisis propio del laboratorio o datos ArcGIS
@@ -1099,7 +1102,11 @@ export default function App() {
           </div>
 
           {/* ── Ficha agronómica del cultivo ── */}
-          <CultivoCard cultivo={cultivo} />
+          <CultivoCard
+            cultivo={cultivo}
+            params={calculo}
+            onParamsChange={setCalculo}
+          />
 
           <CultivoAnteriorPanel
             cultivo={cultivoAnterior}

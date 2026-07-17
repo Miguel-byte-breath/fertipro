@@ -4,10 +4,26 @@
  * Tarjeta de detalle del cultivo seleccionado, con datos del catálogo Sativum.
  *
  * Campos mostrados:
- *   name, plantSpeciesGroup, dryMatter, n/p/k (%), hi, fres, nfixCode,
+ *   name, plantSpeciesGroup, dryMatter, n/p/k (%), hi, nfixCode,
  *   yieldLow / yieldMedium / yieldHigh, advertencia de rendimiento anómalo.
+ *
+ * El coeficiente de residuos (fres) del catálogo YA NO se muestra como dato
+ * fijo aquí (generaba confusión: se veía un valor de catálogo que en realidad
+ * nunca llegaba al payload de /fertilicalc/algo/ para el cultivo actual, solo
+ * para el anterior). En su lugar, sección "Gestión de residuos" — editable,
+ * mismo patrón y misma regla (fresRule.js) que CultivoAnteriorPanel.jsx.
+ *
+ * Props añadidas (2026-07-17):
+ *   params          — { recogeResiduos, quemaResiduos, fRes }, subconjunto del
+ *                      estado `calculo` de App.jsx
+ *   onParamsChange  — (params) => void, normalmente setCalculo
  */
 import { tieneRendimientoAnomalo } from '../api/sativum-crops'
+import { computeAutoFRes, fResEditable } from '../utils/fresRule'
+
+function esCereal(cultivo) {
+  return cultivo?.plantSpeciesGroup?.toUpperCase() === 'CEREALS'
+}
 
 const GRUPO_LABEL = {
   CEREALS:                 'Cereales',
@@ -31,7 +47,7 @@ function num(v, dec = 2) {
   return Number(v).toFixed(dec)
 }
 
-export default function CultivoCard({ cultivo }) {
+export default function CultivoCard({ cultivo, params, onParamsChange }) {
   if (!cultivo) {
     return (
       <div style={{ padding: '14px 12px', fontSize: 12, color: '#90a4ae', fontStyle: 'italic' }}>
@@ -42,6 +58,13 @@ export default function CultivoCard({ cultivo }) {
 
   const anomalo  = tieneRendimientoAnomalo(cultivo)
   const grupo    = GRUPO_LABEL[cultivo.plantSpeciesGroup?.toUpperCase()] ?? cultivo.plantSpeciesGroup
+
+  // ── Gestión de residuos (cultivo actual) ─────────────────────────────────
+  const set             = patch => onParamsChange?.({ ...params, ...patch })
+  const esCerealCultivo = esCereal(cultivo)
+  const labelResiduos    = esCerealCultivo ? '¿Se recoge la paja?' : 'Recoge residuos del campo'
+  const autoFRes         = computeAutoFRes(cultivo, params?.recogeResiduos)
+  const editableFRes     = fResEditable(params?.recogeResiduos)
 
   return (
     <div style={S.card}>
@@ -61,12 +84,63 @@ export default function CultivoCard({ cultivo }) {
       {/* ── Parámetros agronómicos ────────────────────────────────────────── */}
       <div style={S.section}>
         <div style={S.sectionTitle}>Parámetros agronómicos</div>
-        <div style={S.grid}>
+        <div style={{ ...S.grid, gridTemplateColumns: 'repeat(2, 1fr)' }}>
           <Param label="Materia seca"        value={cultivo.dryMatter != null ? `${cultivo.dryMatter} %` : null} />
           <Param label="Harvest Index (HI)"  value={cultivo.hi        != null ? num(cultivo.hi)            : null} />
-          <Param label="Coef. residuos (fres)" value={cultivo.fres    != null ? num(cultivo.fres, 0)        : null} />
         </div>
       </div>
+
+      {/* ── Gestión de residuos (editable) ───────────────────────────────── */}
+      {onParamsChange && (
+        <div style={S.section}>
+          <div style={S.sectionTitle}>Gestión de residuos</div>
+
+          <label style={S.checkRow}>
+            <input
+              type="checkbox"
+              checked={!!params?.recogeResiduos}
+              onChange={e => set({ recogeResiduos: e.target.checked, fRes: null })}
+              style={{ marginRight: 6 }}
+            />
+            <span>{labelResiduos}</span>
+          </label>
+
+          {esCerealCultivo && (
+            <label style={S.checkRow}>
+              <input
+                type="checkbox"
+                checked={!!params?.quemaResiduos}
+                onChange={e => set({ quemaResiduos: e.target.checked })}
+                style={{ marginRight: 6 }}
+              />
+              <span>Quema los residuos</span>
+            </label>
+          )}
+
+          <div style={S.residuosRow}>
+            <span style={S.paramLabel}>Residuos en campo</span>
+            <span style={{ display: 'flex', alignItems: 'center', gap: 4 }}>
+              <input
+                type="number"
+                value={editableFRes ? (params?.fRes ?? '') : (autoFRes ?? '')}
+                placeholder={autoFRes !== null ? String(autoFRes) : ''}
+                min={0}
+                max={100}
+                step={5}
+                disabled={!editableFRes}
+                onChange={e => set({ fRes: e.target.value === '' ? null : Number(e.target.value) })}
+                style={editableFRes ? S.numInput : { ...S.numInput, ...S.numInputDisabled }}
+              />
+              <span style={S.unit}>%</span>
+            </span>
+          </div>
+          {!editableFRes && (
+            <div style={S.residuosHint}>
+              Fijo en {autoFRes}% — marca "{labelResiduos}" para poder editarlo.
+            </div>
+          )}
+        </div>
+      )}
 
       {/* ── Nutrientes en cosecha ─────────────────────────────────────────── */}
       <div style={S.section}>
@@ -143,5 +217,26 @@ const S = {
     marginTop: 6, fontSize: 11, color: '#e65100',
     background: '#fff3e0', border: '1px solid #ffe0b2',
     borderRadius: 4, padding: '5px 8px',
+  },
+
+  // Gestión de residuos
+  checkRow: {
+    display: 'flex', alignItems: 'center',
+    fontSize: 12, cursor: 'pointer', padding: '3px 0',
+  },
+  residuosRow: {
+    display: 'flex', justifyContent: 'space-between', alignItems: 'center',
+    fontSize: 12, padding: '3px 0', borderTop: '1px solid #f0f4f7', marginTop: 2,
+  },
+  residuosHint: { fontSize: 11, color: '#90a4ae', fontStyle: 'italic', marginTop: 2 },
+  unit:         { color: '#90a4ae', fontSize: 10 },
+  numInput: {
+    width: 80, padding: '2px 5px',
+    border: '1px solid #cfd8dc', borderRadius: 3,
+    fontSize: 12, fontFamily: 'monospace', textAlign: 'right',
+    color: '#263238',
+  },
+  numInputDisabled: {
+    background: '#f5f7fa', color: '#90a4ae', cursor: 'not-allowed',
   },
 }
