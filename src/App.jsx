@@ -380,7 +380,7 @@ export default function App() {
       showApiError('Sativum', err)
       setResultados({ npk: null, npkParaRec: null, adjustedNutrient: 'N', nRiego: 0, pRiego: 0, kRiego: 0, loading: false, error: err.message || 'Error en el cálculo.' })
     }
-  }, [cultivo, suelo, cec, riego, calculo, cultivoAnterior, cultivoAnteriorParams, showApiError])
+  }, [cultivo, suelo, cec, riego, calculo, cultivoAnterior, cultivoAnteriorParams, showApiError, analisisPropio, sueloPersonalizado])
 
   // ── Estado generación informe Excel SIGPAC ─────────────────────────────
   const [loadingExcel, setLoadingExcel] = useState(false)

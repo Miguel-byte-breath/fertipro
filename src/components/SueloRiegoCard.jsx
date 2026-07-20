@@ -8,6 +8,17 @@
  *   Modo ArcGIS: campos read-only (MO, Textura, pH, P Olsen, K suelo).
  *   Modo Laboratorio: mismos campos editables, pre-rellenos con valores ArcGIS.
  *     + Ref. boletín (texto libre).
+ *     Textura: el usuario elige la clase FAO/USDA (12 clases, la habitual en
+ *       cualquier boletín de análisis de suelo) — NUNCA "textura simplificada"
+ *       directamente, ese esquema de 6 clases es un artefacto interno de
+ *       Sativum/ITACyL que el usuario no tiene forma de relacionar con su
+ *       boletín. El campo operativo que viaja a la API (`sueloPersonalizado
+ *       .soilType`, enum SANDY|SANDY_LOAM|LOAM|SILTY_LOAM|CLAY_LOAM|CLAY) se
+ *       deriva en silencio de la clase FAO/USDA elegida vía el campo
+ *       `soilTypeSimplified` que ya trae cada entrada de soilTypes.json —
+ *       mismo mapeo 12→6 que usa `normalizarSuelo()` para el modo ArcGIS,
+ *       verificado además contra la leyenda real del MapServer de ITACyL
+ *       (servicios.itacyl.es/arcgis/rest/services/API_de_Suelos/MapServer/legend).
  *   CEC (meq/kg): siempre editable.
  *
  * Sección 2 — Agua de riego:
@@ -32,13 +43,17 @@
  *   onAnalisisPropioChange     — (bool) => void
  *   refAnalisisSuelo           — string
  *   onRefAnalisisSueloChange   — (string) => void
- *   sueloPersonalizado         — object { soilType, organicMatter, ph, pOlsen, kSoil }
+ *   sueloPersonalizado         — object { soilType, soilTypeUsdaValue, organicMatter, ph, pOlsen, kSoil }
+ *     soilType          — enum SANDY|SANDY_LOAM|LOAM|SILTY_LOAM|CLAY_LOAM|CLAY, operativo (viaja a la API)
+ *     soilTypeUsdaValue — 1-12, lo que el usuario elige realmente en modo laboratorio;
+ *                         soilType se deriva de este vía soilTypes.json.soilTypeSimplified
  *   onSueloPersonalizadoChange — (obj) => void
  *   cultivoIrrigation          — number (m³/ha orientativo del cultivo, 0 si no aplica)
  */
 import { useEffect } from 'react'
 import { FUENTES_AGUA, FUENTE_SUBTERRANEA } from '../data/sativum/fuentesAgua'
 import soilTypesSimpl from '../data/sativum/soilTypesSimpl.json'
+import soilTypes from '../data/sativum/soilTypes.json'
 
 // Opciones de origen de agua (excluye id=0 "Sin riego" — lo gestiona el toggle Secano/Regadío)
 const FUENTES_AGUA_REGADIO = FUENTES_AGUA.filter(f => f.id !== 0)
@@ -46,6 +61,14 @@ const FUENTES_AGUA_REGADIO = FUENTES_AGUA.filter(f => f.id !== 0)
 const SOIL_LABEL = Object.fromEntries(
   soilTypesSimpl.map(s => [s.descNutrients, s.description])
 )
+
+// value FAO/USDA (1-12) → descNutrients Sativum (SANDY|SANDY_LOAM|LOAM|SILTY_LOAM|CLAY_LOAM|CLAY)
+// vía el join key soilTypeSimplified que ya trae cada entrada de soilTypes.json.
+const SIMPL_BY_VALUE = Object.fromEntries(soilTypesSimpl.map(s => [s.value, s.descNutrients]))
+function soilTypeDesdeUsda(usdaValue) {
+  const entry = soilTypes.find(t => t.value === Number(usdaValue))
+  return entry ? SIMPL_BY_VALUE[entry.soilTypeSimplified] : null
+}
 
 // ── helpers ──────────────────────────────────────────────────────────────────
 
@@ -145,14 +168,22 @@ export default function SueloRiegoCard({
   // ── handlers ──────────────────────────────────────────────────────────────
 
   function handleToggleAnalisis(propio) {
-    if (propio && !analisisPropio) {
-      // Pre-rellenar con valores ArcGIS como punto de partida
+    // Pre-rellenar con valores ArcGIS SOLO la primera vez que se entra en modo laboratorio
+    // (sueloPersonalizado todavía vacío) — no en cada reentrada. Antes se sobreescribía
+    // sueloPersonalizado con los valores ArcGIS actuales cada vez que se volvía a pulsar
+    // "Laboratorio propio" (la condición era `propio && !analisisPropio`, que vuelve a ser
+    // cierta en cada reentrada), borrando silenciosamente cualquier edición manual del
+    // usuario en cuanto alternaba entre las dos pestañas. Confirmado por Miguel: los valores
+    // introducidos en análisis propio se restablecían al cambiar a ArcGIS y volver.
+    const yaPersonalizado = sueloPersonalizado && Object.keys(sueloPersonalizado).length > 0
+    if (propio && !analisisPropio && !yaPersonalizado) {
       onSueloPersonalizadoChange({
-        soilType:      suelo?.soilType      ?? 'LOAM',
-        organicMatter: suelo?.organicMatter ?? '',
-        ph:            suelo?.ph            ?? '',
-        pOlsen:        suelo?.pOlsen        ?? '',
-        kSoil:         suelo?.kSoil         ?? '',
+        soilType:          suelo?.soilType          ?? 'LOAM',
+        soilTypeUsdaValue: suelo?.soilTypeUsdaPixel  ?? '',
+        organicMatter:     suelo?.organicMatter      ?? '',
+        ph:                suelo?.ph                 ?? '',
+        pOlsen:            suelo?.pOlsen             ?? '',
+        kSoil:             suelo?.kSoil              ?? '',
       })
     }
     onAnalisisPropioChange(propio)
@@ -240,18 +271,28 @@ export default function SueloRiegoCard({
         <Row label="Textura (USDA oficial)" value={suelo?.soilTypeUsdaLabel ?? null} />
       )}
 
-      {/* Textura simplificada — select en laboratorio, row en ArcGIS */}
+      {/* Textura — FAO/USDA (12 clases) en laboratorio, textura simplificada de solo lectura en ArcGIS.
+          En laboratorio el usuario nunca ve "textura simplificada" (esquema interno de Sativum/ITACyL
+          sin relación evidente con un boletín real) — elige la clase FAO/USDA de su análisis y el
+          soilType operativo (el que viaja a la API) se deriva en silencio vía soilTypeDesdeUsda(). */}
       {analisisPropio ? (
         <div style={S.row}>
-          <span style={S.lbl}>Textura simplificada</span>
+          <span style={S.lbl}>Clase textural FAO/USDA</span>
           <select
-            value={sueloPersonalizado?.soilType ?? ''}
-            onChange={e => setSueloProp('soilType', e.target.value)}
+            value={sueloPersonalizado?.soilTypeUsdaValue ?? ''}
+            onChange={e => {
+              const usdaValue = e.target.value === '' ? '' : Number(e.target.value)
+              onSueloPersonalizadoChange({
+                ...sueloPersonalizado,
+                soilTypeUsdaValue: usdaValue,
+                soilType: soilTypeDesdeUsda(usdaValue) ?? sueloPersonalizado?.soilType ?? 'LOAM',
+              })
+            }}
             style={S.select}
           >
             <option value="">— seleccionar —</option>
-            {soilTypesSimpl.map(t => (
-              <option key={t.descNutrients} value={t.descNutrients}>{t.description}</option>
+            {soilTypes.map(t => (
+              <option key={t.value} value={t.value}>{t.description}</option>
             ))}
           </select>
         </div>
