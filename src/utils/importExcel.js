@@ -24,7 +24,7 @@
  * Requisito de formato: el fichero debe tener la hoja "Plan de Abonado"
  * tal y como la genera exportarPlanAbonado().
  */
-import { FUENTES_AGUA } from '../data/sativum/fuentesAgua'
+import { FUENTES_AGUA, FUENTE_SUBTERRANEA } from '../data/sativum/fuentesAgua'
 
 // ─── Helpers ─────────────────────────────────────────────────────────────────
 
@@ -286,6 +286,17 @@ export async function importarPlanDesdeExcel(file) {
   const refAnalisisSuelo = toStr(campos['Ref. boletín análisis suelo'])
   const soilTypeKey      = parseSoilTypeKey(campos['Textura suelo'])
 
+  // Fuente de agua exportada — se necesita aquí (antes de la sección "Riego"
+  // de más abajo) solo para decidir si NO₃/K de riego venían realmente de
+  // ArcGIS (fuente subterránea) al reconstruir `sueloImportado`.
+  const fuenteEraSubterranea =
+    FUENTES_AGUA.find((f) => f.label === campos['Origen del agua (SIEX)'])?.id === FUENTE_SUBTERRANEA
+
+  // NO₃/K de agua de riego, igual que el resto de `sueloImportado`: se restauran
+  // del Excel para que, con fuente subterránea, SueloRiegoCard.jsx (que lee
+  // suelo.no3Irrigation/kIrrigation directamente, no riego.no3MgL/kMgL) no los
+  // muestre en blanco sin recargar la geometría. queryCoords() los sobreescribe
+  // con datos frescos de ArcGIS en cuanto el usuario vuelve a marcar el punto.
   const sueloImportado = {
     soilType:          soilTypeKey ?? 'LOAM',
     soilTypeUsdaLabel: toStr(campos['Textura USDA']) || null,
@@ -293,6 +304,8 @@ export async function importarPlanDesdeExcel(file) {
     ph:                toNum(campos['pH']),
     pOlsen:            toNum(campos['P Olsen']),
     kSoil:             toNum(campos['K suelo']),
+    kIrrigation:       fuenteEraSubterranea ? toNum(campos['K agua riego']) : null,
+    no3Irrigation:     fuenteEraSubterranea ? toNum(campos['NO₃ agua riego']) : null,
   }
   // sueloPersonalizado: solo cuando el plan se generó con análisis propio
   const sueloPersonalizado = analisisPropio ? { ...sueloImportado } : {}
