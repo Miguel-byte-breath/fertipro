@@ -42,7 +42,7 @@ Si ya tienes un plan exportado en Excel, puedes recuperar el estado completo de 
 
 3. **Revisa los datos restaurados** — comprueba que todo es coherente con la parcela: recintos SIGPAC y alertas ZVN, cultivo actual y precedente, estrategia de abonado, suelo y agua de riego, y el plan de aplicaciones con su cobertura NPK acumulada.
 
-4. **Calcula las necesidades NPK** — pulsa **"Calcular necesidades NPK"** una sola vez. Una segunda pulsación reinicia el plan de aplicaciones y tendrás que añadir de nuevo los fertilizantes.
+4. **Calcula las necesidades NPK** — pulsa **"Calcular necesidades NPK"**. El plan de aplicaciones ya no se reinicia al recalcular: un cambio de cultivo, estrategia o manejo puede afectar a los productos ya añadidos, así que conviene revisar las barras de cobertura NPK y ajustar o eliminar los que ya no correspondan.
 
 ---
 
@@ -152,7 +152,9 @@ fertipro-api-sativum/
 │   ├── sativum-fertilizers.js        GET/POST /nutrients/fertilizers — catálogo y recomendación
 │   ├── sativum-crops.js              GET /nutrients/crops — catálogo de cultivos
 │   ├── sativum-suelo.js              GET ArcGIS identify — características del suelo
+│   ├── plan-riego.js                 POST /api/calcular-riego (SIG Riego Pro) — plan de riego semanal
 │   ├── sigpac.js                     GET OGC API Features — recinto en un punto
+│   ├── sigpac-mvt.js                 GET teselas MVT/GeoJSON de SIGPAC (capa de recintos en el mapa)
 │   ├── sigpac-bbox.js                GET OGC API Features — recintos en bbox
 │   ├── sigpac-recinfo.js             GET REST recinfo — uso, coef. regadío, superficie
 │   └── sigpac-zvn.js                 GET REST nitratos — clasificación ZVN
@@ -162,24 +164,32 @@ fertipro-api-sativum/
 │   ├── api/                        Wrappers cliente de los proxies serverless
 │   │   ├── sativum-algo.js           calcularNPK, calcularNAgua, ensamblarPayload
 │   │   ├── sativum-fertilizers.js    getRecomendacion, getFertilizadores, getFertilizador
-│   │   └── sativum-suelo.js          identifySativum, normalizarSuelo
+│   │   ├── sativum-crops.js          catálogo de cultivos (HI, N/P/K, f_res, nfix_code…)
+│   │   ├── sativum-suelo.js          identifySativum, normalizarSuelo
+│   │   └── sigpac.js                 recinto SIGPAC más cercano a un punto
 │   ├── components/                 Componentes React
 │   │   ├── AsesoramientoPanel.jsx    Panel REGFER del asesor (persiste en localStorage)
 │   │   ├── CultivoAnteriorPanel.jsx  Cultivo precedente en la rotación
 │   │   ├── EstrategiaPanel.jsx       Estrategia, laboreo, parámetros N avanzados
 │   │   ├── FertilizanteManualPanel.jsx  Plan de aplicaciones: catálogo Sativum + asesor manual
+│   │   ├── GeometryPanel.jsx         Geometría de referencia: parcelas, superficie, descargas
 │   │   ├── MedidasMitigacionPanel.jsx    Panel colapsable medidas GEI (Anexo V RD 1051/2022)
 │   │   ├── MetodologiaModal.jsx      Modal metodología: cadena FertiliCalc→FaST→Sativum
 │   │   ├── ParcelaInfoCard.jsx       Tabla recintos SIGPAC (superficie, uso, ZVN)
+│   │   ├── PlanRiegoModal.jsx        Modal plan de riego semanal (SIG Riego Pro) + export PDF
+│   │   ├── RecintoCard.jsx           Ficha del recinto SIGPAC en el punto/parcela activa
+│   │   ├── RecintosOrigenCard.jsx    Composición de una hoja construida desde recintos SIGPAC
 │   │   ├── ResultadosCard.jsx        Visualización NPK + botón "Añadir aplicación Sativum"
 │   │   ├── SativumApplicationDialog.jsx  Modal: sliders % objetivo → 5 opciones catálogo
 │   │   └── SueloRiegoCard.jsx        Panel unificado suelo + agua de riego
 │   ├── cultivos/
+│   │   ├── CultivoCard.jsx           Ficha de detalle del cultivo + gestión de residuos editable
 │   │   └── CultivoSelector.jsx       Combobox con búsqueda contra /nutrients/crops
 │   ├── data/sativum/               Tablas estáticas
 │   │   ├── algoParams.js             efficiency_factor/p_threshold/k_threshold por estrategia×textura
 │   │   ├── fuentesAgua.js            Catálogo SIEX fuentes de agua (ids 0-6)
 │   │   ├── medidasMitigacionGEI.js   16 medidas GEI filtradas del catálogo FEGA (Anexo V)
+│   │   ├── soilTypes.json            12 clases texturales FAO/USDA (modo Laboratorio propio)
 │   │   ├── soilTypesSimpl.json       Mapeo pixel ArcGIS → SANDY/LOAM/CLAY_LOAM etc.
 │   │   └── tiposMaterialFertilizante.js  24 tipos SIEX (RD 1051/2022)
 │   ├── map/
@@ -187,9 +197,12 @@ fertipro-api-sativum/
 │   └── utils/
 │       ├── exportExcel.js            Plan en Excel (Plan, Fertilizantes, Recintos SIGPAC, Notas)
 │       ├── exportPdf.js              Plan en PDF (art. 6 RD 1051/2022)
+│       ├── fresRule.js               Regla compartida de f_res (residuos en campo, actual/anterior)
 │       ├── geometry.js               centroide, exportarGeoJSON, exportarSHP
-│       ├── npkUtils.js               calcNpkEfectivo (mineralización orgánicos)
-│       └── recintosInterseccion.js   interseccionRecintos, enrichRecintos (ZVN + recinfo)
+│       ├── importExcel.js            Restaura el estado de la sesión desde un Excel exportado
+│       ├── npkUtils.js               calcNpkEfectivo, aniosTranscurridos (mineralización orgánicos)
+│       ├── recintosInterseccion.js   interseccionRecintos, enrichRecintos (ZVN + recinfo)
+│       └── slugify.js                Slug ASCII para nombres de fichero descargados
 ├── App.jsx                         Raíz: estado global, flujo de cálculo, exportación
 ├── index.html
 ├── vite.config.js
