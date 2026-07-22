@@ -18,6 +18,7 @@
  */
 import area from '@turf/area'
 import { MEDIDAS_MITIGACION_GEI } from '../data/sativum/medidasMitigacionGEI'
+import { aniosTranscurridos } from './npkUtils'
 
 /**
  * Descarga el Excel.
@@ -149,9 +150,7 @@ function calcEfectivoExcel(item, fechaInicioCiclo) {
   if (!item.appliesAnnualEffectiveness || !item.fechaAplicacion || !fechaInicioCiclo) {
     return { pct: null, efN: null, efP2o5: null, efK2o: null }
   }
-  const yearInicio = new Date(fechaInicioCiclo + 'T00:00:00').getFullYear()
-  const yearAplic  = new Date(item.fechaAplicacion + 'T00:00:00').getFullYear()
-  const delta = Math.min(2, Math.max(0, yearInicio - yearAplic))
+  const delta = aniosTranscurridos(item.fechaAplicacion, fechaInicioCiclo)
   const pct   = item[`yearPercent${delta}`] ?? 100
   return {
     pct,

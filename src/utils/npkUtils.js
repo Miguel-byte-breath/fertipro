@@ -6,6 +6,29 @@
  */
 
 /**
+ * Años completos transcurridos entre `fechaAplicacion` y `fechaReferencia`,
+ * según el ANIVERSARIO real de la aplicación — no el año natural/calendario.
+ * Confirmado con ITACyL (2026-07-22): año 0 dura hasta el día antes del primer
+ * aniversario de la aplicación; año 1 desde ese aniversario hasta el día antes
+ * del segundo; año 2 desde el segundo aniversario en adelante. Mismo algoritmo
+ * que calcular una edad (resta años de calendario y resta 1 si el aniversario
+ * de este año todavía no ha llegado a la fecha de referencia).
+ *
+ * @param {string} fechaAplicacion  — ISO date string (YYYY-MM-DD)
+ * @param {string} fechaReferencia  — ISO date string (YYYY-MM-DD)
+ * @returns {number} años transcurridos, acotado a [0,2] (solo hay yearPercent0/1/2)
+ */
+export function aniosTranscurridos(fechaAplicacion, fechaReferencia) {
+  const aplic = new Date(fechaAplicacion + 'T00:00:00')
+  const ref   = new Date(fechaReferencia + 'T00:00:00')
+  let years = ref.getFullYear() - aplic.getFullYear()
+  const aniversario = new Date(aplic)
+  aniversario.setFullYear(aplic.getFullYear() + years)
+  if (aniversario > ref) years -= 1
+  return Math.min(2, Math.max(0, years))
+}
+
+/**
  * Calcula N/P2O5/K2O aplicados y efectivos teniendo en cuenta
  * la fracción mineralizable del ciclo actual para fertilizantes orgánicos.
  *
@@ -13,7 +36,7 @@
  *   efN === brutoN, pct === 100, esOrganico === false
  *
  * Para orgánicos:
- *   delta = year(fechaInicioCiclo) - year(fechaAplicacion), clamp [0,2]
+ *   delta = aniosTranscurridos(fechaAplicacion, fechaInicioCiclo) — por aniversario real, no año natural
  *   pct   = item.yearPercent{delta} ?? 100
  *   ef*   = bruto* x pct / 100
  *
@@ -37,13 +60,11 @@ export function calcNpkEfectivo(item, fechaInicioCiclo) {
     }
   }
 
-  // Si no hay fecha de inicio de ciclo, usar el año en curso como referencia
-  // (delta = 0 → aplica yearPercent0). Es mejor que mostrar el bruto.
-  const cicloRef   = fechaInicioCiclo || new Date().toISOString().slice(0, 10)
-  const yearInicio = new Date(cicloRef             + 'T00:00:00').getFullYear()
-  const yearAplic  = new Date(item.fechaAplicacion + 'T00:00:00').getFullYear()
-  const delta = Math.min(2, Math.max(0, yearInicio - yearAplic))
-  const pct   = item[`yearPercent${delta}`] ?? 100
+  // Si no hay fecha de inicio de ciclo, usar el día de hoy como referencia
+  // (normalmente delta = 0 → aplica yearPercent0). Es mejor que mostrar el bruto.
+  const cicloRef = fechaInicioCiclo || new Date().toISOString().slice(0, 10)
+  const delta    = aniosTranscurridos(item.fechaAplicacion, cicloRef)
+  const pct      = item[`yearPercent${delta}`] ?? 100
 
   return {
     efN:    brutoN    * pct / 100,

@@ -1,6 +1,7 @@
 import { jsPDF } from 'jspdf'
 import autoTable from 'jspdf-autotable'
 import { MEDIDAS_MITIGACION_GEI, GRUPOS_GEI } from '../data/sativum/medidasMitigacionGEI'
+import { aniosTranscurridos } from './npkUtils'
 
 /**
  * src/utils/exportPdf.js
@@ -108,9 +109,7 @@ function calcNpkEfectivoPdf(item, fechaInicioCiclo) {
   if (!item.appliesAnnualEffectiveness || !item.fechaAplicacion || !fechaInicioCiclo) {
     return { efN: brutoN, efP2o5: brutoP2o5, efK2o: brutoK2o, pct: 100, esOrganico: false }
   }
-  const yearInicio = new Date(fechaInicioCiclo + 'T00:00:00').getFullYear()
-  const yearAplic  = new Date(item.fechaAplicacion + 'T00:00:00').getFullYear()
-  const delta = Math.min(2, Math.max(0, yearInicio - yearAplic))
+  const delta = aniosTranscurridos(item.fechaAplicacion, fechaInicioCiclo)
   const pct   = item[`yearPercent${delta}`] ?? 100
   return {
     efN:    brutoN    * pct / 100,
