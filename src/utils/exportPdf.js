@@ -142,6 +142,7 @@ export async function exportarPlanAbonadoPdf({
   nRiego               = 0,
   pRiego               = 0,
   kRiego               = 0,
+  titular              = null,
   asesor               = null,
   suelo                = null,
   cec                  = null,
@@ -281,6 +282,16 @@ export async function exportarPlanAbonadoPdf({
   if (fechaFinCiclo) {
     const fmtFin = new Date(fechaFinCiclo + 'T00:00:00').toLocaleDateString('es-ES', { day: '2-digit', month: 'long', year: 'numeric' })
     metaRow('Fin de ciclo', fmtFin)
+  }
+
+  // Titular de la explotación (RD 1051/2022, art. 3.i/6)
+  if (titular?.nombreRazonSocial || titular?.nifCif) {
+    const tipoTitularLabel = titular.tipo === 'juridica' ? 'Persona jurídica' : 'Persona física'
+    const nifCifLabel      = titular.tipo === 'juridica' ? 'CIF' : 'NIF'
+    metaRow('Titular de la explotación', titular.nombreRazonSocial
+      ? `${titular.nombreRazonSocial} (${tipoTitularLabel})`
+      : tipoTitularLabel)
+    if (titular.nifCif) metaRow(nifCifLabel + ' titular', titular.nifCif)
   }
 
   // Asesor responsable del plan

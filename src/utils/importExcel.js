@@ -197,6 +197,15 @@ export async function importarPlanDesdeExcel(file) {
   const fechaInicioCiclo = parseFechaES(campos['Inicio de ciclo'])  || ''
   const fechaFinCiclo    = parseFechaES(campos['Fin de ciclo'])     || ''
 
+  // Titular de la explotación (RD 1051/2022, art. 3.i/6)
+  const tipoTitularLabel = toStr(campos['Tipo titular'])
+  const tipoTitular      = tipoTitularLabel === 'Persona jurídica' ? 'juridica' : 'fisica'
+  const titular = {
+    tipo:              tipoTitular,
+    nombreRazonSocial: toStr(campos['Titular de la explotación']),
+    nifCif:            toStr(campos[tipoTitular === 'juridica' ? 'CIF titular' : 'NIF titular']),
+  }
+
   // Asesor
   const asesor = {
     regfer:    toStr(campos['Nº REGFER']),
@@ -345,6 +354,9 @@ export async function importarPlanDesdeExcel(file) {
     fecha,
     fechaInicioCiclo,
     fechaFinCiclo,
+
+    // titular de la explotación
+    titular,
 
     // asesor
     asesor,

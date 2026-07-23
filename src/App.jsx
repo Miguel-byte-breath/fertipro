@@ -28,6 +28,7 @@ import SueloRiegoCard   from './components/SueloRiegoCard'
 import EstrategiaPanel       from './components/EstrategiaPanel'
 import CultivoAnteriorPanel  from './components/CultivoAnteriorPanel'
 import ResultadosCard           from './components/ResultadosCard'
+import TitularExplotacionPanel   from './components/TitularExplotacionPanel'
 import AsesoramientoPanel        from './components/AsesoramientoPanel'
 import FertilizanteManualPanel   from './components/FertilizanteManualPanel'
 import MetodologiaModal          from './components/MetodologiaModal'
@@ -119,6 +120,23 @@ export default function App() {
     quemaResiduos:  false,
     fRes:           null,   // null = auto (B7 para cereales / default catálogo para el resto)
   })
+
+  // ── Estado titular de la explotación — persiste en localStorage ───────
+  // RD 1051/2022, art. 3.i/6: el plan de abonado se elabora "para cada
+  // unidad de producción" de la explotación de un titular (persona física
+  // o jurídica). El NIF/CIF permite vincular el plan al titular ante
+  // cualquier requerimiento oficial.
+  const [titular, setTitular] = useState(() => {
+    try {
+      const saved = localStorage.getItem('fertipro_titular')
+      return saved ? JSON.parse(saved) : { tipo: 'fisica', nombreRazonSocial: '', nifCif: '' }
+    } catch {
+      return { tipo: 'fisica', nombreRazonSocial: '', nifCif: '' }
+    }
+  })
+  useEffect(() => {
+    try { localStorage.setItem('fertipro_titular', JSON.stringify(titular)) } catch { /* noop */ }
+  }, [titular])
 
   // ── Estado asesor responsable (REGFER) — persiste en localStorage ─────
   const [asesor, setAsesor] = useState(() => {
@@ -673,6 +691,7 @@ export default function App() {
         adjustedNutrient:     resultados.adjustedNutrient,
         cultivoAnterior,
         cultivoAnteriorParams,
+        titular,
         asesor,
         planItems,
         medidasGEI,
@@ -681,7 +700,7 @@ export default function App() {
     } finally {
       setExportingPlan(false)
     }
-  }, [cultivo, resultados, point, recinto, recintos, suelo, cec, riego, calculo, fecha, fechaInicioCiclo, fechaFinCiclo, asesor, planItems, medidasGEI])
+  }, [cultivo, resultados, point, recinto, recintos, suelo, cec, riego, calculo, fecha, fechaInicioCiclo, fechaFinCiclo, titular, asesor, planItems, medidasGEI])
 
   // ── Exportar plan de abonado PDF ──────────────────────────────────────
   const [exportingPlanPdf, setExportingPlanPdf] = useState(false)
@@ -733,6 +752,7 @@ export default function App() {
         cultivoAnterior,
         cultivoAnteriorParams,
         calculo,
+        titular,
         asesor,
         suelo:           analisisPropio ? { ...(suelo ?? {}), ...sueloPersonalizado } : suelo,
         cec,
@@ -758,7 +778,7 @@ export default function App() {
     } finally {
       setExportingPlanPdf(false)
     }
-  }, [cultivo, resultados, recinto, suelo, sueloPersonalizado, cec, riego, calculo, fecha, fechaInicioCiclo, fechaFinCiclo, analisisPropio, refAnalisisSuelo, cultivoAnterior, cultivoAnteriorParams, asesor, planItems, medidasGEI, polygonsToExport])
+  }, [cultivo, resultados, recinto, suelo, sueloPersonalizado, cec, riego, calculo, fecha, fechaInicioCiclo, fechaFinCiclo, analisisPropio, refAnalisisSuelo, cultivoAnterior, cultivoAnteriorParams, titular, asesor, planItems, medidasGEI, polygonsToExport])
 
   // ── Importar plan desde Excel ─────────────────────────────────────────
   const handleImportarPlan = useCallback(async (e) => {
@@ -798,6 +818,7 @@ export default function App() {
       if (data.fecha)            setFecha(data.fecha)
       if (data.fechaInicioCiclo) setFechaInicioCiclo(data.fechaInicioCiclo)
       if (data.fechaFinCiclo)    setFechaFinCiclo(data.fechaFinCiclo)
+      if (data.titular)          setTitular(data.titular)
       if (data.asesor)           setAsesor(data.asesor)
 
       // Cultivo actual — objeto completo de la API (o stub como fallback)
@@ -1006,6 +1027,11 @@ export default function App() {
             recintos={recintos}
             loading={recintosLoading}
             error={estado === ESTADO.ERROR ? error : null}
+          />
+
+          <TitularExplotacionPanel
+            titular={titular}
+            onChange={setTitular}
           />
 
           <AsesoramientoPanel

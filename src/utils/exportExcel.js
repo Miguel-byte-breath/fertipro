@@ -209,6 +209,7 @@ export async function exportarPlanAbonado({
   adjustedNutrient = null,
   cultivoAnterior = null,
   cultivoAnteriorParams = null,
+  titular = null,
   asesor = null,
   analisisPropio = false,
   refAnalisisSuelo = '',
@@ -262,9 +263,13 @@ export async function exportarPlanAbonado({
     : new Date().toLocaleDateString('es-ES'))
   if (fechaInicioCiclo) row('Inicio de ciclo', new Date(fechaInicioCiclo + 'T00:00:00').toLocaleDateString('es-ES'))
   if (fechaFinCiclo)    row('Fin de ciclo',    new Date(fechaFinCiclo    + 'T00:00:00').toLocaleDateString('es-ES'))
+  if (titular?.nombreRazonSocial || titular?.nifCif) {
+    const tipoTitularLabel = titular.tipo === 'juridica' ? 'Persona jurídica' : 'Persona física'
+    row('Titular de la explotación', titular.nombreRazonSocial || null)
+    row('Tipo titular', tipoTitularLabel)
+    if (titular.nifCif) row(titular.tipo === 'juridica' ? 'CIF titular' : 'NIF titular', titular.nifCif)
+  }
   if (asesor?.nombre || asesor?.regfer) {
-    const nombreCompleto = [asesor.nombre, asesor.apellidos].filter(Boolean).join(' ')
-    row('Asesor responsable del plan', nombreCompleto || null)
     if (asesor.nombre)    row('Nombre asesor',    asesor.nombre)
     if (asesor.apellidos) row('Apellidos asesor', asesor.apellidos)
     if (asesor.regfer)    row('Nº REGFER', asesor.regfer)
@@ -495,6 +500,12 @@ export async function exportarPlanAbonado({
     { 'Campo': 'Conversión P→P₂O₅', 'Valor': '× 2.2914' },
     { 'Campo': 'Conversión K→K₂O',  'Valor': '× 1.2046' },
     { 'Campo': 'N aportado riego',   'Valor': 'NO₃ (mg/L) × dotación (m³/ha) / 1000 × (14/62) = kg N/ha' },
+    ...(titular?.nombreRazonSocial || titular?.nifCif ? [
+      { 'Campo': '', 'Valor': '' },
+      { 'Campo': 'Titular de la explotación', 'Valor': titular.nombreRazonSocial || '' },
+      { 'Campo': 'Tipo titular', 'Valor': titular.tipo === 'juridica' ? 'Persona jurídica' : 'Persona física' },
+      ...(titular.nifCif ? [{ 'Campo': titular.tipo === 'juridica' ? 'CIF titular' : 'NIF titular', 'Valor': titular.nifCif }] : []),
+    ] : []),
     ...(asesor?.nombre || asesor?.regfer ? [
       { 'Campo': '', 'Valor': '' },
       { 'Campo': 'Asesor responsable', 'Valor': [asesor.nombre, asesor.apellidos].filter(Boolean).join(' ') || '' },
