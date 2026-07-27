@@ -159,7 +159,6 @@ export default function App() {
   // ── Estado estrategia + parámetros de cálculo ──────────────────────────
   const [calculo, setCalculo] = useState({
     strategy:       'MAINTENANCE',
-    tillage:        false,
     cropYield:      null,
     recogeResiduos: false,
     quemaResiduos:  false,

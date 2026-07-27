@@ -184,7 +184,7 @@ const SOIL_TYPE_LABEL = {
  * @param {object}  [opts.suelo]             — resultado normalizarSuelo()
  * @param {number}  opts.cec                  — meq/kg
  * @param {object}  opts.riego               — { fuenteId, fuenteLabel, no3MgL, dotacionM3 }
- * @param {object}  opts.calculo             — { strategy, tillage, cropYield, recogeResiduos, quemaResiduos }
+ * @param {object}  opts.calculo             — { strategy, cropYield, recogeResiduos, quemaResiduos }
  * @param {string}  [opts.fecha]             — fecha del plan (YYYY-MM-DD)
  * @param {object}  opts.npk                  — respuesta bruta /algo/
  * @param {object}  [opts.recomendacion]     — respuesta /recommendation (array)
@@ -304,7 +304,12 @@ export async function exportarPlanAbonado({
   }
   row('Estrategia ID',         calculo?.strategy)                                       // ID crudo para import robusto
   row('Estrategia',            ESTRATEGIA_LABEL[calculo?.strategy] ?? calculo?.strategy)
-  row('Laboreo',               calculo?.tillage          ? 'Sí' : 'No')
+  // NOTA: no hay fila "Laboreo" para el cultivo actual — el único "tillage" que
+  // viaja al payload de /fertilicalc/algo/ es un flag global de la llamada
+  // (strategy.tillage en sativum-algo.js), y se alimenta de
+  // cultivoAnteriorParams.laboreo ("Laboreo tras cosecha" del cultivo anterior,
+  // ver fila más abajo) — nunca de un campo propio del cultivo actual. Ver
+  // CLAUDE.md, sesión 2026-07-27, para el detalle de por qué se retiró.
   row('Residuos recogidos',    calculo?.recogeResiduos   ? 'Sí' : 'No')
   if (calculo?.recogeResiduos) {
     row('Quema residuos',      calculo?.quemaResiduos    ? 'Sí' : 'No')

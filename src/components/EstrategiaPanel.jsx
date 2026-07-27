@@ -3,14 +3,23 @@
  *
  * Panel de configuración del cálculo NPK:
  *   1. Estrategia de fertilización (4 opciones)
- *   2. Laboreo (checkbox)
- *   3. Rendimiento esperado (kg/ha) — default yieldMedium del cultivo
- *   4. Residuos / paja — solo visible si CEREALS + fres===10 (regla B7)
- *   5. Accordion: parámetros N avanzados (overrides de N_EQUATION_DEFAULTS)
+ *   2. Rendimiento esperado (kg/ha) — default yieldMedium del cultivo
+ *   3. Residuos / paja — solo visible si CEREALS + fres===10 (regla B7)
+ *   4. Accordion: parámetros N avanzados (overrides de N_EQUATION_DEFAULTS)
+ *
+ * NOTA: no hay checkbox de "laboreo" aquí (cultivo actual) — el único
+ * "tillage" que viaja al payload de /fertilicalc/algo/ es un flag global
+ * de la llamada, alimentado por cultivoAnteriorParams.laboreo ("Laboreo tras
+ * cosecha" del cultivo anterior, ver CultivoAnteriorPanel.jsx). Este panel sí
+ * tuvo un checkbox propio ("Laboreo previo al abonado") en su primera versión
+ * (commit a26edd4, 2026-06-16), retirado al día siguiente (commit f36a259,
+ * 2026-06-17) al corregir el diseño: el tillage que afecta a la ecuación de N
+ * es el de los residuos del cultivo anterior, no uno "previo al abonado" del
+ * cultivo actual.
  *
  * Props:
  *   cultivo    — objeto cultivo Sativum | null
- *   params     — { strategy, tillage, cropYield, recogeResiduos, quemaResiduos, nEcuacion }
+ *   params     — { strategy, cropYield, recogeResiduos, quemaResiduos, nEcuacion }
  *   onChange   — (params) => void
  */
 import { useState } from 'react'

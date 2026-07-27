@@ -7,7 +7,7 @@
  * Campos que RESTAURA:
  *   fecha, fechaInicioCiclo, fechaFinCiclo
  *   asesor
- *   calculo (strategy, cropYield, tillage, recogeResiduos, quemaResiduos)
+ *   calculo (strategy, cropYield, recogeResiduos, quemaResiduos)
  *   suelo   (soilType, organicMatter, ph, pOlsen, kSoil)
  *   cec
  *   analisisPropio, refAnalisisSuelo, sueloPersonalizado
@@ -279,9 +279,12 @@ export async function importarPlanDesdeExcel(file) {
     ESTRATEGIA_REVERSE[estrategiaLabel] ??
     'MAINTENANCE'
 
+  // NOTA: `calculo` ya no lleva `tillage` — campo retirado del todo (sesión
+  // 2026-07-27): no tenía ningún control de UI que lo modificara ni ningún uso
+  // en el cálculo real (el único "tillage" que viaja a la API es
+  // cultivoAnteriorParams.laboreo, restaurado más abajo).
   const calculo = {
     strategy,
-    tillage:        campos['Laboreo'] === 'Sí',
     cropYield:      toNum(campos['Rendimiento objetivo']),
     recogeResiduos: campos['Residuos recogidos'] === 'Sí',
     quemaResiduos:  campos['Quema residuos'] === 'Sí',

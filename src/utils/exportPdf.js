@@ -17,7 +17,7 @@ import { aniosTranscurridos } from './npkUtils'
  *   cultivo              — objeto catálogo Sativum ({ name, ... })
  *   cultivoAnterior      — cultivo precedente en la rotación (o null)
  *   cultivoAnteriorParams— { cropYield }
- *   calculo              — { strategy, tillage, cropYield, recogeResiduos, ... }
+ *   calculo              — { strategy, cropYield, recogeResiduos, ... }
  *   fecha                — 'YYYY-MM-DD'
  *   recintos             — lista plana de recintos intersectados
  *                          [{ provincia, municipio, poligono, parcela, recinto }, ...]
