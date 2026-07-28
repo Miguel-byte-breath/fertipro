@@ -199,5 +199,74 @@ export async function calcularNPK(cultivos, suelo, opts = {}) {
     if (res.status === 503 && data?.stub) return null
     throw new Error(data?.error || `Sativum error ${res.status}`)
   }
+
+  // ── Parche N leñosos (Trees) sin datos de residuo — 2026-07-28 ─────────
+  // La API pública /fertilicalc/algo/ devuelve el N de cultivos "TREES"
+  // ~125x inflado respecto a lo que muestra hoy la app oficial de Sativum,
+  // pero SOLO cuando el catálogo NO tiene datos de composición del residuo
+  // (res_n=0 — comprobado que en /nutrients/crops eso implica también
+  // res_dry_matter/res_p/res_k=0 a la vez, nunca uno solo). Importante: NO
+  // es lo mismo que "Fres/Residuos en campo=100%" (ese es un input de
+  // manejo del usuario sobre cuánto residuo se incorpora al suelo, y es
+  // igual al 100% en TODOS los casos probados, incluido Olivo — no es lo
+  // que diferencia el comportamiento). Lo que varía es si el catálogo TIENE
+  // dato de composición del residuo o no — probablemente por falta de
+  // evidencia científica sólida para la mayoría de especies, no porque su
+  // residuo realmente aporte cero. Verificado con 3 casos reales de
+  // producción y catálogo muy distintos: Almendro, Pistacho, Naranjo —
+  // mismo factor ~100/efic en los tres, desviación <0.25%.
+  //
+  // CRÍTICO (caso Olivo, 2026-07-28): con datos de residuo reales (res_n=
+  // 1.5% para Olivo, el único de los 29 cultivos "Trees" del catálogo con
+  // esa composición informada), el N bruto del gemelo YA COINCIDE EXACTO
+  // con la oficial (11.4 kg/ha ambos) SIN NINGÚN PARCHE — la fórmula
+  // general (con residuo) está bien implementada en la API. El bug vive
+  // específicamente en la rama reducida que se activa cuando no hay dato
+  // de residuo, no en "TREES" en general. Aplicar esta corrección sin
+  // comprobar el residuo ROMPERÍA Olivo (y cualquier otro leñoso que en el
+  // futuro tenga datos de residuo). Por eso el gate comprueba también
+  // res_n === 0, no solo plant_species_group.
+  //
+  // Nota de mantenimiento: el catálogo /nutrients/crops (FertiliCalc) es
+  // dinámico — ITACyL puede ir añadiendo datos de residuo reales para más
+  // especies con el tiempo. Como el gate depende de `res_n` del propio
+  // payload (no de una lista fija de cultivos), en cuanto un cultivo reciba
+  // dato de residuo real, el parche dejará de aplicarse a él automáticamente,
+  // sin tocar este código.
+  //
+  // Hipótesis del origen (pendiente de confirmar con ITACyL, David
+  // Nafría): en la rama reducida (sin dato de residuo), la fórmula usa el
+  // %MS del cultivo como valor bruto (p.ej. 65) en vez de como fracción
+  // (0.65), y además divide por `efic` — el producto de ambos (×100 por
+  // el %MS, ×1/efic) reproduce el factor observado. La app oficial, en
+  // cambio, no aplica esa división por eficiencia en absoluto para este
+  // caso, pese a que la propia ecuación 25.12 de Villalobos & Fereres
+  // (2017) sí la contempla — así que el objetivo de este parche es igualar
+  // lo que un usuario real ve HOY en la app oficial, no el valor
+  // "textbook-correcto" que ni la propia oficial aplica.
+  //
+  // Corrección: multiplicar n por (efic/100) SOLO para TREES sin datos de
+  // residuo (res_n falsy), usando el efic real que se mandó en el payload
+  // (no un valor fijo), para que siga funcionando si algún día se
+  // sobrescribe en modo avanzado.
+  //
+  // Alcance: acotado a leñosos (Trees) SIN dato de residuo — no se ha
+  // detectado ni se sospecha el mismo problema en herbáceos/extensivos
+  // (validados exactos en sesiones anteriores, p.ej. Patata/Brócoli
+  // 2026-06-17), ni en leñosos con residuo real (Olivo, ya verificado).
+  //
+  // Si ITACyL corrige la API pública, este bloque debe retirarse.
+  // Ver memoria: project_fertipro_sativum_bug_n_lenosos.md
+  const efic = payload.n_equation_parameter?.efic
+  if (data?.recommendations && typeof efic === 'number') {
+    data.recommendations = data.recommendations.map((rec, i) => {
+      const features = payload.rotation[i]?.crop_features
+      const esLenoso = features?.plant_species_group === 'TREES'
+      const sinDatoResiduo = !features?.res_n // 0, null o undefined → true
+      if (!esLenoso || !sinDatoResiduo || typeof rec?.n !== 'number') return rec
+      return { ...rec, n: rec.n * (efic / 100) }
+    })
+  }
+
   return data
 }
