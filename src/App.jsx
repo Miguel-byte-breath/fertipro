@@ -138,6 +138,13 @@ export default function App() {
     try { localStorage.setItem('fertipro_titular', JSON.stringify(titular)) } catch { /* noop */ }
   }, [titular])
 
+  // ── Nombre del plan de abonado / balance de nutrientes ────────────────
+  // Editable a mano o rellenado al importar un plan de la batería generada
+  // por fertipro-test/plantilla/calcular.js (grupo.nombrePropuesto). Sin
+  // persistencia en localStorage — es propio de cada plan, no una identidad
+  // que deba sobrevivir entre planes distintos como sí ocurre con `titular`.
+  const [nombrePlan, setNombrePlan] = useState('')
+
   // ── Estado asesor responsable (REGFER) — persiste en localStorage ─────
   const [asesor, setAsesor] = useState(() => {
     try {
@@ -690,6 +697,7 @@ export default function App() {
         adjustedNutrient:     resultados.adjustedNutrient,
         cultivoAnterior,
         cultivoAnteriorParams,
+        nombrePlan,
         titular,
         asesor,
         planItems,
@@ -699,7 +707,7 @@ export default function App() {
     } finally {
       setExportingPlan(false)
     }
-  }, [cultivo, resultados, point, recinto, recintos, suelo, cec, riego, calculo, fecha, fechaInicioCiclo, fechaFinCiclo, titular, asesor, planItems, medidasGEI])
+  }, [cultivo, resultados, point, recinto, recintos, suelo, cec, riego, calculo, fecha, fechaInicioCiclo, fechaFinCiclo, nombrePlan, titular, asesor, planItems, medidasGEI])
 
   // ── Exportar plan de abonado PDF ──────────────────────────────────────
   const [exportingPlanPdf, setExportingPlanPdf] = useState(false)
@@ -818,6 +826,7 @@ export default function App() {
       if (data.fechaInicioCiclo) setFechaInicioCiclo(data.fechaInicioCiclo)
       if (data.fechaFinCiclo)    setFechaFinCiclo(data.fechaFinCiclo)
       if (data.titular)          setTitular(data.titular)
+      if (data.nombrePlan)       setNombrePlan(data.nombrePlan)
       if (data.asesor)           setAsesor(data.asesor)
 
       // Cultivo actual — objeto completo de la API (o stub como fallback)
@@ -914,6 +923,16 @@ export default function App() {
           <div>
             <div style={S.brandTitle}>FertiPRO Add-on Sativum <span style={S.brandItacyl}>(ITACyL)</span></div>
             <div style={S.brandSub}>Planificación de nutrientes · Unidad de producción | Hoja de cultivo | Recinto</div>
+            <div style={S.nombrePlanRow}>
+              📋
+              <input
+                type="text"
+                value={nombrePlan}
+                onChange={(e) => setNombrePlan(e.target.value)}
+                placeholder="Sin nombre asignado..."
+                style={S.nombrePlanInput}
+              />
+            </div>
           </div>
         </div>
 
@@ -1368,6 +1387,11 @@ const S = {
   brandTitle:  { fontWeight: 700, fontSize: 15, letterSpacing: 0.3 },
   brandItacyl: { fontWeight: 400, fontSize: 13, opacity: 0.7 },
   brandSub:    { fontSize: 10, opacity: 0.70 },
+  nombrePlanRow: { display: 'flex', alignItems: 'center', gap: 5, marginTop: 2, fontSize: 10 },
+  nombrePlanInput: {
+    background: 'transparent', border: 'none', borderBottom: '1px solid rgba(255,255,255,0.35)',
+    color: '#fff', fontSize: 10, padding: '1px 2px', width: 200, outline: 'none',
+  },
   modo:       { textAlign: 'right', fontSize: 11 },
   importBtn: {
     marginLeft: 'auto',

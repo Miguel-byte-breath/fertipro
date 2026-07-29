@@ -197,6 +197,9 @@ export async function importarPlanDesdeExcel(file) {
   const fechaInicioCiclo = parseFechaES(campos['Inicio de ciclo'])  || ''
   const fechaFinCiclo    = parseFechaES(campos['Fin de ciclo'])     || ''
 
+  // Nombre del plan de abonado / balance de nutrientes
+  const nombrePlan = toStr(campos['Nombre del plan de abonado / balance de nutrientes']) || ''
+
   // Titular de la explotación (RD 1051/2022, art. 3.i/6)
   const tipoTitularLabel = toStr(campos['Tipo titular'])
   const tipoTitular      = tipoTitularLabel === 'Persona jurídica' ? 'juridica' : 'fisica'
@@ -357,6 +360,9 @@ export async function importarPlanDesdeExcel(file) {
     fecha,
     fechaInicioCiclo,
     fechaFinCiclo,
+
+    // nombre del plan de abonado / balance de nutrientes
+    nombrePlan,
 
     // titular de la explotación
     titular,

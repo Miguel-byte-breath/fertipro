@@ -209,6 +209,7 @@ export async function exportarPlanAbonado({
   adjustedNutrient = null,
   cultivoAnterior = null,
   cultivoAnteriorParams = null,
+  nombrePlan = null,
   titular = null,
   asesor = null,
   analisisPropio = false,
@@ -263,6 +264,7 @@ export async function exportarPlanAbonado({
     : new Date().toLocaleDateString('es-ES'))
   if (fechaInicioCiclo) row('Inicio de ciclo', new Date(fechaInicioCiclo + 'T00:00:00').toLocaleDateString('es-ES'))
   if (fechaFinCiclo)    row('Fin de ciclo',    new Date(fechaFinCiclo    + 'T00:00:00').toLocaleDateString('es-ES'))
+  if (nombrePlan) row('Nombre del plan de abonado / balance de nutrientes', nombrePlan)
   if (titular?.nombreRazonSocial || titular?.nifCif) {
     const tipoTitularLabel = titular.tipo === 'juridica' ? 'Persona jurídica' : 'Persona física'
     row('Titular de la explotación', titular.nombreRazonSocial || null)
