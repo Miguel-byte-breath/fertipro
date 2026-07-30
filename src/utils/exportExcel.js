@@ -504,6 +504,9 @@ export async function exportarPlanAbonado({
     { 'Campo': 'Motor de cálculo',   'Valor': 'FertiliCalc (Villalobos et al. 2020) vía API Sativum (ITACyL)' },
     { 'Campo': 'Fuente suelo',       'Valor': '©Junta de Castilla y León (IGCYL-NC) · suelos.itacyl.es' },
     { 'Campo': 'Fuente recintos',    'Valor': 'SIGPAC (FEGA) · OGC API · CC BY 4.0' },
+    ...(recintosWkt.length > 0 ? [
+      { 'Campo': 'Geometría (WKT)', 'Valor': 'EPSG:4326 (WGS84), lon lat — un recinto por fila, nunca geometría fusionada' },
+    ] : []),
     { 'Campo': 'Fecha generación',   'Valor': new Date().toISOString() },
     { 'Campo': 'Unidades NPK',       'Valor': 'kg/ha — N en elemento puro; P y K en forma óxido (P₂O₅, K₂O)' },
     { 'Campo': 'Conversión P→P₂O₅', 'Valor': '× 2.2914' },
