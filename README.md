@@ -36,9 +36,9 @@ Pensado para **asesores agrícolas y técnicos** que necesitan elaborar planes d
 
 Si ya tienes un plan exportado en Excel, puedes recuperar el estado completo de la sesión sin introducir los datos de nuevo.
 
-1. **Importa el plan** — pulsa **"Importar plan"** en la cabecera y selecciona el archivo `.xlsx` exportado previamente. Aparecerá una confirmación con el cultivo reconocido y un aviso de que la geometría debe cargarse manualmente (no se guarda en el Excel).
+1. **Importa el plan** — pulsa **"Importar plan"** en la cabecera y selecciona el archivo `.xlsx` exportado previamente. Aparecerá una confirmación con el cultivo reconocido. Si el Excel incluye una hoja "Recintos (WKT)" (por ejemplo, planes generados en lote), los recintos se pintan automáticamente en el mapa sin ninguna acción adicional; si no la incluye, la geometría debe cargarse manualmente (no se guarda en el Excel de un plan construido a mano en la app).
 
-2. **Carga la parcela en el mapa** — usa la barra de herramientas del mapa para dibujar el polígono o importar un GeoJSON/shapefile. FertiPRO consulta automáticamente los recintos SIGPAC (superficie, uso del suelo, ZVN) y el servicio de suelos de ITACyL. Si el plan usaba análisis de laboratorio propio, esos valores tienen prioridad sobre los de ArcGIS.
+2. **Carga la parcela en el mapa (si no se cargó ya sola)** — usa la barra de herramientas del mapa para dibujar el polígono o importar un GeoJSON/shapefile. FertiPRO consulta automáticamente los recintos SIGPAC (superficie, uso del suelo, ZVN) y el servicio de suelos de ITACyL. Si el plan usaba análisis de laboratorio propio, esos valores tienen prioridad sobre los de ArcGIS.
 
 3. **Revisa los datos restaurados** — comprueba que todo es coherente con la parcela: recintos SIGPAC y alertas ZVN, cultivo actual y precedente, estrategia de abonado, suelo y agua de riego, y el plan de aplicaciones con su cobertura NPK acumulada.
 
