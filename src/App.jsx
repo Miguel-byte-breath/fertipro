@@ -50,6 +50,7 @@ import { interseccionRecintos, enrichRecintos, detectarTipoParcela } from './uti
 import { exportarRecintosSigpacExcel, exportarPlanAbonado } from './utils/exportExcel'
 import { exportarPlanAbonadoPdf, exportarPlanRiegoPdf } from './utils/exportPdf'
 import { importarPlanDesdeExcel } from './utils/importExcel'
+import { wktToFeature, featureToWKT } from './utils/wktToGeoJSON'
 import { getCultivos } from './api/sativum-crops'
 import { FUENTES_AGUA } from './data/sativum/fuentesAgua'
 
@@ -89,6 +90,15 @@ export default function App() {
   const polygonsRef     = useRef(polygons)
   const mapPickerRef    = useRef(null)
   useEffect(() => { polygonsRef.current = polygons }, [polygons])
+
+  // Metadata de los recintos (WKT) de un plan importado (fertipro-test/
+  // plantilla, calcular.js) — { polygonId, ref, fichero, fila, superficieHa }
+  // por recinto. Solo se usa para reexportar la hoja "Recintos (WKT)" con la
+  // geometría VIVA (featureToWKT del `polygons` actual, no el WKT original) si
+  // el técnico edita el recinto en el mapa antes de reexportar — ver
+  // `pintarRecintosDePlan`/`handleExportarPlan` más abajo. Vacío si no se ha
+  // importado ningún plan con geometría.
+  const [recintosPlanMeta, setRecintosPlanMeta] = useState([])
 
   // ── Estado cultivo seleccionado ────────────────────────────────────────
   const [cultivo, setCultivo] = useState(null)
@@ -679,6 +689,23 @@ export default function App() {
           ) ?? recinto)
         : recinto
 
+      // Hoja "Recintos (WKT)" — geometría VIVA de cada recinto que llegó de un
+      // plan importado (calcular.js), reserializada desde el `feature` actual
+      // de `polygons` (no la WKT original) para que un ajuste "cosmético" del
+      // técnico en el mapa (Geoman) sí quede reflejado al reexportar. Si el
+      // usuario borró ese recinto tras importarlo, se omite (sin fila fantasma).
+      const recintosWkt = recintosPlanMeta
+        .map((m) => {
+          const poly = polygons.find((p) => p.id === m.polygonId)
+          if (!poly) return null
+          try {
+            return { ref: m.ref, fichero: m.fichero, fila: m.fila, superficieHa: m.superficieHa, wkt: featureToWKT(poly.feature) }
+          } catch {
+            return null
+          }
+        })
+        .filter(Boolean)
+
       await exportarPlanAbonado({
         point,
         recinto: recintoEnriquecido,
@@ -702,12 +729,13 @@ export default function App() {
         asesor,
         planItems,
         medidasGEI,
+        recintosWkt,
         baseName,
       })
     } finally {
       setExportingPlan(false)
     }
-  }, [cultivo, resultados, point, recinto, recintos, suelo, cec, riego, calculo, fecha, fechaInicioCiclo, fechaFinCiclo, nombrePlan, titular, asesor, planItems, medidasGEI])
+  }, [cultivo, resultados, point, recinto, recintos, suelo, cec, riego, calculo, fecha, fechaInicioCiclo, fechaFinCiclo, nombrePlan, titular, asesor, planItems, medidasGEI, polygons, recintosPlanMeta])
 
   // ── Exportar plan de abonado PDF ──────────────────────────────────────
   const [exportingPlanPdf, setExportingPlanPdf] = useState(false)
@@ -787,6 +815,71 @@ export default function App() {
     }
   }, [cultivo, resultados, recinto, suelo, sueloPersonalizado, cec, riego, calculo, fecha, fechaInicioCiclo, fechaFinCiclo, analisisPropio, refAnalisisSuelo, cultivoAnterior, cultivoAnteriorParams, titular, asesor, planItems, medidasGEI, polygonsToExport])
 
+  // ── Pinta en el mapa los recintos (WKT) de un plan importado ─────────────
+  // Generado por `calcular.js` (lote local de cooperativas, fertipro-test/
+  // plantilla). A diferencia de handlePolygonAdd (carga/dibujo manual), esta
+  // vía NUNCA llama a queryCoords/identifySativum: el suelo/agua ya llega
+  // resuelto en el propio Excel (una sola consulta ArcGIS por grupo, hecha
+  // por calcular.js) — repetirla aquí recinto a recinto gastaría cuota de
+  // ITACyL sin necesidad. Solo se resuelve SIGPAC/ZVN por recinto
+  // (interseccionRecintos, servicio público sin cuota) para poder mostrar el
+  // mismo detalle que con una parcela cargada a mano, y se fija `recinto`
+  // (singular) con el primero de la lista para que handleExportarPlan lo
+  // encuentre igual que si viniera de queryCoords.
+  const pintarRecintosDePlan = useCallback(async (recintosWkt) => {
+    const errores = []
+    const filasValidas = []
+    for (const r of recintosWkt ?? []) {
+      try {
+        filasValidas.push({ row: r, feature: wktToFeature(r.wkt, { nombre: r.ref ?? null }) })
+      } catch (err) {
+        errores.push(`${r.ref ?? r.fichero ?? 'recinto'}: ${err.message || err}`)
+      }
+    }
+    if (!filasValidas.length) return { pintados: 0, errores }
+
+    const pares = mapPickerRef.current?.pintarRecintosSinConsulta?.(filasValidas.map((f) => f.feature)) ?? []
+    if (!pares.length) return { pintados: 0, errores }
+
+    const nuevas = pares.map(({ feature, id }, i) => ({
+      id,
+      nombre: filasValidas[i]?.row?.ref || generarNombreParcela(polygonsRef.current.length + i + 1),
+      feature,
+      centroid: centroidesPorParte(feature)[0] ?? centroide(feature),
+      centroidsPorParte: centroidesPorParte(feature),
+    }))
+    setPolygons((prev) => [...prev, ...nuevas])
+    setActivePolygonId('todas')
+    const lats = nuevas.map((p) => p.centroid.lat)
+    const lons = nuevas.map((p) => p.centroid.lon)
+    setPoint({
+      lat: lats.reduce((a, b) => a + b, 0) / lats.length,
+      lon: lons.reduce((a, b) => a + b, 0) / lons.length,
+    })
+
+    // Metadata para poder reexportar con geometría viva (ver handleExportarPlan).
+    setRecintosPlanMeta((prev) => [
+      ...prev,
+      ...pares.map(({ id }, i) => ({
+        polygonId: id,
+        ref: filasValidas[i]?.row?.ref ?? null,
+        fichero: filasValidas[i]?.row?.fichero ?? null,
+        fila: filasValidas[i]?.row?.fila ?? null,
+        superficieHa: filasValidas[i]?.row?.superficieHa ?? null,
+      })),
+    ])
+
+    // SIGPAC/ZVN por recinto (sin coste de cuota ITACyL) — nunca queryCoords.
+    const listas = await Promise.all(
+      nuevas.map(({ feature }) => interseccionRecintos(feature).catch(() => [])),
+    )
+    const recintosResueltos = listas.flat()
+    setRecintos(recintosResueltos)
+    if (recintosResueltos.length) setRecinto(recintosResueltos[0])
+
+    return { pintados: nuevas.length, errores }
+  }, [])
+
   // ── Importar plan desde Excel ─────────────────────────────────────────
   const handleImportarPlan = useCallback(async (e) => {
     const file = e.target.files?.[0]
@@ -847,6 +940,7 @@ export default function App() {
         setPlanItems(data.planItems)
       }
       if (data.mediasGEI) setMedidasGEI(data.mediasGEI)
+      setRecintosPlanMeta([])   // se repuebla abajo si el plan trae geometría (Recintos WKT)
 
       // Desactivar el flag tras el commit+efectos (efectos → antes de setTimeout 0)
       setTimeout(() => { isImportingRef.current = false }, 0)
@@ -854,9 +948,20 @@ export default function App() {
       // Toast de confirmación
       const cultivoTxt   = cultivoFinal?.name         ? ` · Cultivo: "${cultivoFinal.name}"`         : ''
       const anteriorTxt  = cultivoAnteriorFinal?.name ? ` · Precedente: "${cultivoAnteriorFinal.name}"` : ''
-      const geometriaTxt = cultivoFinal
+      let geometriaTxt = cultivoFinal
         ? ' Carga la geometría en el mapa para consultar SIGPAC.'
         : ' Selecciona el cultivo en el buscador y carga la geometría en el mapa.'
+
+      if (data.recintosWkt?.length) {
+        const { pintados, errores } = await pintarRecintosDePlan(data.recintosWkt)
+        geometriaTxt = pintados
+          ? ` ${pintados} recinto(s) cargado(s) en el mapa desde el plan.`
+          : ' El plan trae geometría, pero no se pudo pintar ningún recinto.'
+        if (errores.length) {
+          geometriaTxt += ` (${errores.length} recinto(s) con geometría inválida, ver consola.)`
+          console.error('Errores parseando WKT del plan importado:', errores)
+        }
+      }
       setImportAlert(`Plan cargado${cultivoTxt}${anteriorTxt}.${geometriaTxt}`)
     } catch (err) {
       isImportingRef.current = false
@@ -864,7 +969,7 @@ export default function App() {
     }
     // Limpiar el aviso tras 10 segundos
     setTimeout(() => setImportAlert(null), 10_000)
-  }, [])
+  }, [pintarRecintosDePlan])
 
   // ── Plan de riego: obtener desde SIG Riego Pro ────────────────────────
   const handleObtenerPlanRiego = useCallback(async () => {

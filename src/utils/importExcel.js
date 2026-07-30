@@ -18,11 +18,16 @@
  *
  * Campos que NO restaura (requieren interacción del usuario):
  *   cultivo     — el usuario debe reseleccionar desde el combobox
- *   point/recinto/recintos — el usuario debe cargar la geometría en el mapa
+ *   point/recinto/recintos — el usuario debe cargar la geometría en el mapa,
+ *     SALVO que el Excel traiga la hoja opcional "Recintos (WKT)" (generada
+ *     por calcular.js, fertipro-test/plantilla, o reexportada por esta misma
+ *     app): en ese caso App.jsx los pinta solo a partir de `recintosWkt`, sin
+ *     consultar ArcGIS.
  *   resultados (npk) — se recalculan tras seleccionar el cultivo
  *
  * Requisito de formato: el fichero debe tener la hoja "Plan de Abonado"
- * tal y como la genera exportarPlanAbonado().
+ * tal y como la genera exportarPlanAbonado(). La hoja "Recintos (WKT)" es
+ * opcional (cambio aditivo).
  */
 import { FUENTES_AGUA, FUENTE_SUBTERRANEA } from '../data/sativum/fuentesAgua'
 
@@ -344,7 +349,32 @@ export async function importarPlanDesdeExcel(file) {
     kMgL:            campos['K agua riego']     != null ? String(toNum(campos['K agua riego'])     ?? '') : '',
   }
 
+  // ── Hoja "Recintos (WKT)" (opcional, cambio aditivo) ─────────────────────
+  // Generada por calcular.js (fertipro-test/plantilla) o reexportada por esta
+  // misma app tras importar un plan con geometría. Si no existe (cualquier
+  // Excel de hoy, o exportado sin parcela cargada), recintosWkt queda vacío y
+  // el resto de la importación funciona exactamente igual que antes.
+  const wsRecintosWkt = wb.Sheets['Recintos (WKT)']
+  const recintosWkt = []
+  if (wsRecintosWkt) {
+    const filasRecintos = XLSX.utils.sheet_to_json(wsRecintosWkt, { defval: null })
+    for (const r of filasRecintos) {
+      if (!r['Geometría (WKT)']) continue
+      recintosWkt.push({
+        ref:          toStr(r['Ref. hoja de cultivo']) || null,
+        fichero:      toStr(r['Fichero origen']) || null,
+        fila:         toNum(r['Fila origen']),
+        superficieHa: toNum(r['Superficie (ha)']),
+        wkt:          String(r['Geometría (WKT)']),
+      })
+    }
+  }
+
   return {
+    // Recintos (WKT) — solo presente si el Excel trae la hoja opcional.
+    // App.jsx los pinta solo si el array no está vacío.
+    recintosWkt,
+
     // Cultivo actual — stub (null si el Excel no tiene campos completos).
     // handleImportarPlan reemplaza el stub con el objeto completo de la API.
     cultivo,

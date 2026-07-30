@@ -217,6 +217,8 @@ export async function exportarPlanAbonado({
   fertilizadoresManuales = [],  // alias legacy — usar planItems si se pasa
   planItems = null,             // nuevo: array unificado con origen:'sativum'|'manual'
   medidasGEI = [],              // códigos SIEX seleccionados (Anexo V RD 1051/2022)
+  recintosWkt = [],             // [{ ref, fichero, fila, superficieHa, wkt }], uno por recinto (nunca
+                                 // geometría fusionada) — hoja opcional "Recintos (WKT)", cambio aditivo
   baseName = 'fertipro_plan_abonado',
 }) {
   // Compatibilidad: planItems tiene prioridad sobre fertilizadoresManuales
@@ -525,11 +527,30 @@ export async function exportarPlanAbonado({
   const wsNotas = XLSX.utils.json_to_sheet(notas)
   wsNotas['!cols'] = [{ wch: 22 }, { wch: 60 }]
 
+  // ── Hoja 4 (opcional): Recintos (WKT) — mismo esquema que calcular.js ────
+  // (fertipro-test/plantilla) y que el gemelo `fertipro` (motor propio).
+  // Cambio aditivo: si no hay recintos (plan exportado sin geometría, o Excel
+  // anterior a esta hoja), no se crea — importarPlanDesdeExcel() sigue
+  // funcionando igual que hasta ahora.
+  let wsRecintosWkt = null
+  if (recintosWkt.length > 0) {
+    const recintosRows = recintosWkt.map((r) => ({
+      'Ref. hoja de cultivo': r.ref ?? null,
+      'Fichero origen':       r.fichero ?? null,
+      'Fila origen':          r.fila ?? null,
+      'Superficie (ha)':      r.superficieHa ?? null,
+      'Geometría (WKT)':      r.wkt,
+    }))
+    wsRecintosWkt = XLSX.utils.json_to_sheet(recintosRows)
+    wsRecintosWkt['!cols'] = [{ wch: 24 }, { wch: 24 }, { wch: 12 }, { wch: 16 }, { wch: 60 }]
+  }
+
   // ── Ensamblar y descargar ───────────────────────────────────────────────
   const wb = XLSX.utils.book_new()
   XLSX.utils.book_append_sheet(wb, wsPlan,  'Plan de Abonado')
   XLSX.utils.book_append_sheet(wb, wsFert,  'Fertilizantes')
   XLSX.utils.book_append_sheet(wb, wsNotas, 'Notas')
+  if (wsRecintosWkt) XLSX.utils.book_append_sheet(wb, wsRecintosWkt, 'Recintos (WKT)')
 
   XLSX.writeFile(wb, `${baseName}.xlsx`)
 }

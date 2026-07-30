@@ -23,6 +23,13 @@
  *
  * Ref expuesta:
  *   removeLayerById(id)               — elimina la capa de un polígono desde el panel
+ *   pintarRecintosSinConsulta(features) — pinta N features GeoJSON ya resueltas
+ *     (ej. recintos WKT de un plan de abonado importado, ver App.jsx/
+ *     pintarRecintosDePlan) SIN invocar onPolygonAdd — el llamador decide qué
+ *     hacer con cada {feature, id} devuelto (añadir a polygons/recintos), sin
+ *     disparar queryCoords/identifySativum como sí hace la carga manual de
+ *     fichero (handleFileLoad). Devuelve [{ feature, id }], mismo orden que
+ *     `features`.
  *
  * Adaptado de fertipro-zonas-normativas v0.4.5.
  */
@@ -83,19 +90,6 @@ const MapPicker = forwardRef(function MapPicker(
   const layerToId        = useRef(new WeakMap())
   const layersById       = useRef(new Map())   // id → layer
 
-  // Permite a App.jsx eliminar una capa cuando el usuario borra una parcela desde el panel
-  useImperativeHandle(ref, () => ({
-    removeLayerById: (id) => {
-      const map = mapObj.current
-      if (!map) return
-      const layer = layersById.current.get(id)
-      if (layer) {
-        map.removeLayer(layer)
-        layersById.current.delete(id)
-      }
-    },
-  }), [])
-
   // Adjunta `pm:edit` a una layer concreta. Geoman dispara el evento en la
   // propia layer (no en el mapa), así que hay que registrarlo individualmente
   // para cada polígono que se cree, cargue desde fichero o resulte de un corte.
@@ -116,6 +110,58 @@ const MapPicker = forwardRef(function MapPicker(
       onPolygonUpdateRef.current?.(id, feature)
     })
   }, [])
+
+  // Dibuja un único GeoJSON Feature en el mapa: mismo estilo/click/edit que
+  // usa handleFileLoad más abajo. Devuelve el id asignado (o null si el mapa
+  // aún no está listo). No decide qué hacer con el resultado — eso lo hace el
+  // llamador (handleFileLoad añade la layer vía onPolygonAdd; el ref
+  // `pintarRecintosSinConsulta` de más abajo no lo hace, a propósito).
+  const pintarFeature = useCallback((feature) => {
+    const map = mapObj.current
+    if (!map) return null
+    const geoLayer = L.geoJSON(feature, {
+      style: { color: '#1a237e', weight: 2, fillOpacity: 0.08 },
+    }).addTo(map)
+
+    const subLayer = geoLayer.getLayers()[0]
+    polygonIdCounter.current += 1
+    const id = polygonIdCounter.current
+    if (subLayer) {
+      layerToId.current.set(subLayer, id)
+      layerToId.current.set(geoLayer, id)
+      layersById.current.set(id, geoLayer)
+      subLayer.on('click', (ev) => {
+        L.DomEvent.stopPropagation(ev)
+        onPolygonClickRef.current?.(id)
+      })
+      attachEditListener(subLayer)
+    }
+    return id
+  }, [attachEditListener])
+
+  // Permite a App.jsx eliminar una capa cuando el usuario borra una parcela
+  // desde el panel, y pintar en bloque recintos ya resueltos (WKT de un plan
+  // de abonado importado) sin pasar por onPolygonAdd/queryCoords — ver
+  // App.jsx, `pintarRecintosDePlan`.
+  useImperativeHandle(ref, () => ({
+    removeLayerById: (id) => {
+      const map = mapObj.current
+      if (!map) return
+      const layer = layersById.current.get(id)
+      if (layer) {
+        map.removeLayer(layer)
+        layersById.current.delete(id)
+      }
+    },
+    pintarRecintosSinConsulta: (features) => {
+      const map = mapObj.current
+      if (!map || !features?.length) return []
+      const resultados = features.map((feature) => ({ feature, id: pintarFeature(feature) }))
+      const bounds = L.geoJSON({ type: 'FeatureCollection', features }).getBounds()
+      if (bounds.isValid()) map.fitBounds(bounds, { padding: [40, 40] })
+      return resultados
+    },
+  }), [pintarFeature])
 
   useEffect(() => {
     if (mapObj.current) return
@@ -788,24 +834,7 @@ const MapPicker = forwardRef(function MapPicker(
     }
 
     features.forEach(feature => {
-      const geoLayer = L.geoJSON(feature, {
-        style: { color: '#1a237e', weight: 2, fillOpacity: 0.08 },
-      }).addTo(map)
-
-      const subLayer = geoLayer.getLayers()[0]
-      polygonIdCounter.current += 1
-      const id = polygonIdCounter.current
-      if (subLayer) {
-        layerToId.current.set(subLayer, id)
-        layerToId.current.set(geoLayer, id)
-        layersById.current.set(id, geoLayer)
-        subLayer.on('click', (ev) => {
-          L.DomEvent.stopPropagation(ev)
-          onPolygonClickRef.current?.(id)
-        })
-        attachEditListener(subLayer)
-      }
-
+      const id = pintarFeature(feature)
       onPolygonAddRef.current?.(feature, id)
     })
 
