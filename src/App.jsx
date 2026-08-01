@@ -131,22 +131,22 @@ export default function App() {
     fRes:           null,   // null = auto (B7 para cereales / default catálogo para el resto)
   })
 
-  // ── Estado titular de la explotación — persiste en localStorage ───────
+  // ── Estado titular de la explotación — NO persiste (sesión 2026-08-01) ────
   // RD 1051/2022, art. 3.i/6: el plan de abonado se elabora "para cada
   // unidad de producción" de la explotación de un titular (persona física
   // o jurídica). El NIF/CIF permite vincular el plan al titular ante
   // cualquier requerimiento oficial.
-  const [titular, setTitular] = useState(() => {
-    try {
-      const saved = localStorage.getItem('fertipro_titular')
-      return saved ? JSON.parse(saved) : { tipo: 'fisica', nombreRazonSocial: '', nifCif: '' }
-    } catch {
-      return { tipo: 'fisica', nombreRazonSocial: '', nifCif: '' }
-    }
-  })
-  useEffect(() => {
-    try { localStorage.setItem('fertipro_titular', JSON.stringify(titular)) } catch { /* noop */ }
-  }, [titular])
+  // Antes persistía en localStorage (sesión 47, 2026-07-23) para no
+  // reescribirlo entre varios planes seguidos de un mismo titular creados a
+  // mano. Retirado: con el flujo por lotes (calcular.js) ya operativo, cada
+  // plan importado restaura su propio titular desde el Excel, así que la
+  // persistencia solo servía para el caso, cada vez más marginal, de crear
+  // varios planes a mano sin importar — y a cambio arrastraba un riesgo real
+  // de que el NIF de un titular anterior quedara "pegado" sin querer a un
+  // plan nuevo de otro titular, visible en la cabecera incluso sin ningún
+  // plan cargado (más delicado aún en este gemelo, que es la web pública sin
+  // contraseña — a diferencia de `fertipro`, que sí tiene Basic Auth).
+  const [titular, setTitular] = useState({ tipo: 'fisica', nombreRazonSocial: '', nifCif: '' })
 
   // ── Nombre del plan de abonado / balance de nutrientes ────────────────
   // Editable a mano o rellenado al importar un plan de la batería generada
@@ -1048,7 +1048,7 @@ export default function App() {
             <div style={S.nombrePlanRow}>
               📋
               <div style={S.nombrePlanGroup}>
-                {titular?.nifCif?.trim() && (
+                {titular?.nifCif?.trim() && nombrePlan.trim() && (
                   <span style={S.nombrePlanNif} title="NIF/CIF del titular de la explotación">{titular.nifCif.trim()}-</span>
                 )}
                 <input
@@ -1515,13 +1515,15 @@ const S = {
   brandItacyl: { fontWeight: 400, fontSize: 13, opacity: 0.7 },
   brandSub:    { fontSize: 10, opacity: 0.70 },
   nombrePlanRow: { display: 'flex', alignItems: 'center', gap: 5, marginTop: 2, fontSize: 10 },
-  nombrePlanGroup: { display: 'flex', alignItems: 'center' },
+  nombrePlanGroup: {
+    display: 'flex', alignItems: 'center',
+    borderBottom: '1px solid rgba(255,255,255,0.35)',
+  },
   nombrePlanNif: {
-    fontWeight: 700, whiteSpace: 'nowrap',
-    borderBottom: '1px solid rgba(255,255,255,0.35)', padding: '1px 0',
+    fontWeight: 700, color: '#c5cae9', whiteSpace: 'nowrap', padding: '1px 0',
   },
   nombrePlanInput: {
-    background: 'transparent', border: 'none', borderBottom: '1px solid rgba(255,255,255,0.35)',
+    background: 'transparent', border: 'none',
     color: '#fff', fontSize: 10, padding: '1px 2px', width: 200, outline: 'none',
   },
   modo:       { textAlign: 'right', fontSize: 11 },
