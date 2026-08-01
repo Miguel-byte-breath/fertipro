@@ -675,11 +675,11 @@ export default function App() {
     setExportingPlan(true)
     try {
       const fuenteLabel = FUENTES_AGUA.find(f => f.id === riego.fuenteId)?.label
-      const baseName = nombrePlan.trim()
+      const baseName = `${nombrePlan.trim()
         ? (titular?.nifCif?.trim()
             ? `${sanitizarNombreFichero(titular.nifCif)}_${sanitizarNombreFichero(nombrePlan)}`
             : sanitizarNombreFichero(nombrePlan))
-        : 'fertipro_plan_abonado'
+        : 'fertipro_plan_abonado'}_Sativum`
       // Usar recinto enriquecido (recinfo) si está disponible en la lista
       const recintoEnriquecido = recinto && recintos
         ? (recintos.find(r =>
@@ -780,11 +780,11 @@ export default function App() {
         recintosList = [recinto]
       }
 
-      const baseName = nombrePlan.trim()
+      const baseName = `${nombrePlan.trim()
         ? (titular?.nifCif?.trim()
             ? `${sanitizarNombreFichero(titular.nifCif)}_${sanitizarNombreFichero(nombrePlan)}`
             : sanitizarNombreFichero(nombrePlan))
-        : 'fertipro_plan_nutrientes'
+        : 'fertipro_plan_nutrientes'}_Sativum`
 
       await exportarPlanAbonadoPdf({
         cultivo,
