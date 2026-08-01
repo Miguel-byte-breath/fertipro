@@ -45,7 +45,7 @@ import {
   exportarGeoJSON,
   exportarSHP,
 } from './utils/geometry'
-import { slugify } from './utils/slugify'
+import { slugify, sanitizarNombreFichero } from './utils/slugify'
 import { interseccionRecintos, enrichRecintos, detectarTipoParcela } from './utils/recintosInterseccion'
 import { exportarRecintosSigpacExcel, exportarPlanAbonado } from './utils/exportExcel'
 import { exportarPlanAbonadoPdf, exportarPlanRiegoPdf } from './utils/exportPdf'
@@ -675,8 +675,10 @@ export default function App() {
     setExportingPlan(true)
     try {
       const fuenteLabel = FUENTES_AGUA.find(f => f.id === riego.fuenteId)?.label
-      const baseName = cultivo.name
-        ? `fertipro_plan_${cultivo.name.toLowerCase().replace(/[^a-z0-9]+/g, '_')}`
+      const baseName = nombrePlan.trim()
+        ? (titular?.nifCif?.trim()
+            ? `${sanitizarNombreFichero(titular.nifCif)}_${sanitizarNombreFichero(nombrePlan)}`
+            : sanitizarNombreFichero(nombrePlan))
         : 'fertipro_plan_abonado'
       // Usar recinto enriquecido (recinfo) si está disponible en la lista
       const recintoEnriquecido = recinto && recintos
@@ -778,8 +780,10 @@ export default function App() {
         recintosList = [recinto]
       }
 
-      const baseName = cultivo.name
-        ? `fertipro_plan_${cultivo.name.toLowerCase().replace(/[^a-z0-9]+/g, '_')}`
+      const baseName = nombrePlan.trim()
+        ? (titular?.nifCif?.trim()
+            ? `${sanitizarNombreFichero(titular.nifCif)}_${sanitizarNombreFichero(nombrePlan)}`
+            : sanitizarNombreFichero(nombrePlan))
         : 'fertipro_plan_nutrientes'
 
       await exportarPlanAbonadoPdf({
@@ -813,7 +817,7 @@ export default function App() {
     } finally {
       setExportingPlanPdf(false)
     }
-  }, [cultivo, resultados, recinto, suelo, sueloPersonalizado, cec, riego, calculo, fecha, fechaInicioCiclo, fechaFinCiclo, analisisPropio, refAnalisisSuelo, cultivoAnterior, cultivoAnteriorParams, titular, asesor, planItems, medidasGEI, polygonsToExport])
+  }, [cultivo, resultados, recinto, suelo, sueloPersonalizado, cec, riego, calculo, fecha, fechaInicioCiclo, fechaFinCiclo, analisisPropio, refAnalisisSuelo, cultivoAnterior, cultivoAnteriorParams, nombrePlan, titular, asesor, planItems, medidasGEI, polygonsToExport])
 
   // ── Pinta en el mapa los recintos (WKT) de un plan importado ─────────────
   // Generado por `calcular.js` (lote local de cooperativas, fertipro-test/
@@ -1043,13 +1047,18 @@ export default function App() {
             <div style={S.brandSub}>Planificación de nutrientes · Unidad de producción | Hoja de cultivo | Recinto</div>
             <div style={S.nombrePlanRow}>
               📋
-              <input
-                type="text"
-                value={nombrePlan}
-                onChange={(e) => setNombrePlan(e.target.value)}
-                placeholder="Sin nombre asignado..."
-                style={S.nombrePlanInput}
-              />
+              <div style={S.nombrePlanGroup}>
+                {titular?.nifCif?.trim() && (
+                  <span style={S.nombrePlanNif} title="NIF/CIF del titular de la explotación">{titular.nifCif.trim()}-</span>
+                )}
+                <input
+                  type="text"
+                  value={nombrePlan}
+                  onChange={(e) => setNombrePlan(e.target.value)}
+                  placeholder="Sin nombre asignado..."
+                  style={S.nombrePlanInput}
+                />
+              </div>
             </div>
           </div>
         </div>
@@ -1506,6 +1515,11 @@ const S = {
   brandItacyl: { fontWeight: 400, fontSize: 13, opacity: 0.7 },
   brandSub:    { fontSize: 10, opacity: 0.70 },
   nombrePlanRow: { display: 'flex', alignItems: 'center', gap: 5, marginTop: 2, fontSize: 10 },
+  nombrePlanGroup: { display: 'flex', alignItems: 'center' },
+  nombrePlanNif: {
+    fontWeight: 700, whiteSpace: 'nowrap',
+    borderBottom: '1px solid rgba(255,255,255,0.35)', padding: '1px 0',
+  },
   nombrePlanInput: {
     background: 'transparent', border: 'none', borderBottom: '1px solid rgba(255,255,255,0.35)',
     color: '#fff', fontSize: 10, padding: '1px 2px', width: 200, outline: 'none',
