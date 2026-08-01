@@ -888,6 +888,19 @@ export default function App() {
     try {
       const data = await importarPlanDesdeExcel(file)
 
+      // ── Refresco de geometría (2026-08-01) ──────────────────────────────
+      // Un plan importado representa una hoja de cultivo/unidad de producción
+      // propia — nunca debe mezclarse con parcelas/recintos de una
+      // importación anterior que el usuario haya dejado cargados por
+      // despiste. Se limpia SOLO tras un parseo válido del Excel (si falla,
+      // no tiene sentido vaciar una sesión en curso por un fichero corrupto).
+      // Mismo patrón ya aplicado y verificado en fertipro (motor propio).
+      mapPickerRef.current?.clearAllLayers?.()
+      setPolygons([])
+      setActivePolygonId(null)
+      setPoint(null)
+      setRecintos([])
+
       // ── Obtener objetos cultivo COMPLETOS desde la API ──────────────────
       // El stub del import solo tiene id/name/plantSpeciesGroup/…
       // cultivoToCropFeatures necesita ~15 campos más (dryMatter, n, p, k, hi, fres…).

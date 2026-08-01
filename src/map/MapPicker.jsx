@@ -30,6 +30,13 @@
  *     disparar queryCoords/identifySativum como sí hace la carga manual de
  *     fichero (handleFileLoad). Devuelve [{ feature, id }], mismo orden que
  *     `features`.
+ *   clearAllLayers()                  — vacía el mapa de golpe (todas las
+ *     capas, sin importar su origen: dibujadas con Geoman, cargadas desde
+ *     fichero o pintadas desde un plan importado — las tres vías registran su
+ *     layer en `layersById`, el único registro que existe, así que recorrerlo
+ *     entero cubre los tres casos sin necesitar lógica distinta por origen).
+ *     Usado por App.jsx al importar un plan nuevo, para no acumular geometría
+ *     de una importación anterior (ver `handleImportarPlan`).
  *
  * Adaptado de fertipro-zonas-normativas v0.4.5.
  */
@@ -160,6 +167,14 @@ const MapPicker = forwardRef(function MapPicker(
       const bounds = L.geoJSON({ type: 'FeatureCollection', features }).getBounds()
       if (bounds.isValid()) map.fitBounds(bounds, { padding: [40, 40] })
       return resultados
+    },
+    clearAllLayers: () => {
+      const map = mapObj.current
+      if (!map) return
+      layersById.current.forEach((layer) => {
+        try { map.removeLayer(layer) } catch { /* noop */ }
+      })
+      layersById.current.clear()
     },
   }), [pintarFeature])
 
