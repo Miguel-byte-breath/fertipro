@@ -330,8 +330,13 @@ export async function importarPlanDesdeExcel(file) {
   // sueloPersonalizado: solo cuando el plan se generó con análisis propio
   const sueloPersonalizado = analisisPropio ? { ...sueloImportado } : {}
 
-  // CEC: usar el valor exportado (puede diferir del default por textura si el usuario lo ajustó)
-  const cec = toNum(campos['CEC']) ?? 220
+  // CEC: usar el valor exportado tal cual. Sin default a 220 -- si el plan no
+  // trae CEC real, se queda en null (mismo criterio ya aplicado en App.jsx al
+  // arrancar/cambiar textura, y en el importador de `fertipro`, commit
+  // c9086f7): un plan importado sin CEC no debe mostrar un valor inventado
+  // como si fuera un dato real. El fallback a CEC_BY_SOIL_TYPE solo se aplica
+  // en el momento de calcular (App.jsx, cecEfectivo), nunca en pantalla/export.
+  const cec = toNum(campos['CEC']) ?? null
 
   // Riego
   const sistemaExplotacion = campos['Sistema de explotación'] === 'Regadío' ? 'regadio' : 'secano'
