@@ -5,6 +5,12 @@
  * Usados para construir el payload de POST /fertilicalc/algo/.
  *
  * Fuente: ITACyL / Sativum (validado con respuestas reales de la API).
+ * MAXIMUM corregido 2026-08-02 contra el fichero oficial de Sativum
+ * "ValoresPorDefectoNutrientes_PorSueloYEstrategia.json" (antes tenía valores
+ * artesanales, sin fuente documentada). REDUCED/SUFFICIENCY ya coincidían
+ * exactas con ese fichero. MAINTENANCE se deja sin tocar — bajo esa estrategia
+ * el servidor de ITACyL ignora el `sample`/soil_effect en el cálculo real
+ * (verificado sesión 2026-07-28, ver CLAUDE.md de fertipro-test/plantilla).
  *
  * Restricciones globales del algoritmo:
  *   max_p_rate: 100 kg P/ha
@@ -22,12 +28,12 @@ export const MAX_K_RATE = 275
  */
 export const ALGO_PARAMS = {
   MAXIMUM: {
-    SANDY:      { p_threshold: 12, k_threshold: 175, soil_effect: 1.68, bulk_density: 1.68, efficiency_factor: 1.5 },
-    SANDY_LOAM: { p_threshold: 14, k_threshold: 200, soil_effect: 1.56, bulk_density: 1.56, efficiency_factor: 1.5 },
-    LOAM:       { p_threshold: 14, k_threshold: 200, soil_effect: 1.43, bulk_density: 1.43, efficiency_factor: 1.8 },
-    SILTY_LOAM: { p_threshold: 14, k_threshold: 200, soil_effect: 1.41, bulk_density: 1.41, efficiency_factor: 1.8 },
-    CLAY_LOAM:  { p_threshold: 14, k_threshold: 200, soil_effect: 1.31, bulk_density: 1.31, efficiency_factor: 2.5 },
-    CLAY:       { p_threshold: 16, k_threshold: 250, soil_effect: 1.21, bulk_density: 1.21, efficiency_factor: 3.0 },
+    SANDY:      { p_threshold: 10, k_threshold: 100, soil_effect: 1.68, bulk_density: 1.68, efficiency_factor: 1.2 },
+    SANDY_LOAM: { p_threshold: 12, k_threshold: 175, soil_effect: 1.56, bulk_density: 1.56, efficiency_factor: 1.2 },
+    LOAM:       { p_threshold: 12, k_threshold: 175, soil_effect: 1.43, bulk_density: 1.43, efficiency_factor: 1.7 },
+    SILTY_LOAM: { p_threshold: 12, k_threshold: 175, soil_effect: 1.41, bulk_density: 1.41, efficiency_factor: 1.7 },
+    CLAY_LOAM:  { p_threshold: 12, k_threshold: 175, soil_effect: 1.31, bulk_density: 1.31, efficiency_factor: 2.0 },
+    CLAY:       { p_threshold: 20, k_threshold: 300, soil_effect: 1.21, bulk_density: 1.21, efficiency_factor: 5.0 },
   },
   MAINTENANCE: {
     SANDY:      { p_threshold: 10, k_threshold: 125, soil_effect: 1.68, bulk_density: 1.68, efficiency_factor: 1.3 },

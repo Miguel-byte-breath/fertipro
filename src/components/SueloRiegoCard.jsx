@@ -178,7 +178,7 @@ export default function SueloRiegoCard({
     const yaPersonalizado = sueloPersonalizado && Object.keys(sueloPersonalizado).length > 0
     if (propio && !analisisPropio && !yaPersonalizado) {
       onSueloPersonalizadoChange({
-        soilType:          suelo?.soilType          ?? 'LOAM',
+        soilType:          suelo?.soilType,
         soilTypeUsdaValue: suelo?.soilTypeUsdaPixel  ?? '',
         organicMatter:     suelo?.organicMatter      ?? '',
         ph:                suelo?.ph                 ?? '',
@@ -285,7 +285,7 @@ export default function SueloRiegoCard({
               onSueloPersonalizadoChange({
                 ...sueloPersonalizado,
                 soilTypeUsdaValue: usdaValue,
-                soilType: soilTypeDesdeUsda(usdaValue) ?? sueloPersonalizado?.soilType ?? 'LOAM',
+                soilType: usdaValue === '' ? undefined : (soilTypeDesdeUsda(usdaValue) ?? sueloPersonalizado?.soilType),
               })
             }}
             style={S.select}
@@ -339,12 +339,13 @@ export default function SueloRiegoCard({
         onChange={v => setSueloProp('kSoil', v)}
       />
 
-      {/* CEC — siempre editable */}
+      {/* CEC — siempre editable; en blanco si aun no hay textura resuelta (ni ArcGIS ni manual) */}
       <InputRow
         label="CEC"
         value={cec}
         unit="meq/kg"
         step={5} min={50} max={600}
+        placeholder="según textura"
         onChange={onCecChange}
       />
 

@@ -105,7 +105,7 @@ export default function App() {
 
   // ── Estado suelo / agua de riego ───────────────────────────────────────
   const [suelo,  setSuelo]  = useState(null)
-  const [cec,    setCec]    = useState(220)
+  const [cec,    setCec]    = useState(null)
   const [riego,  setRiego]  = useState({
     sistemaExplotacion: 'secano',   // 'secano' | 'regadio'
     fuenteId:           0,          // SIEX origen agua (1-6); 0 = sin origen elegido
@@ -198,12 +198,18 @@ export default function App() {
     }))
   }, [cultivo?.id])
 
-  // CEC por textura: se actualiza cuando carga el suelo ArcGIS.
-  // El usuario puede sobreescribir manualmente en SueloRiegoCard.
+  // CEC por textura: se recalcula con la textura EFECTIVA (la manual si hay
+  // "Analisis de suelo propio" activo, si no la de ArcGIS) -- antes solo
+  // reaccionaba a suelo.soilType (ArcGIS), asi que cambiar la textura a mano
+  // en modo laboratorio dejaba el CEC congelado con un valor que ya no
+  // correspondia. Sin ninguna textura resuelta todavia se deja en null (en
+  // vez del 220 fijo de antes, que se mostraba igual que un valor real sin
+  // serlo) -- el input ya renderiza null como campo vacio. El usuario sigue
+  // pudiendo sobreescribir a mano en SueloRiegoCard en cualquier momento.
   useEffect(() => {
-    if (!suelo?.soilType) return
-    setCec(CEC_BY_SOIL_TYPE[suelo.soilType] ?? 220)
-  }, [suelo?.soilType])
+    const soilTypeEfectivo = analisisPropio ? sueloPersonalizado?.soilType : suelo?.soilType
+    setCec(soilTypeEfectivo ? (CEC_BY_SOIL_TYPE[soilTypeEfectivo] ?? null) : null)
+  }, [analisisPropio, sueloPersonalizado?.soilType, suelo?.soilType])
 
   // Auto-rellenar dotación de riego desde cultivo.irrigation al cambiar cultivo (suprimido durante import).
   useEffect(() => {
@@ -352,10 +358,15 @@ export default function App() {
         kSoil:         null,
       }
 
+      // cec puede estar en null en pantalla (sin textura resuelta todavia) --
+      // el payload real igual necesita un numero, mismo criterio de fallback
+      // que ya usa sueloEfectivo mas arriba (cae a LOAM si no hay nada mejor).
+      const cecEfectivo = cec ?? CEC_BY_SOIL_TYPE[sueloEfectivo.soilType] ?? CEC_BY_SOIL_TYPE.LOAM
+
       const npkData = await calcularNPK(cultivosArr, sueloEfectivo, {
         strategy:      calculo.strategy,
         tillage:       cultivoAnteriorParams.laboreo,
-        cec,
+        cec:           cecEfectivo,
         riego:         riegoOpts,
         nEcuacion:     calculo.nEcuacion,
         algoOverrides: calculo.algoOverrides ?? {},
