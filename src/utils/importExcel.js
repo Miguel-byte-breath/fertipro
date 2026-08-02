@@ -318,7 +318,14 @@ export async function importarPlanDesdeExcel(file) {
   // muestre en blanco sin recargar la geometría. queryCoords() los sobreescribe
   // con datos frescos de ArcGIS en cuanto el usuario vuelve a marcar el punto.
   const sueloImportado = {
-    soilType:          soilTypeKey ?? 'LOAM',
+    // Sin fallback a 'LOAM' -- mismo criterio que CEC (commit e6032f1): un plan
+    // sin textura real (soilTypeKey=null porque el Excel no traía "(ENUM)" al
+    // final del label, o la celda estaba vacía) se queda sin dato, nunca se
+    // inventa uno. SueloRiegoCard.jsx ya maneja `suelo?.soilType` en null con
+    // gracia (texLabel=null → celda en blanco); App.jsx exige un soilType real
+    // antes de calcular (ver handleCalcularNecesidades), así que dejar null
+    // aquí no puede colar un valor de rescate en el payload real a Sativum.
+    soilType:          soilTypeKey,
     soilTypeUsdaLabel: toStr(campos['Textura USDA']) || null,
     organicMatter:     toNum(campos['Materia orgánica']),
     ph:                toNum(campos['pH']),
@@ -342,7 +349,14 @@ export async function importarPlanDesdeExcel(file) {
   const sistemaExplotacion = campos['Sistema de explotación'] === 'Regadío' ? 'regadio' : 'secano'
   const fuenteLabelRaw     = campos['Origen del agua (SIEX)']
   const fuenteEntry        = FUENTES_AGUA.find(f => f.label === fuenteLabelRaw)
-  const fuenteId           = fuenteEntry?.id ?? (sistemaExplotacion === 'regadio' ? 1 : 0)
+  // Sin adivinar "Superficial" (id 1) cuando el origen no coincide con ningún
+  // label del catálogo (celda vacía en el Excel, p.ej. plantilla con "Origen de
+  // agua" sin fijar) -- 0 ya es, en este mismo componente, el sentinel real de
+  // "sin origen elegido" (ver SueloRiegoCard.jsx: FUENTES_AGUA_REGADIO excluye
+  // id 0 del desplegable y el <select> muestra "— seleccionar —" con value={0}
+  // en modo regadío) -- no es una invención nueva, es el mismo "sin fijar" que
+  // ya usa el propio formulario en vivo.
+  const fuenteId           = fuenteEntry?.id ?? 0
 
   const riego = {
     sistemaExplotacion,

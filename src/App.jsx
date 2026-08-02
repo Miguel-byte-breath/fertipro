@@ -340,28 +340,69 @@ export default function App() {
         fRes:           calculo.fRes,  // null = auto (B7 / default catálogo)
       })
 
-      // Suelo efectivo: análisis propio del laboratorio o datos ArcGIS
+      // Suelo efectivo: análisis propio del laboratorio o datos ArcGIS.
+      // Sin fallback a 'LOAM' -- si el usuario no ha resuelto un origen real de
+      // suelo (ni ArcGIS con geometría cargada, ni una textura elegida en modo
+      // "Análisis de suelo propio"), no se envía ningún valor de rescate al
+      // payload real de Sativum: se bloquea el cálculo con un aviso claro,
+      // igual que ya hace el gemelo `fertipro` (motor propio) en su propio
+      // BalancePanel.jsx cuando falta la clase textural FAO/USDA bajo una
+      // estrategia que sí la necesita. Confirmado con Miguel 2026-08-02: "si no
+      // se selecciona el dato de suelo de ArcGIS o del valor de análisis de
+      // suelo, no debería enviarse un valor de rescate."
       const sueloBase = analisisPropio
         ? {
-            soilType:      sueloPersonalizado.soilType      ?? 'LOAM',
-            organicMatter: sueloPersonalizado.organicMatter ?? 2,
+            soilType:      sueloPersonalizado.soilType      ?? null,
+            organicMatter: sueloPersonalizado.organicMatter ?? null,
             ph:            sueloPersonalizado.ph            ?? null,
             pOlsen:        sueloPersonalizado.pOlsen        ?? null,
             kSoil:         sueloPersonalizado.kSoil         ?? null,
           }
         : suelo
       const sueloEfectivo = sueloBase ?? {
-        soilType:      'LOAM',
-        organicMatter: 2,
+        soilType:      null,
+        organicMatter: null,
         ph:            null,
         pOlsen:        null,
         kSoil:         null,
       }
 
-      // cec puede estar en null en pantalla (sin textura resuelta todavia) --
-      // el payload real igual necesita un numero, mismo criterio de fallback
-      // que ya usa sueloEfectivo mas arriba (cae a LOAM si no hay nada mejor).
-      const cecEfectivo = cec ?? CEC_BY_SOIL_TYPE[sueloEfectivo.soilType] ?? CEC_BY_SOIL_TYPE.LOAM
+      if (!sueloEfectivo.soilType) {
+        setResultados({
+          npk: null, npkParaRec: null, adjustedNutrient: 'N',
+          nRiego: 0, pRiego: 0, kRiego: 0, loading: false,
+          error: 'Falta el origen de datos de suelo: carga la geometría en el mapa (ArcGIS) o activa "Análisis de suelo propio" y elige una clase textural antes de calcular.',
+        })
+        return
+      }
+
+      // Fuera de MAINTENANCE, el sample real (MO/ph/P Olsen/K suelo) sí lo usa
+      // el servidor de Sativum -- si no se ha resuelto (ni ArcGIS ni análisis
+      // propio con esos 4 campos rellenos), no se manda ningún valor de
+      // rescate: se bloquea aquí, igual que el guard de soilType de arriba.
+      // Bajo MAINTENANCE se deja pasar en null (verificado inofensivo, ver
+      // sativum-algo.js/ensamblarPayloadAlgo y CLAUDE.md, caso OCEAN ALMOND).
+      if (calculo.strategy !== 'MAINTENANCE') {
+        const faltantes = []
+        if (sueloEfectivo.organicMatter == null) faltantes.push('Materia orgánica (MO)')
+        if (sueloEfectivo.ph == null)            faltantes.push('pH')
+        if (sueloEfectivo.pOlsen == null)        faltantes.push('P Olsen')
+        if (sueloEfectivo.kSoil == null)         faltantes.push('K suelo')
+        if (faltantes.length) {
+          setResultados({
+            npk: null, npkParaRec: null, adjustedNutrient: 'N',
+            nRiego: 0, pRiego: 0, kRiego: 0, loading: false,
+            error: `Falta el análisis de suelo real (${faltantes.join(', ')}) para la estrategia elegida: carga la geometría en el mapa (ArcGIS) o completa "Análisis de suelo propio" antes de calcular.`,
+          })
+          return
+        }
+      }
+
+      // cec puede estar en null en pantalla (sin que el usuario haya escrito un
+      // valor propio) -- con soilType ya garantizado real (guard de arriba), el
+      // fallback a CEC_BY_SOIL_TYPE deriva de una textura genuina, nunca de un
+      // 'LOAM' inventado.
+      const cecEfectivo = cec ?? CEC_BY_SOIL_TYPE[sueloEfectivo.soilType]
 
       const npkData = await calcularNPK(cultivosArr, sueloEfectivo, {
         strategy:      calculo.strategy,

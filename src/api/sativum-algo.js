@@ -102,22 +102,53 @@ export function calcularNAgua(no3MgL, dotacionM3) {
  * @param {object}   opts
  * @param {string}   opts.strategy          — SUFFICIENCY|REDUCED|MAINTENANCE|MAXIMUM
  * @param {boolean}  [opts.tillage=false]   — ¿laboreo?
- * @param {number}   [opts.cec=220]         — CEC manual (meq/kg) hasta que ITACyL publique capa
+ * @param {number}   opts.cec               — CEC (meq/kg); obligatorio, sin default (ver más abajo)
  * @param {object}   [opts.riego]           — ya no se usa aquí (ver nota junto a n_other más abajo);
  *                                            se ignora si el caller lo sigue pasando
  * @param {object}   [opts.nEcuacion]       — overrides avanzados de n_equation_parameter
+ * @throws {Error} si `suelo.soilType` o `opts.cec` no son valores reales — este ensamblador
+ *   nunca inventa un soil_type/CEC de rescate para el payload real de Sativum (confirmado con
+ *   Miguel 2026-08-02). El caller (App.jsx, handleCalcularNecesidades) ya bloquea el cálculo
+ *   client-side con un aviso claro antes de llegar aquí si el usuario no ha resuelto un origen
+ *   real de suelo (ni ArcGIS ni "Análisis de suelo propio") — este throw es solo defensa en
+ *   profundidad, para que ningún caller futuro pueda reintroducir un rescate en silencio.
  * @returns {object} payload listo para enviar al proxy /api/sativum-algo
  */
 export function ensamblarPayloadAlgo(cultivos, suelo, opts = {}) {
   const {
     strategy      = 'MAINTENANCE',
     tillage       = false,
-    cec           = 220,
+    cec,
     nEcuacion     = {},
     algoOverrides = {},   // overrides opcionales de los ajustes del algoritmo
   } = opts
 
-  const soilType = suelo.soilType ?? 'LOAM'
+  const soilType = suelo.soilType
+  if (!soilType) {
+    throw new Error('ensamblarPayloadAlgo: falta suelo.soilType real (sin rescate a "LOAM") — el caller debe resolver un origen de suelo antes de llamar.')
+  }
+  if (cec == null) {
+    throw new Error('ensamblarPayloadAlgo: falta opts.cec real (sin rescate a 220) — el caller debe resolver un CEC antes de llamar.')
+  }
+  // som/ph/p_conc/k_conc (el `sample` real) solo son obligatorios fuera de
+  // MAINTENANCE -- verificado empíricamente (sesión 2026-07-28, caso OCEAN
+  // ALMOND) que el servidor de ITACyL ignora `sample` por completo bajo esa
+  // estrategia (3 payloads con mismo soil_type/efficiency_factor pero sample
+  // distinto dieron resultado idéntico byte a byte), así que null ahí es
+  // inofensivo, no un rescate. Bajo el resto de estrategias, `sample` sí se
+  // usa -- si algún caller llegara aquí sin haberlo resuelto (el guard real
+  // vive en App.jsx, esto es defensa en profundidad), se prefiere fallar
+  // explícito antes que mandar null y arriesgar el 500 ya documentado.
+  if (strategy !== 'MAINTENANCE') {
+    const faltantes = []
+    if (suelo.organicMatter == null) faltantes.push('organicMatter (MO)')
+    if (suelo.ph == null)            faltantes.push('ph')
+    if (suelo.pOlsen == null)        faltantes.push('pOlsen (P)')
+    if (suelo.kSoil == null)         faltantes.push('kSoil (K)')
+    if (faltantes.length) {
+      throw new Error(`ensamblarPayloadAlgo: falta ${faltantes.join(', ')} real para la estrategia ${strategy} (sin rescate) — el caller debe resolver un análisis de suelo real antes de llamar.`)
+    }
+  }
   const params   = getAlgoParams(strategy, soilType)
 
   // n_other = solo deposición atmosférica (10). El agua de riego NO se mete
@@ -150,7 +181,11 @@ export function ensamblarPayloadAlgo(cultivos, suelo, opts = {}) {
       soil_type: soilType,
     },
     sample: {
-      som:    suelo.organicMatter ?? 2,
+      // Sin rescate a 2% -- si organicMatter no está resuelto (ni ArcGIS ni
+      // análisis propio), o falta ph/pOlsen/kSoil, la validación de arriba ya
+      // ha bloqueado la llamada para toda estrategia != MAINTENANCE. Bajo
+      // MAINTENANCE el null viaja tal cual (confirmado inofensivo).
+      som:    suelo.organicMatter ?? null,
       ph:     suelo.ph           ?? null,
       p_conc: suelo.pOlsen       ?? null,
       k_conc: suelo.kSoil        ?? null,
