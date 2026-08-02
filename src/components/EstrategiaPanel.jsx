@@ -85,24 +85,32 @@ function ParamInput({ label, value, placeholder, step = 0.1, min = 0, max, unit,
 
 // ── Componente principal ──────────────────────────────────────────────────────
 
-export default function EstrategiaPanel({ cultivo, params, onChange, soilType = 'LOAM' }) {
+export default function EstrategiaPanel({ cultivo, params, onChange, soilType }) {
   const [openAvanzado, setOpenAvanzado] = useState(false)
 
   const set  = (patch) => onChange({ ...params, ...patch })
   const setN = (patch) => onChange({ ...params, nEcuacion: { ...params.nEcuacion, ...patch } })
   const setAO = (patch) => onChange({ ...params, algoOverrides: { ...(params.algoOverrides ?? {}), ...patch } })
 
-  // Parámetros P/K por defecto según estrategia × textura actual
-  const stratDefaults = getAlgoParams(params.strategy, soilType)
+  // Parámetros P/K por defecto según estrategia × textura actual -- solo si hay
+  // una textura real resuelta (ArcGIS si no hay análisis propio, análisis propio
+  // si está activo; nunca las dos fuentes mezcladas -- ver App.jsx). Sin textura
+  // resuelta no se inventa ningún valor de rescate (ni 'LOAM' aquí ni el genérico
+  // de getAlgoParams para un soilType null): el placeholder de estos 3 campos se
+  // queda en blanco con una nota explícita, ver aoPlaceholder()/nota del
+  // acordeón más abajo.
+  const stratDefaults = soilType ? getAlgoParams(params.strategy, soilType) : null
 
   // Valor efectivo de los overrides N (combina defaults con overrides)
   const nVal  = (key) => params.nEcuacion[key] ?? N_EQUATION_DEFAULTS[key]
   // Valor efectivo de los overrides P/K (null = usar default de estrategia)
   const aoVal = (key) => params.algoOverrides?.[key] ?? ''
-  // Placeholder con el default de estrategia+suelo
+  // Placeholder con el default de estrategia+suelo (maxPRate/maxKRate no
+  // dependen de la textura, siguen mostrando su constante fija siempre)
   const aoPlaceholder = (key) => {
     if (key === 'maxPRate') return String(MAX_P_RATE)
     if (key === 'maxKRate') return String(MAX_K_RATE)
+    if (!stratDefaults) return ''
     const map = { pThreshold: 'p_threshold', kThreshold: 'k_threshold', efficiencyFactor: 'efficiency_factor' }
     const v = stratDefaults[map[key]]
     return v != null ? String(v) : ''
@@ -199,7 +207,9 @@ export default function EstrategiaPanel({ cultivo, params, onChange, soilType = 
           />
           {/* ── Ajustes P/K ─────────────────────────────────────────── */}
           <div style={{ ...SA.accordionNote, marginTop: 10, marginBottom: 4 }}>
-            Ajustes P/K — el placeholder muestra el default de la estrategia × textura actual
+            {stratDefaults
+              ? 'Ajustes P/K — el placeholder muestra el default de la estrategia × textura actual'
+              : 'Ajustes P/K — sin textura de suelo resuelta (ArcGIS o análisis propio): Umbral Fósforo/Potasio y Factor corrección K no muestran ningún default hasta que haya un origen de suelo real'}
           </div>
           <ParamInput
             label="Umbral Fósforo"

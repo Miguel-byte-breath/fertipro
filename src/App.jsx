@@ -1358,7 +1358,7 @@ export default function App() {
             cultivo={cultivo}
             params={calculo}
             onChange={setCalculo}
-            soilType={suelo?.soilType ?? 'LOAM'}
+            soilType={analisisPropio ? sueloPersonalizado?.soilType : suelo?.soilType}
           />
 
           {/* Botón calcular */}
