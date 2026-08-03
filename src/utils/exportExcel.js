@@ -179,7 +179,9 @@ const SOIL_TYPE_LABEL = {
  *
  * @param {object} opts
  * @param {object}  opts.point                — { lon, lat }
- * @param {object}  [opts.recinto]            — datos SIGPAC
+ * @param {object}  [opts.recinto]            — recinto "primario" SIGPAC (Municipio/Uso)
+ * @param {Array}   [opts.recintos]           — array completo de interseccionRecintos(); la superficie
+ *   total se suma sobre TODOS estos recintos, no solo sobre `recinto` (antes solo se usaba el primero)
  * @param {object}  opts.cultivo              — objeto catálogo Sativum
  * @param {object}  [opts.suelo]             — resultado normalizarSuelo()
  * @param {number}  opts.cec                  — meq/kg
@@ -196,6 +198,7 @@ const SOIL_TYPE_LABEL = {
 export async function exportarPlanAbonado({
   point,
   recinto,
+  recintos = [],
   cultivo,
   suelo,
   cec,
@@ -283,10 +286,15 @@ export async function exportarPlanAbonado({
   }
   row('Longitud', num(point?.lon, 5), '°')
   row('Latitud',  num(point?.lat, 5), '°')
-  if (recinto) {
-    row('Municipio SIGPAC',   recinto.municipio  ?? null)
-    row('Uso SIGPAC',         recinto.uso_sigpac ?? null)
-    row('Superficie recinto', num(recinto.superficie_total_ha ?? recinto.superficie_ha, 4), 'ha')
+  const listaRecintos = recintos.length ? recintos : (recinto ? [recinto] : [])
+  if (listaRecintos.length) {
+    const supTotal = listaRecintos.reduce(
+      (s, r) => s + (Number(r.superficie_interseccion_ha ?? r.superficie_total_ha ?? r.superficie_ha) || 0), 0
+    )
+    row('Municipio SIGPAC', recinto?.municipio ?? listaRecintos[0]?.municipio ?? null)
+    row('Uso SIGPAC',       recinto?.uso_sigpac ?? listaRecintos[0]?.uso_sigpac ?? null)
+    if (listaRecintos.length > 1) row('Nº recintos SIGPAC', listaRecintos.length)
+    row('Superficie total (ha)', num(supTotal, 4), 'ha')
   }
 
   row('', null)  // spacer

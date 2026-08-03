@@ -16,7 +16,6 @@
  * conectando a medida que se incorporen los análisis de suelo y agua.
  */
 import { useCallback, useEffect, useRef, useState } from 'react'
-import turfArea from '@turf/area'
 import MapPicker        from './map/MapPicker'
 import CultivoSelector  from './cultivos/CultivoSelector'
 import CultivoCard      from './cultivos/CultivoCard'
@@ -763,6 +762,7 @@ export default function App() {
       await exportarPlanAbonado({
         point,
         recinto: recintoEnriquecido,
+        recintos: recintos ?? [],
         cultivo,
         suelo: analisisPropio ? sueloPersonalizado : suelo,
         cec,
@@ -805,7 +805,6 @@ export default function App() {
       // Calcular recintos intersectados y superficie total de las parcelas activas
       const sel = polygonsToExport()
       let recintosList = []
-      let supTotalHa   = null
 
       if (sel?.features?.length > 0) {
         const parcelasConRecintos = await Promise.all(
@@ -817,7 +816,7 @@ export default function App() {
 
         // Lista plana de recintos únicos (evitar duplicados por solape de parcelas)
         const vistos = new Set()
-        for (const { feature, recintos } of parcelasConRecintos) {
+        for (const { recintos } of parcelasConRecintos) {
           for (const r of recintos) {
             const key = `${r.provincia}-${r.municipio}-${r.poligono}-${r.parcela}-${r.recinto}`
             if (!vistos.has(key)) {
@@ -825,12 +824,19 @@ export default function App() {
               recintosList.push(r)
             }
           }
-          supTotalHa = (supTotalHa ?? 0) + turfArea(feature) / 10000
         }
       } else if (recinto) {
         // Fallback: usar el recinto de punto activo si no hay polígonos
         recintosList = [recinto]
       }
+
+      // Superficie total = suma sobre TODOS los recintos encontrados (antes: solo se
+      // sumaba turfArea de la geometría dibujada, que quedaba en null en modo punto sin
+      // polígono — ver CLAUDE.md, bug de superficie por recinto incompleto). Mismo
+      // criterio que ahora usa el Excel del plan de abonado, para que los dos coincidan.
+      const supTotalHa = recintosList.length
+        ? recintosList.reduce((s, r) => s + (Number(r.superficie_interseccion_ha ?? r.superficie_total_ha ?? r.superficie_ha) || 0), 0)
+        : null
 
       const baseName = `${nombrePlan.trim()
         ? (titular?.nifCif?.trim()
