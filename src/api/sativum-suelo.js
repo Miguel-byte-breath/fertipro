@@ -104,7 +104,13 @@ export function normalizarSuelo(arcgisData) {
   // Resolver tipo de suelo desde capa 1 (Textura simplificada, valores 101-106)
   const soilTypePixel = byLayer[1]
   const soilTypeEntry = soilTypesSimpl.find(s => s.value === soilTypePixel)
-  const soilType      = soilTypeEntry?.descNutrients ?? 'LOAM'  // fallback seguro
+  // Sin fallback a 'LOAM' -- si el pixel de ArcGIS no clasifica en ninguna de las
+  // 6 clases (punto sin cobertura real del raster: agua, urbano, hueco de la
+  // interpolación kriging) se deja `null`, nunca se inventa un dato de rescate
+  // (confirmado con Miguel 2026-08-02). App.jsx bloquea el cálculo antes de
+  // llamar a Sativum si soilType no resuelve por ninguna vía (ArcGIS ni
+  // análisis propio) -- ver handleCalcularNecesidades.
+  const soilType      = soilTypeEntry?.descNutrients ?? null
 
   // Textura USDA oficial desde capa 2 (clasificación 12 clases, valores 1-12)
   const soilTypeUsdaPixel = byLayer[2]

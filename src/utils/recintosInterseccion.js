@@ -192,7 +192,7 @@ async function _interseccionDesdeBbox(feature, editada) {
     } catch (err) {
       // Geometría inválida o auto-intersectada — log y seguimos
       // eslint-disable-next-line no-console
-      console.warn('[interseccionRecintos] recinto omitido:', err.message)
+      console.warn('[interseccionRecintos] recinto omitido:', err.message, rec.properties)
     }
   }
 

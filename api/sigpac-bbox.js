@@ -23,6 +23,9 @@
 
 const OGC_TIMEOUT_MS  = 6000
 const OGC_MAX_RETRIES = 2     // 1 intento + 2 reintentos
+const PAGE_LIMIT       = 50   // recintos por página (paginación OGC API estándar)
+const MAX_RECINTOS     = 300  // tope de seguridad — evita bucles largos en bbox muy fragmentados
+const PAGINATION_BUDGET_MS = 22000  // deja margen sobre maxDuration=30 de vercel.json
 
 /**
  * fetch con AbortController + reintento con backoff exponencial.
@@ -153,34 +156,70 @@ export default async function handler(req, res) {
     return res.status(400).json({ error: 'Bbox demasiado grande (máx. ~5km²)' })
   }
 
-  // ── 1. OGC API → recintos en bbox ─────────────────────────────────────────
-  const bboxStr = `${w},${s},${e},${n}`
-  const ogcUrl  =
-    `https://sigpac-hubcloud.es/ogcapi/collections/recintos/items` +
-    `?f=json&bbox=${bboxStr}&limit=50`
+  // ── 1. OGC API → recintos en bbox (paginado) ──────────────────────────────
+  // La OGC API de SIGPAC pagina con offset/limit (rel:"next" en los links) y
+  // reporta numberMatched/numberReturned — un bbox de ~5km² puede tener bien
+  // por encima de 50 recintos reales (confirmado: un caso real con 68). Una
+  // sola página con limit=50 dejaba recintos fuera en silencio (ver CLAUDE.md,
+  // bug de superficie por recinto incompleto). Se pagina hasta cubrir
+  // numberMatched, con un tope de recintos y de tiempo como red de seguridad.
+  const bboxStr  = `${w},${s},${e},${n}`
+  const t0       = Date.now()
+  let features   = []
+  let offset     = 0
+  let numberMatched = null
 
-  let data
   try {
-    const upstream = await fetchConReintento(ogcUrl, {
-      timeoutMs: OGC_TIMEOUT_MS,
-      maxRetries: OGC_MAX_RETRIES,
-      headers: { Accept: 'application/geo+json' },
-    })
+    while (true) {
+      const ogcUrl =
+        `https://sigpac-hubcloud.es/ogcapi/collections/recintos/items` +
+        `?f=json&bbox=${bboxStr}&limit=${PAGE_LIMIT}&offset=${offset}`
 
-    if (!upstream.ok) {
-      return res.status(upstream.status).json({
-        error: `SIGPAC OGC respondió ${upstream.status}`,
+      const upstream = await fetchConReintento(ogcUrl, {
+        timeoutMs: OGC_TIMEOUT_MS,
+        maxRetries: OGC_MAX_RETRIES,
+        headers: { Accept: 'application/geo+json' },
       })
+
+      if (!upstream.ok) {
+        if (features.length > 0) break  // ya tenemos algo útil de páginas previas — no tirarlo
+        return res.status(upstream.status).json({ error: `SIGPAC OGC respondió ${upstream.status}` })
+      }
+
+      const page = await upstream.json()
+      const pageFeatures = page.features ?? []
+      features.push(...pageFeatures)
+      numberMatched = page.numberMatched ?? numberMatched
+      offset += pageFeatures.length
+
+      const sinMasPaginas   = pageFeatures.length < PAGE_LIMIT
+      const yaCubiertoTotal = numberMatched != null && features.length >= numberMatched
+      const topeAlcanzado   = features.length >= MAX_RECINTOS
+      const sinPresupuesto  = (Date.now() - t0) > PAGINATION_BUDGET_MS
+
+      if (sinMasPaginas || yaCubiertoTotal || topeAlcanzado || sinPresupuesto) {
+        if (topeAlcanzado || (numberMatched != null && features.length < numberMatched && (sinPresupuesto))) {
+          // eslint-disable-next-line no-console
+          console.warn('[sigpac-bbox] paginación incompleta:', { recintosObtenidos: features.length, numberMatched, topeAlcanzado, sinPresupuesto })
+        }
+        break
+      }
     }
-    data = await upstream.json()
   } catch (err) {
-    return res.status(502).json({ error: 'Error conectando con SIGPAC', detail: err.message })
+    if (features.length === 0) {
+      return res.status(502).json({ error: 'Error conectando con SIGPAC', detail: err.message })
+    }
+    // Fallo a media paginación con datos parciales ya recogidos — mejor devolver
+    // lo que hay (con aviso en log) que perder todo por un timeout en la última página.
+    // eslint-disable-next-line no-console
+    console.warn('[sigpac-bbox] error a media paginación, devolviendo parcial:', err.message)
   }
 
-  if (!data.features?.length) {
+  if (!features.length) {
     res.setHeader('Cache-Control', 's-maxage=300, stale-while-revalidate=600')
-    return res.status(200).json({ type: 'FeatureCollection', features: [] })
+    return res.status(200).json({ type: 'FeatureCollection', features: [], numberMatched: numberMatched ?? 0, numberReturned: 0 })
   }
+  const data = { features }
 
   // ── 2. Normalizar uso_sigpac desde las properties de la OGC API ───────
   // (Antes haciamos un enriquecimiento extra via MVT, pero sigpac-hubcloud
@@ -197,5 +236,5 @@ export default async function handler(req, res) {
   }))
 
   res.setHeader('Cache-Control', 's-maxage=300, stale-while-revalidate=600')
-  return res.status(200).json({ type: 'FeatureCollection', features: enriched })
+  return res.status(200).json({ type: 'FeatureCollection', features: enriched, numberMatched: numberMatched ?? enriched.length, numberReturned: enriched.length })
 }
