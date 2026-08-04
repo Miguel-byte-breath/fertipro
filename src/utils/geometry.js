@@ -6,9 +6,24 @@ import turfArea from '@turf/area'
  *
  * Utilidades de geometría:
  *   - centroide()        → {lat, lon} del anillo exterior
+ *   - superficieHa()     → superficie geodésica (turf/area) de un feature, en ha
  *   - exportarGeoJSON()  → descarga FeatureCollection como .geojson
  *   - exportarSHP()      → descarga ZIP con .shp + .dbf + .shx + .prj (EPSG:4326)
  */
+
+// ─── Superficie ───────────────────────────────────────────────────────────────
+
+// Superficie geodésica de un feature (Polygon/MultiPolygon), en hectáreas.
+// Usado para rellenar "Superficie (ha)" de la hoja "Recintos (WKT)" cuando el
+// recinto no viene de un plan importado (dibujado a mano, cargado de fichero) —
+// en ese caso no hay dato de superficie ya calculado, así que se estima aquí.
+export function superficieHa(feature) {
+  try {
+    return turfArea(feature) / 10000
+  } catch {
+    return null
+  }
+}
 
 // ─── Centroide ────────────────────────────────────────────────────────────────
 

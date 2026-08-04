@@ -43,6 +43,7 @@ import {
   generarNombreParcela,
   exportarGeoJSON,
   exportarSHP,
+  superficieHa,
 } from './utils/geometry'
 import { slugify, sanitizarNombreFichero } from './utils/slugify'
 import { interseccionRecintos, enrichRecintos, detectarTipoParcela } from './utils/recintosInterseccion'
@@ -742,17 +743,26 @@ export default function App() {
           ) ?? recinto)
         : recinto
 
-      // Hoja "Recintos (WKT)" — geometría VIVA de cada recinto que llegó de un
-      // plan importado (calcular.js), reserializada desde el `feature` actual
-      // de `polygons` (no la WKT original) para que un ajuste "cosmético" del
-      // técnico en el mapa (Geoman) sí quede reflejado al reexportar. Si el
-      // usuario borró ese recinto tras importarlo, se omite (sin fila fantasma).
-      const recintosWkt = recintosPlanMeta
-        .map((m) => {
-          const poly = polygons.find((p) => p.id === m.polygonId)
-          if (!poly) return null
+      // Hoja "Recintos (WKT)" — geometría VIVA de CUALQUIER recinto presente en
+      // el mapa (`polygons`), venga de un plan importado (calcular.js), de un
+      // shapefile cargado a mano o de un polígono dibujado con Geoman — no solo
+      // de `recintosPlanMeta` (eso limitaba la hoja a planes ya generados con
+      // geometría). Reserializada desde el `feature` actual (no la WKT original,
+      // si la hubiera) para que un ajuste del técnico en el mapa sí quede
+      // reflejado al reexportar. Si el recinto venía de un plan importado, se
+      // reutiliza su Ref./Fichero/Fila/Superficie; si no, se usa el nombre de la
+      // parcela y se calcula la superficie con turf/area.
+      const recintosWkt = polygons
+        .map((poly) => {
+          const meta = recintosPlanMeta.find((m) => m.polygonId === poly.id)
           try {
-            return { ref: m.ref, fichero: m.fichero, fila: m.fila, superficieHa: m.superficieHa, wkt: featureToWKT(poly.feature) }
+            return {
+              ref:          meta?.ref ?? poly.nombre ?? null,
+              fichero:      meta?.fichero ?? null,
+              fila:         meta?.fila ?? null,
+              superficieHa: meta?.superficieHa ?? superficieHa(poly.feature),
+              wkt:          featureToWKT(poly.feature),
+            }
           } catch {
             return null
           }
