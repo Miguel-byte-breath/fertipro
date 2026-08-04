@@ -142,8 +142,21 @@ export default function SueloRiegoCard({
   const fuenteId           = riego?.fuenteId ?? 0
   const esRegadio          = sistemaExplotacion === 'regadio'
   const esSubterr          = fuenteId === FUENTE_SUBTERRANEA
+  // "Análisis de agua propio" — a diferencia de suelo (que tiene un toggle explícito
+  // ArcGIS/Laboratorio propio), aquí no se añade ningún botón nuevo: se reutiliza el
+  // campo "Ref. análisis agua" (antes puramente informativo, como refAnalisisSuelo en
+  // suelo) como interruptor implícito. Con la referencia rellena, NO₃/K dejan de
+  // sincronizarse con ArcGIS y pasan a ser editables — sin mezclar fuentes ni rescatar
+  // valores: exactamente igual de "puro" que analisisPropio en suelo, decide solo si
+  // hay texto en el campo, no si hay datos numéricos ya escritos. Confirmado con
+  // Miguel (2026-08-04): sin referencia, opera con ArcGIS aunque el origen sea
+  // subterránea; con referencia, opera con los valores propios aunque no se hayan
+  // rellenado (mismo criterio "sin rescates" ya aplicado a suelo).
+  const tieneRefAgua       = (riego?.refAnalisisAgua ?? '').trim().length > 0
 
-  // Auto-rellenar NO₃ y K desde ArcGIS cuando fuente = subterránea.
+  // Auto-rellenar NO₃ y K desde ArcGIS cuando fuente = subterránea y NO hay análisis
+  // de agua propio (tieneRefAgua) — con referencia rellena, el usuario ya tiene sus
+  // propios valores y este efecto no debe pisarlos.
   //
   // Un solo efecto para los dos campos, a propósito: antes había dos useEffect
   // separados (uno por NO₃, otro por K) que, al llegar juntos desde la misma
@@ -155,7 +168,7 @@ export default function SueloRiegoCard({
   // subterránea, K2O se descontaba bien pero el N mostrado en "Necesidades
   // NPK" salía a 0 (mismo bug ya arreglado en fertipro, ver su CLAUDE.md).
   useEffect(() => {
-    if (!esSubterr) return
+    if (!esSubterr || tieneRefAgua) return
     const next = {}
     if (suelo?.no3Irrigation != null) next.no3MgL = suelo.no3Irrigation
     if (suelo?.kIrrigation != null) next.kMgL = suelo.kIrrigation
@@ -163,7 +176,7 @@ export default function SueloRiegoCard({
       onRiegoChange({ ...riego, ...next })
     }
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [esSubterr, suelo?.no3Irrigation, suelo?.kIrrigation])
+  }, [esSubterr, tieneRefAgua, suelo?.no3Irrigation, suelo?.kIrrigation])
 
   // ── handlers ──────────────────────────────────────────────────────────────
 
@@ -212,10 +225,12 @@ export default function SueloRiegoCard({
   }
 
   // ── cálculo UF aportadas por riego ───────────────────────────────────────
-  const no3Val = esSubterr ? (suelo?.no3Irrigation ?? riego?.no3MgL) : riego?.no3MgL
+  // Fuente ArcGIS solo si es subterránea Y no hay análisis de agua propio (tieneRefAgua)
+  const usaArcgisAgua = esSubterr && !tieneRefAgua
+  const no3Val = usaArcgisAgua ? (suelo?.no3Irrigation ?? riego?.no3MgL) : riego?.no3MgL
   const dot    = Number(riego?.dotacionM3) || 0
   const pVal   = Number(riego?.pMgL)  || 0
-  const kVal   = esSubterr ? (Number(suelo?.kIrrigation) || 0) : (Number(riego?.kMgL) || 0)
+  const kVal   = usaArcgisAgua ? (Number(suelo?.kIrrigation) || 0) : (Number(riego?.kMgL) || 0)
 
   const nAgua  = (no3Val && dot) ? (Number(no3Val) * dot * 0.001 * (14 / 62)).toFixed(1) : null
   const p2o5   = (pVal && dot)   ? (pVal * dot * 0.001 * 2.2914).toFixed(1)              : null
@@ -428,10 +443,10 @@ export default function SueloRiegoCard({
           {/* NO₃ */}
           <InputRow
             label="NO₃ agua riego"
-            value={esSubterr ? (suelo?.no3Irrigation ?? '') : (riego?.no3MgL ?? '')}
+            value={usaArcgisAgua ? (suelo?.no3Irrigation ?? '') : (riego?.no3MgL ?? '')}
             unit="mg/L"
-            readOnly={esSubterr}
-            badge={esSubterr ? 'ArcGIS' : null}
+            readOnly={usaArcgisAgua}
+            badge={usaArcgisAgua ? 'ArcGIS' : (esSubterr && tieneRefAgua ? 'Propio' : null)}
             step={0.1} min={0} placeholder="0.0"
             onChange={v => onRiegoChange({ ...riego, no3MgL: v })}
           />
@@ -448,10 +463,10 @@ export default function SueloRiegoCard({
           {/* K */}
           <InputRow
             label="K agua riego"
-            value={esSubterr ? (suelo?.kIrrigation ?? '') : (riego?.kMgL ?? '')}
+            value={usaArcgisAgua ? (suelo?.kIrrigation ?? '') : (riego?.kMgL ?? '')}
             unit="mg/L"
-            readOnly={esSubterr}
-            badge={esSubterr ? 'ArcGIS' : null}
+            readOnly={usaArcgisAgua}
+            badge={usaArcgisAgua ? 'ArcGIS' : (esSubterr && tieneRefAgua ? 'Propio' : null)}
             step={0.1} min={0} placeholder="0.0"
             onChange={v => onRiegoChange({ ...riego, kMgL: v })}
           />
