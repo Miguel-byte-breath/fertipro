@@ -15,7 +15,7 @@
  * El motor de cálculo (src/calculo/algoritmo.js) está stub-eado y se irá
  * conectando a medida que se incorporen los análisis de suelo y agua.
  */
-import { useCallback, useEffect, useRef, useState } from 'react'
+import { useCallback, useEffect, useLayoutEffect, useRef, useState } from 'react'
 import MapPicker        from './map/MapPicker'
 import CultivoSelector  from './cultivos/CultivoSelector'
 import CultivoCard      from './cultivos/CultivoCard'
@@ -211,8 +211,18 @@ export default function App() {
     setCec(soilTypeEfectivo ? (CEC_BY_SOIL_TYPE[soilTypeEfectivo] ?? null) : null)
   }, [analisisPropio, sueloPersonalizado?.soilType, suelo?.soilType])
 
-  // Auto-rellenar dotación de riego desde cultivo.irrigation al cambiar cultivo (suprimido durante import).
-  useEffect(() => {
+  // Auto-rellenar dotación de riego desde cultivo.irrigation al cambiar cultivo (suprimido durante
+  // import). useLayoutEffect a propósito, no useEffect (2026-08-05): el guard de isImportingRef.current
+  // asume que este efecto corre ANTES del setTimeout(0) que lo desactiva en handleImportarPlan -- pero
+  // useEffect se difiere de forma no síncrona tras el pintado y compite con ese setTimeout como dos
+  // macrotasks independientes, sin orden garantizado entre ambos. En un caso real (Trigo blando,
+  // Secano, cultivo.irrigation=2900 en el catálogo Sativum) el setTimeout ganó la carrera, el guard ya
+  // estaba en false cuando este efecto por fin corrió, y pisó el "Secano" recién importado con
+  // "Regadío" + dotación 2900. useLayoutEffect se ejecuta de forma síncrona en el mismo tick que el
+  // commit, siempre antes de cualquier macrotask -- elimina la carrera de raíz. El comportamiento
+  // manual (asesor cambia de cultivo a mano, fuera de un import) no cambia: sigue sugiriendo
+  // Regadío + dotación del catálogo exactamente igual que antes.
+  useLayoutEffect(() => {
     if (!cultivo || isImportingRef.current) return
     const irr = Number(cultivo.irrigation) || 0
     setRiego(prev => ({
