@@ -1157,6 +1157,16 @@ export default function App() {
           📂 Cargar plan
         </button>
 
+        <a
+          href="https://fertipro-plantilla.vercel.app/"
+          target="_blank"
+          rel="noopener noreferrer"
+          style={S.crossLinkBtn}
+          title="Accede a la herramienta de gestión de múltiples planes de abonado"
+        >
+          🗂️ Gestión múltiple ↗
+        </a>
+
         <button
           style={S.infoBtn}
           onClick={() => setMetodologiaOpen(true)}
@@ -1612,6 +1622,14 @@ const S = {
     fontSize: 12, fontWeight: 600, fontFamily: 'inherit',
     cursor: 'pointer', flexShrink: 0, whiteSpace: 'nowrap',
     letterSpacing: 0.2,
+  },
+  crossLinkBtn: {
+    background: 'rgba(255,255,255,0.08)', border: '1px solid rgba(255,255,255,0.32)',
+    color: '#fff', borderRadius: 14, padding: '5px 12px',
+    fontSize: 11, fontWeight: 600, fontFamily: 'inherit',
+    textDecoration: 'none', display: 'inline-flex', alignItems: 'center',
+    cursor: 'pointer', flexShrink: 0, whiteSpace: 'nowrap', letterSpacing: 0.2,
+    opacity: 0.88,
   },
   importToast: {
     position: 'fixed', bottom: 28, left: '50%', transform: 'translateX(-50%)',
