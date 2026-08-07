@@ -1526,7 +1526,9 @@ export default function App() {
           })()}
 
           <div style={S.footer}>
-            <button style={S.versionBtn} onClick={() => setMetodologiaOpen(true)} title="Metodología y fuentes">v0.2.0</button>
+            <button style={S.versionBtn} onClick={() => setMetodologiaOpen(true)} title="Metodología y fuentes">
+              v{APP_VERSION}{APP_BUILD_DATE_LABEL ? ` · ${APP_BUILD_DATE_LABEL}` : ''}
+            </button>
             {' '}·{' '}
             <a href="https://creativecommons.org/licenses/by/4.0/deed.es" target="_blank" rel="noreferrer" style={{ color: 'inherit' }}>CC BY 4.0 ITACyL</a>
             {' '}·{' '}
@@ -1578,6 +1580,18 @@ function ModoIndicator({ activeId, polygons, point }) {
     </div>
   )
 }
+
+// Versión y fecha de build inyectadas por Vite (vite.config.js, define) desde la
+// única fuente de verdad: el campo "version" de package.json. __BUILD_DATE__ es
+// automático (momento del build/deploy) — nada que mantener sincronizado a mano.
+const APP_VERSION = typeof __APP_VERSION__ !== 'undefined' ? __APP_VERSION__ : '0.0.0'
+const APP_BUILD_DATE_LABEL = (() => {
+  try {
+    return new Date(__BUILD_DATE__).toLocaleDateString('es-ES', { month: 'long', year: 'numeric' })
+  } catch {
+    return null
+  }
+})()
 
 // 100dvh = dynamic viewport height: excluye la barra de dirección/navegación del móvil.
 // Sin esto, 100vh en Android Chrome hace que el panel no llegue al final del scroll.
