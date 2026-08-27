@@ -62,10 +62,10 @@ function tieneResidueRule(cultivo) {
 
 // ── Componentes internos ──────────────────────────────────────────────────────
 
-function ParamInput({ label, value, placeholder, step = 0.1, min = 0, max, unit, onChange }) {
+function ParamInput({ label, value, placeholder, step = 0.1, min = 0, max, unit, title, onChange }) {
   return (
     <div style={SA.paramRow}>
-      <span style={SA.paramLbl}>{label}</span>
+      <span style={SA.paramLbl} title={title}>{label}</span>
       <span style={{ display: 'flex', alignItems: 'center', gap: 4, flexShrink: 0 }}>
         <input
           type="number"
@@ -182,9 +182,11 @@ export default function EstrategiaPanel({ cultivo, params, onChange, soilType })
             onChange={v => setN({ n_other: v })}
           />
           <ParamInput
-            label="N perdido (filtración, volatilización, desnitrificación)"
+            label="N perdido (lixiviación, volatilización, desnitrificación)"
             value={nVal('n_lost')}
-            unit="kg/ha"
+            step={0.01} min={0} max={1}
+            unit="0–1"
+            title="Fracción de N aplicado que se pierde por lixiviación, volatilización o desnitrificación (0-1). A más N perdido, más N hay que aplicar para compensar."
             onChange={v => setN({ n_lost: v })}
           />
           <ParamInput
