@@ -185,8 +185,19 @@ export default function App() {
     algoOverrides:  {},
   })
 
-  // Reset rendimiento/residuos al cambiar cultivo (suprimido durante import)
-  useEffect(() => {
+  // Reset rendimiento/residuos al cambiar cultivo (suprimido durante import).
+  // useLayoutEffect a propósito, no useEffect (2026-08-27): mismo bug de carrera ya
+  // corregido en el efecto gemelo de riego (2026-08-05, ver comentario debajo) --
+  // useEffect se difiere de forma asíncrona tras el pintado y compite como macrotask
+  // independiente contra el setTimeout(0) que apaga isImportingRef.current en
+  // handleImportarPlan, sin orden garantizado entre ambos. Caso real (Miguel,
+  // 2026-08-27): importar un plan de Lechuga Iceberg con cropYield=35000 -- el
+  // timeout ganaba la carrera, el guard ya estaba en false cuando este efecto por
+  // fin corría, y pisaba el 35000 recién importado con el yieldMedium del catálogo
+  // (16650). useLayoutEffect corre síncrono en el mismo tick que el commit, siempre
+  // antes de cualquier macrotask -- elimina la carrera de raíz, igual que ya hace el
+  // efecto de riego.
+  useLayoutEffect(() => {
     if (isImportingRef.current) return
     setCalculo(prev => ({
       ...prev,
