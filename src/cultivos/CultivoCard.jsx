@@ -76,7 +76,7 @@ export default function CultivoCard({ cultivo, params, onParamsChange }) {
           <div style={S.subtitle}>{grupo}</div>
         </div>
         <div style={{ display: 'flex', gap: 5, flexWrap: 'wrap', justifyContent: 'flex-end' }}>
-          {cultivo.nfixCode && <span style={{ ...S.badge, background: '#e8f5e9', color: '#2e7d32', border: '1px solid #c8e6c9' }}>🌱 Fijador N</span>}
+          {cultivo.nfixCode ? <span style={{ ...S.badge, background: '#e8f5e9', color: '#2e7d32', border: '1px solid #c8e6c9' }}>🌱 Fijador N</span> : null}
           {anomalo          && <span style={{ ...S.badge, background: '#fff3e0', color: '#e65100', border: '1px solid #ffe0b2' }}>⚠️ Rend. anómalo</span>}
         </div>
       </div>
