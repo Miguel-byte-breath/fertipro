@@ -1,0 +1,2907 @@
+{
+  "openapi": "3.0.0",
+  "info": {
+    "title": "Servicio de balance de nutrientes: cálculo de necesidades y recomendación",
+    "description": "Servicio de balance de nutrientes que incluye cálculo de necesidades NPK para un cultivo con unas características determinadas de suelo y recomendación de fertilizantes partiendo de los que posea el agricultor o bien del listado completo disponible en SATIVUM.\nPara más información sobre el consumo de servicios utilice la [Guía de creación de balance de nutrientes](https://servicios.itacyl.es/resources/public/sativum/ServiciosBalanceNutrientes.docx).\nLos datos incluidos en este servicio pueden utilizarse bajo la licencia de uso [Creative Commons Reconocimiento 4.0](https://creativecommons.org/licenses/by/4.0/deed.es).\n",
+    "version": "1.0.0"
+  },
+  "servers": [
+    {
+      "url": "https://gateway.api.itacyl.es/sativum"
+    }
+  ],
+  "paths": {
+    "/nutrients/crops": {
+      "get": {
+        "tags": [
+          "Nutrientes"
+        ],
+        "summary": "Listado de cultivos para el cálculo de nutrientes",
+        "description": "Servicio que devuelve el listado de cultivos para el algoritmo de cálculo de nutrientes.",
+        "security": [
+          {
+            "ApiKeyAuth": []
+          }
+        ],
+        "parameters": [
+          {
+            "in": "query",
+            "name": "lang",
+            "required": false,
+            "schema": {
+              "type": "string",
+              "enum": [
+                "ca",
+                "eu",
+                "gl",
+                "va",
+                "en",
+                "fr",
+                "it",
+                "pt",
+                "de",
+                "es"
+              ]
+            },
+            "allowEmptyValue": true,
+            "description": "Obtiene los cultivos para el algoritmo, devolviendo el nombre de cada uno de ellos en el idioma indicado en este parámetro. Si no se indica ninguno, por defecto español.",
+            "example": "es"
+          },
+          {
+            "in": "query",
+            "name": "name",
+            "required": false,
+            "schema": {
+              "type": "string"
+            },
+            "allowEmptyValue": true,
+            "description": "Filtra los cultivos para el algoritmo, devolviendo solo aquellos con el nombre indicado en este parámetro",
+            "example": "Cebada"
+          },
+          {
+            "in": "query",
+            "name": "siexCrop",
+            "required": false,
+            "schema": {
+              "type": "integer"
+            },
+            "allowEmptyValue": true,
+            "description": "Filtra los cultivos para el algoritmo, devolviendo solo aquellos relacionados con el código de cultivo SIEX indicado en este parámetro",
+            "example": 5
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Correcto",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "array",
+                  "items": {
+                    "type": "object",
+                    "properties": {
+                      "items": {
+                        "type": "object",
+                        "properties": {
+                          "id": {
+                            "type": "integer",
+                            "description": "ID único del cultivo"
+                          },
+                          "name": {
+                            "type": "string",
+                            "description": "Nombre del cultivo, en el idioma indicado en el parámetro 'lang'. Por defecto español."
+                          },
+                          "plantSpeciesGroup": {
+                            "type": "string",
+                            "description": "Grupo de especies de plantas"
+                          },
+                          "harvestProduct": {
+                            "type": "string",
+                            "description": "Producto de cosecha"
+                          },
+                          "dryMatter": {
+                            "type": "number",
+                            "description": "Cantidad de materia seca del cultivo (%)"
+                          },
+                          "n": {
+                            "type": "number",
+                            "description": "Cantidad de nitrógeno presente en el cultivo (% de materia seca)"
+                          },
+                          "p": {
+                            "type": "number",
+                            "description": "Cantidad de fósforo presente en el cultivo (% de materia seca)"
+                          },
+                          "k": {
+                            "type": "number",
+                            "description": "Cantidad de potasio presente en el cultivo (% de materia seca)"
+                          },
+                          "resProduct": {
+                            "type": "string",
+                            "description": "Producto de residuo del cultivo"
+                          },
+                          "resDryMatter": {
+                            "type": "number",
+                            "description": "Cantidad de materia seca del residuo del cultivo (%)"
+                          },
+                          "resN": {
+                            "type": "number",
+                            "description": "Cantidad de nitrógeno presente en el residuo del cultivo (% de materia seca)"
+                          },
+                          "resP": {
+                            "type": "number",
+                            "description": "Cantidad de fósforo presente en el residuo del cultivo (% de materia seca)"
+                          },
+                          "resK": {
+                            "type": "number",
+                            "description": "Cantidad de potasio presente en el residuo del cultivo (% de materia seca)"
+                          },
+                          "nfixCode": {
+                            "type": "integer",
+                            "description": "Código de fijación de nitrógeno del cultivo"
+                          },
+                          "nMin": {
+                            "type": "number",
+                            "description": "Cantidad mínima de nitrógeno requerida por el cultivo"
+                          },
+                          "nMax": {
+                            "type": "number",
+                            "description": "Cantidad máxima de nitrógeno requerida por el cultivo"
+                          },
+                          "hi": {
+                            "type": "integer",
+                            "description": "Índice de cosecha del cultivo"
+                          },
+                          "fres": {
+                            "type": "number",
+                            "description": "Porcentaje de residuos dejados en campo. Si fres es un 10% y plantSpeciesGroup es Cereales se debe preguntar si se va a recoger el residuo. En caso de no recogerlo, fres debe ser 100%."
+                          },
+                          "nFondo": {
+                            "type": "integer",
+                            "description": "Cantidad de nitrógeno de fondo"
+                          },
+                          "nFondoDesc": {
+                            "type": "string",
+                            "description": "Descripción del nitrógeno de fondo"
+                          },
+                          "nCoberteras": {
+                            "type": "integer",
+                            "description": "Cantidad de nitrógeno de coberteras"
+                          },
+                          "nCoberterasDesc": {
+                            "type": "string",
+                            "description": "Descripción del nitrógeno de coberteras"
+                          },
+                          "yieldLow": {
+                            "type": "integer",
+                            "description": "Rendimiento bajo del cultivo en kg/ha"
+                          },
+                          "yieldMedium": {
+                            "type": "integer",
+                            "description": "Rendimiento medio del cultivo en kg/ha"
+                          },
+                          "yieldHigh": {
+                            "type": "integer",
+                            "description": "Rendimiento alto del cultivo en kg/ha"
+                          },
+                          "irrigation": {
+                            "type": "integer",
+                            "description": "Indicador de riego"
+                          },
+                          "productSiexId": {
+                            "type": "integer",
+                            "description": "Identificador de producto en SIEX"
+                          }
+                        }
+                      }
+                    }
+                  }
+                },
+                "example": [
+                  {
+                    "name": "Barbecho blanco",
+                    "plantSpeciesGroup": "None",
+                    "harvestProduct": "None",
+                    "dryMatter": 0,
+                    "n": 0,
+                    "p": 0,
+                    "k": 0,
+                    "resProduct": "None",
+                    "resDryMatter": 0,
+                    "resN": 0,
+                    "resP": 0,
+                    "resK": 0,
+                    "nfixCode": 0,
+                    "nMin": 0,
+                    "nMax": 0,
+                    "hi": 0,
+                    "fres": 0,
+                    "nFondo": 0,
+                    "nFondoDesc": null,
+                    "nCoberteras": 0,
+                    "nCoberterasDesc": null,
+                    "yieldLow": 0,
+                    "yieldMedium": 0,
+                    "yieldHigh": 0,
+                    "irrigation": 0,
+                    "deleted": false,
+                    "productSiexId": 20,
+                    "id": 67
+                  },
+                  {
+                    "name": "Trigo blando panificable - Rto. igual o superior a 4.500 kg/ha",
+                    "plantSpeciesGroup": "Cereals",
+                    "harvestProduct": "grain",
+                    "dryMatter": 87.5,
+                    "n": 2.1,
+                    "p": 0.3,
+                    "k": 0.45,
+                    "resProduct": "straw",
+                    "resDryMatter": 90.5,
+                    "resN": 0.65,
+                    "resP": 0.06,
+                    "resK": 1.2,
+                    "nfixCode": 0,
+                    "nMin": 1.9,
+                    "nMax": 2.3,
+                    "hi": 40,
+                    "fres": 10,
+                    "nFondo": 33,
+                    "nFondoDesc": null,
+                    "nCoberteras": 1,
+                    "nCoberterasDesc": null,
+                    "yieldLow": 4500,
+                    "yieldMedium": 5400,
+                    "yieldHigh": 6300,
+                    "irrigation": 2900,
+                    "deleted": false,
+                    "productSiexId": 1,
+                    "id": 101
+                  },
+                  {
+                    "name": "Trigo blando panificable - Rto. inferior a 4.500 kg/ha",
+                    "plantSpeciesGroup": "Cereals",
+                    "harvestProduct": "grain",
+                    "dryMatter": 87.5,
+                    "n": 2.4,
+                    "p": 0.55,
+                    "k": 0.6,
+                    "resProduct": "straw",
+                    "resDryMatter": 90.5,
+                    "resN": 0.65,
+                    "resP": 0.06,
+                    "resK": 1.2,
+                    "nfixCode": 0,
+                    "nMin": 2.2,
+                    "nMax": 2.3,
+                    "hi": 35,
+                    "fres": 10,
+                    "nFondo": 33,
+                    "nFondoDesc": null,
+                    "nCoberteras": 1,
+                    "nCoberterasDesc": null,
+                    "yieldLow": 3000,
+                    "yieldMedium": 3750,
+                    "yieldHigh": 4500,
+                    "irrigation": 2900,
+                    "deleted": false,
+                    "productSiexId": 1,
+                    "id": 102
+                  },
+                  {
+                    "name": "Espelta - Rto. igual o superior a 4.500 kg/ha",
+                    "plantSpeciesGroup": "Cereals",
+                    "harvestProduct": "grain",
+                    "dryMatter": 87.5,
+                    "n": 2,
+                    "p": 0.3,
+                    "k": 0.45,
+                    "resProduct": "straw",
+                    "resDryMatter": 90.5,
+                    "resN": 0.65,
+                    "resP": 0.13,
+                    "resK": 1.4,
+                    "nfixCode": 0,
+                    "nMin": 1.8,
+                    "nMax": 2.3,
+                    "hi": 35,
+                    "fres": 10,
+                    "nFondo": 33,
+                    "nFondoDesc": null,
+                    "nCoberteras": 1,
+                    "nCoberterasDesc": null,
+                    "yieldLow": 4500,
+                    "yieldMedium": 5250,
+                    "yieldHigh": 6000,
+                    "irrigation": 2850,
+                    "deleted": false,
+                    "productSiexId": 2,
+                    "id": 105
+                  }
+                ]
+              }
+            }
+          }
+        }
+      }
+    },
+    "/fertilicalc/algo/": {
+      "post": {
+        "tags": [
+          "Nutrientes"
+        ],
+        "summary": "Algoritmo de cálculo de nutrientes",
+        "description": "Servicio de balance de nutrientes conforme a la publicación Fitotecnia: principios de agronomía para una agricultura sostenible implementada en las aplicaciones Fertilicalc (F. Villalobos) y Farm Advisory Tool for nutrients (FAST) de la Comisión Europea con algunas modificaciones introducidas por el ITACyL.",
+        "security": [
+          {
+            "ApiKeyAuth": []
+          }
+        ],
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "type": "object",
+                "required": [
+                  "rotation",
+                  "soil",
+                  "sample",
+                  "p_threshold",
+                  "k_threshold",
+                  "soil_effect",
+                  "efficiency_factor",
+                  "max_p_rate",
+                  "max_k_rate",
+                  "n_equation_parameter",
+                  "strategy"
+                ],
+                "properties": {
+                  "rotation": {
+                    "type": "array",
+                    "description": "Listado de rotaciones de cultivos para un plan de fertilización",
+                    "default": [],
+                    "items": {
+                      "type": "object",
+                      "description": "Contiene los atributos de una única rotación de cultivo",
+                      "required": [
+                        "crop_yield",
+                        "collect_residues",
+                        "crop_features"
+                      ],
+                      "properties": {
+                        "crop_yield": {
+                          "type": "integer",
+                          "description": "Rendimiento del cultivo en kg/ha"
+                        },
+                        "cv": {
+                          "type": "number",
+                          "description": "Coeficiente de variación",
+                          "default": 0
+                        },
+                        "collect_residues": {
+                          "type": "boolean",
+                          "description": "Recoge residuos"
+                        },
+                        "burn_residues": {
+                          "type": "boolean",
+                          "description": "Quema residuos",
+                          "default": false
+                        },
+                        "crop_features": {
+                          "type": "object",
+                          "description": "Define todas las características asociadas a un cultivo como concentraciones de NPK, índice de cosecha, fracción de residuos dejados en campo, ...",
+                          "required": [
+                            "plant_species_group",
+                            "harvest_product",
+                            "dry_matter",
+                            "n",
+                            "p",
+                            "k",
+                            "nfix_code",
+                            "hi",
+                            "f_res"
+                          ],
+                          "properties": {
+                            "plant_species_group": {
+                              "type": "string",
+                              "description": "Grupo de especies de plantas",
+                              "example": "Forage_legume",
+                              "enum": [
+                                "CEREALS",
+                                "FORAGE_LEGUME",
+                                "FORAGE_MIX_LEGUME_GRASS",
+                                "FORAGE_NON_LEGUME",
+                                "FUNGI",
+                                "HORTICULTURAL",
+                                "INDUSTRIAL",
+                                "LEGUMES",
+                                "MIXED",
+                                "NONE",
+                                "PULSES",
+                                "TUBERS_ROOTS",
+                                "TREES",
+                                "OTHER"
+                              ]
+                            },
+                            "harvest_product": {
+                              "type": "string",
+                              "description": "Nombre del producto cosechado",
+                              "example": "biomass"
+                            },
+                            "dry_matter": {
+                              "type": "number",
+                              "description": "Cantidad de materia seca (%)"
+                            },
+                            "n": {
+                              "type": "number",
+                              "description": "Concentración típica de nitrógeno (% de materia seca)"
+                            },
+                            "p": {
+                              "type": "number",
+                              "description": "Concentración típica de fósforo (% de materia seca)"
+                            },
+                            "k": {
+                              "type": "number",
+                              "description": "Concentración típica de potasio (% de materia seca)"
+                            },
+                            "res_product": {
+                              "type": "string",
+                              "description": "Nombre del producto residual",
+                              "example": "straw"
+                            },
+                            "res_dry_matter": {
+                              "type": "number",
+                              "description": "Cantidad de materia seca en residuos (%)",
+                              "default": 0
+                            },
+                            "res_n": {
+                              "type": "number",
+                              "description": "Concentración típica de nitrógeno en residuos (%)",
+                              "default": 0
+                            },
+                            "res_p": {
+                              "type": "number",
+                              "description": "Concentración típica de fósforo en residuos (%)",
+                              "default": 0
+                            },
+                            "res_k": {
+                              "type": "number",
+                              "description": "Concentración típica de potasio en residuos (%)",
+                              "default": 0
+                            },
+                            "nfix_code": {
+                              "type": "boolean",
+                              "description": "Fijación de nitrógeno"
+                            },
+                            "n_min": {
+                              "type": "number",
+                              "description": "Concentración mínima de nitrógeno (%)"
+                            },
+                            "n_max": {
+                              "type": "number",
+                              "description": "Concentración máxima de nitrógeno (%)"
+                            },
+                            "hi": {
+                              "type": "integer",
+                              "description": "Índice de cosecha (%)"
+                            },
+                            "f_res": {
+                              "type": "integer",
+                              "description": "Porcentaje de residuos que quedan en el campo tras la cosecha (%)"
+                            },
+                            "ca": {
+                              "type": "number",
+                              "description": "Concentración típica de calcio (%)"
+                            },
+                            "s": {
+                              "type": "number",
+                              "description": "Concentración típica de azufre (%)"
+                            },
+                            "mg": {
+                              "type": "number",
+                              "description": "Concentración típica de magnesio (%)"
+                            },
+                            "res_ca": {
+                              "type": "number",
+                              "description": "Concentración típica de calcio en residuos (%)"
+                            },
+                            "res_s": {
+                              "type": "number",
+                              "description": "Concentración típica de azufre en residuos (%)"
+                            },
+                            "res_mg": {
+                              "type": "number",
+                              "description": "Concentración típica de magnesio en residuos (%)"
+                            }
+                          }
+                        }
+                      }
+                    }
+                  },
+                  "soil": {
+                    "type": "object",
+                    "required": [
+                      "soil_type"
+                    ],
+                    "properties": {
+                      "soil_type": {
+                        "type": "string",
+                        "description": "Tipo de suelo",
+                        "example": "CLAY_LOAM",
+                        "enum": [
+                          "SANDY",
+                          "SANDY_LOAM",
+                          "LOAM",
+                          "SILTY_LOAM",
+                          "CLAY_LOAM",
+                          "CLAY"
+                        ]
+                      }
+                    }
+                  },
+                  "sample": {
+                    "type": "object",
+                    "required": [
+                      "p_conc",
+                      "k_conc"
+                    ],
+                    "description": "Resultados de análisis de muestras de suelo en un laboratorio",
+                    "properties": {
+                      "p_conc": {
+                        "type": "number",
+                        "description": "Concentración de fósforo en el suelo"
+                      },
+                      "k_conc": {
+                        "type": "number",
+                        "description": "Concentración de potasio en el suelo"
+                      },
+                      "som": {
+                        "type": "number",
+                        "description": "Cantidad de materia orgánica en el suelo (%)",
+                        "default": 2
+                      },
+                      "cec": {
+                        "type": "number",
+                        "description": "Capacidad de intercambio catiónico (CEC). (Ver valor de equivalencia según tipo suelo)"
+                      },
+                      "ph": {
+                        "type": "number",
+                        "description": "pH"
+                      }
+                    }
+                  },
+                  "p_threshold": {
+                    "type": "object",
+                    "required": [
+                      "value"
+                    ],
+                    "properties": {
+                      "value": {
+                        "type": "integer",
+                        "description": "Inicio del umbral utilizado por el algoritmo P y K. (Ver valor de equivalencia según tipo suelo)"
+                      }
+                    }
+                  },
+                  "k_threshold": {
+                    "type": "object",
+                    "required": [
+                      "value"
+                    ],
+                    "properties": {
+                      "value": {
+                        "type": "integer",
+                        "description": "Inicio del umbral utilizado por el algoritmo P y K. (Ver valor de equivalencia según tipo suelo)"
+                      }
+                    }
+                  },
+                  "soil_effect": {
+                    "type": "object",
+                    "required": [
+                      "coeff"
+                    ],
+                    "properties": {
+                      "coeff": {
+                        "type": "number",
+                        "description": "El tipo de suelo influye en el uso del coeficiente 'b' en la ecuación de los requisitos de fósforo y potasio. Se puede interpretar como densidad aparente. (Ver valor de equivalencia según tipo suelo)"
+                      }
+                    }
+                  },
+                  "efficiency_factor": {
+                    "type": "object",
+                    "required": [
+                      "factor"
+                    ],
+                    "properties": {
+                      "factor": {
+                        "type": "number",
+                        "description": "Depende de la estrategia y el tipo de suelo. Se utiliza en la ecuación de requerimientos de potasio. (Ver valor de equivalencia según tipo suelo)",
+                        "default": 1.68
+                      }
+                    }
+                  },
+                  "max_p_rate": {
+                    "type": "object",
+                    "required": [
+                      "rate"
+                    ],
+                    "properties": {
+                      "rate": {
+                        "type": "integer",
+                        "description": "Tasa máxima de fósforo que se puede aplica",
+                        "default": 100
+                      }
+                    }
+                  },
+                  "max_k_rate": {
+                    "type": "object",
+                    "required": [
+                      "rate"
+                    ],
+                    "properties": {
+                      "rate": {
+                        "type": "integer",
+                        "description": "Tasa máxima de potasio que se puede aplicar",
+                        "default": 275
+                      }
+                    }
+                  },
+                  "n_equation_parameter": {
+                    "type": "object",
+                    "required": [
+                      "n_end",
+                      "n_other",
+                      "n_lost",
+                      "f_nr",
+                      "beta_pl",
+                      "efic"
+                    ],
+                    "description": "Contiene parámetros de la ecuación de nitrógeno",
+                    "properties": {
+                      "n_end": {
+                        "type": "number",
+                        "description": "Nitrógeno inorgánico final del suelo",
+                        "default": 10
+                      },
+                      "n_other": {
+                        "type": "number",
+                        "description": "Nitrógeno procedente de deposición atmosférica, fijación simbiótica y agua de riego",
+                        "default": 10
+                      },
+                      "n_lost": {
+                        "type": "number",
+                        "description": "Fracción de nitrógeno perdida (lixiviación, volatilización, desnitrificación) (entre 0 y 1)",
+                        "default": 0
+                      },
+                      "f_nr": {
+                        "type": "number",
+                        "description": "Relación (Nitrógeno en raíces) / (Nitrógeno en brotes) (entre 0 y 1)",
+                        "default": 0.2
+                      },
+                      "beta_pl": {
+                        "type": "number",
+                        "description": "Beta PL",
+                        "default": 0.8
+                      },
+                      "efic": {
+                        "type": "number",
+                        "description": "Efic",
+                        "default": 0.8
+                      }
+                    }
+                  },
+                  "strategy": {
+                    "type": "object",
+                    "required": [
+                      "strategy",
+                      "tillage"
+                    ],
+                    "description": "Contiene estrategia, laboreo y riego para todos los cultivos en un plan",
+                    "properties": {
+                      "strategy": {
+                        "type": "string",
+                        "description": "Estrategia",
+                        "enum": [
+                          "SUFFICIENCY",
+                          "REDUCED",
+                          "MAXIMUM",
+                          "MAINTENANCE"
+                        ],
+                        "example": "MAINTENANCE"
+                      },
+                      "tillage": {
+                        "type": "boolean",
+                        "description": "Laboreo"
+                      }
+                    }
+                  }
+                }
+              },
+              "examples": {
+                "example1": {
+                  "value": {
+                    "rotation": [
+                      {
+                        "crop_yield": 18000,
+                        "cv": 0,
+                        "collect_residues": 0,
+                        "burn_residues": false,
+                        "crop_features": {
+                          "plant_species_group": "Forage_legume",
+                          "harvest_product": "biomass",
+                          "dry_matter": 25,
+                          "n": 2.6,
+                          "p": 0.26,
+                          "k": 2.1,
+                          "res_product": "none",
+                          "res_dry_matter": 0,
+                          "res_n": 0,
+                          "res_p": 0,
+                          "res_k": 0,
+                          "nfix_code": 1,
+                          "n_min": 2.1,
+                          "n_max": 3.1,
+                          "hi": 90,
+                          "f_res": 100,
+                          "ca": null,
+                          "s": null,
+                          "mg": null,
+                          "res_ca": null,
+                          "res_mg": null,
+                          "res_s": null
+                        }
+                      },
+                      {
+                        "crop_yield": 6907,
+                        "cv": 0,
+                        "collect_residues": 0,
+                        "burn_residues": false,
+                        "crop_features": {
+                          "plant_species_group": "Cereals",
+                          "harvest_product": "grain",
+                          "dry_matter": 87.5,
+                          "n": 2.1,
+                          "p": 0.37,
+                          "k": 0.46,
+                          "res_product": "straw",
+                          "res_dry_matter": 90.5,
+                          "res_n": 0.65,
+                          "res_p": 0.06,
+                          "res_k": 1.2,
+                          "nfix_code": 0,
+                          "n_min": 1.85,
+                          "n_max": 2.3,
+                          "hi": 40,
+                          "f_res": 10,
+                          "ca": null,
+                          "s": null,
+                          "mg": null,
+                          "res_ca": null,
+                          "res_mg": null,
+                          "res_s": null
+                        }
+                      }
+                    ],
+                    "soil": {
+                      "soil_type": "CLAY_LOAM"
+                    },
+                    "sample": {
+                      "som": 2.465788,
+                      "ph": 8.355388,
+                      "p_conc": 26.895016,
+                      "k_conc": 308.29895,
+                      "cec": 220
+                    },
+                    "p_threshold": {
+                      "value": 12
+                    },
+                    "k_threshold": {
+                      "value": 175
+                    },
+                    "soil_effect": {
+                      "coeff": 1.31
+                    },
+                    "efficiency_factor": {
+                      "factor": 2
+                    },
+                    "max_p_rate": {
+                      "rate": 100
+                    },
+                    "max_k_rate": {
+                      "rate": 275
+                    },
+                    "n_equation_parameter": {
+                      "n_end": 10,
+                      "n_other": 10,
+                      "n_lost": 0,
+                      "f_nr": 0.2,
+                      "beta_pl": 0.8,
+                      "efic": 0.8
+                    },
+                    "strategy": {
+                      "strategy": "MAINTENANCE",
+                      "tillage": false
+                    }
+                  },
+                  "summary": "Solicitud sin considerar características de suelo"
+                },
+                "example2": {
+                  "value": {
+                    "rotation": [
+                      {
+                        "crop_yield": 100000,
+                        "cv": 0,
+                        "collect_residues": false,
+                        "burn_residues": false,
+                        "crop_features": {
+                          "plant_species_group": "Industrial",
+                          "harvest_product": "root w/o crown",
+                          "dry_matter": 22,
+                          "n": 0.6,
+                          "p": 0.1,
+                          "k": 1.55,
+                          "res_product": "residues",
+                          "res_dry_matter": 17.4,
+                          "res_n": 2.3,
+                          "res_p": 0.22,
+                          "res_k": 5.8,
+                          "nfix_code": 0,
+                          "n_min": 0.55,
+                          "n_max": 1.1,
+                          "hi": 82,
+                          "f_res": 100,
+                          "ca": null,
+                          "s": null,
+                          "mg": null,
+                          "res_ca": null,
+                          "res_mg": null,
+                          "res_s": null
+                        }
+                      },
+                      {
+                        "crop_yield": 3500,
+                        "cv": 0,
+                        "collect_residues": false,
+                        "burn_residues": false,
+                        "crop_features": {
+                          "plant_species_group": "Cereals",
+                          "harvest_product": "grain",
+                          "dry_matter": 86.5,
+                          "n": 2.2,
+                          "p": 0.5,
+                          "k": 0.65,
+                          "res_product": "straw",
+                          "res_dry_matter": 90.5,
+                          "res_n": 0.7,
+                          "res_p": 0.08,
+                          "res_k": 2.1,
+                          "nfix_code": 0,
+                          "n_min": 2,
+                          "n_max": 2.4,
+                          "hi": 35,
+                          "f_res": 100,
+                          "ca": null,
+                          "s": null,
+                          "mg": null,
+                          "res_ca": null,
+                          "res_mg": null,
+                          "res_s": null
+                        }
+                      }
+                    ],
+                    "soil": {
+                      "soil_type": "SANDY_LOAM"
+                    },
+                    "sample": {
+                      "som": 1.3,
+                      "ph": 7.6,
+                      "p_conc": 23.7,
+                      "k_conc": 131.8,
+                      "cec": 75
+                    },
+                    "p_threshold": {
+                      "value": 12
+                    },
+                    "k_threshold": {
+                      "value": 175
+                    },
+                    "soil_effect": {
+                      "coeff": 1.56
+                    },
+                    "efficiency_factor": {
+                      "factor": 1.2
+                    },
+                    "max_p_rate": {
+                      "rate": 100
+                    },
+                    "max_k_rate": {
+                      "rate": 275
+                    },
+                    "n_equation_parameter": {
+                      "n_end": 10,
+                      "n_other": 10,
+                      "n_lost": 0,
+                      "f_nr": 0.2,
+                      "beta_pl": 0.8,
+                      "efic": 0.8
+                    },
+                    "strategy": {
+                      "strategy": "MAXIMUM",
+                      "tillage": true
+                    }
+                  },
+                  "summary": "Solicitud considerando características de suelo"
+                }
+              }
+            }
+          }
+        },
+        "responses": {
+          "200": {
+            "description": "Respuesta exitosa",
+            "content": {
+              "application/json": {
+                "example": {
+                  "rotation": [
+                    {
+                      "crop_yield": 18000,
+                      "collect_residues": 0,
+                      "burn_residues": false,
+                      "crop_features": {
+                        "plant_species_group": "Forage_legume",
+                        "harvest_product": "biomass",
+                        "dry_matter": 25,
+                        "n": 2.6,
+                        "p": 0.26,
+                        "k": 2.1,
+                        "res_product": "none",
+                        "res_dry_matter": 0,
+                        "res_n": 0,
+                        "res_p": 0,
+                        "res_k": 0,
+                        "nfix_code": 1,
+                        "n_min": 2.1,
+                        "n_max": 3.1,
+                        "hi": 90,
+                        "f_res": 100,
+                        "ca": null,
+                        "s": null,
+                        "mg": null,
+                        "res_ca": null,
+                        "res_mg": null,
+                        "res_s": null
+                      }
+                    },
+                    {
+                      "crop_yield": 6907,
+                      "cv": 0,
+                      "collect_residues": 0,
+                      "burn_residues": false,
+                      "crop_features": {
+                        "plant_species_group": "Cereals",
+                        "harvest_product": "grain",
+                        "dry_matter": 87.5,
+                        "n": 2.1,
+                        "p": 0.37,
+                        "k": 0.46,
+                        "res_product": "straw",
+                        "res_dry_matter": 90.5,
+                        "res_n": 0.65,
+                        "res_p": 0.06,
+                        "res_k": 1.2,
+                        "nfix_code": 0,
+                        "n_min": 1.85,
+                        "n_max": 2.3,
+                        "hi": 40,
+                        "f_res": 10,
+                        "ca": null,
+                        "s": null,
+                        "mg": null,
+                        "res_ca": null,
+                        "res_mg": null,
+                        "res_s": null
+                      }
+                    }
+                  ],
+                  "soil": {
+                    "soil_type": "CLAY_LOAM"
+                  },
+                  "sample": {
+                    "som": 2.465788,
+                    "ph": 8.355388,
+                    "p_conc": 26.895016,
+                    "k_conc": 308.29895,
+                    "cec": 220
+                  },
+                  "p_threshold": {
+                    "value": 12
+                  },
+                  "k_threshold": {
+                    "value": 175
+                  },
+                  "soil_effect": {
+                    "coeff": 1.31
+                  },
+                  "efficiency_factor": {
+                    "factor": 2
+                  },
+                  "max_p_rate": {
+                    "rate": 100
+                  },
+                  "max_k_rate": {
+                    "rate": 275
+                  },
+                  "n_equation_parameter": {
+                    "n_end": 10,
+                    "n_other": 10,
+                    "n_lost": 0,
+                    "f_nr": 0.2,
+                    "beta_pl": 0.8,
+                    "efic": 0.8
+                  },
+                  "strategy": {
+                    "strategy": "MAINTENANCE",
+                    "tillage": false
+                  },
+                  "recommendations": [
+                    {
+                      "n": 0,
+                      "p": 11.7,
+                      "k": 94.5
+                    },
+                    {
+                      "n": 199.6097625,
+                      "p": 27.25674875,
+                      "k": 125.70739999999998
+                    }
+                  ]
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/nutrients/fertilizers/{fertilizerID}": {
+      "get": {
+        "tags": [
+          "Fertilizantes"
+        ],
+        "summary": "Producto fertilizante (SIEX)",
+        "description": "Obtiene un producto fertilizante por ID.",
+        "security": [
+          {
+            "ApiKeyAuth": []
+          }
+        ],
+        "parameters": [
+          {
+            "in": "path",
+            "name": "fertilizerID",
+            "required": true,
+            "schema": {
+              "type": "integer"
+            },
+            "description": "ID del fertilizante que se desea obtener"
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Respuesta exitosa",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object",
+                  "properties": {
+                    "name": {
+                      "type": "string",
+                      "description": "Nombre del fertilizante."
+                    },
+                    "shortName": {
+                      "type": "string",
+                      "description": "Nombre corto del fertilizante."
+                    },
+                    "compositionName": {
+                      "type": "string",
+                      "description": "Nombre según la composición del fertilizante."
+                    },
+                    "simple": {
+                      "type": "boolean",
+                      "description": "Indica si el fertilizante es simple."
+                    },
+                    "type": {
+                      "type": "string",
+                      "description": "Tipo del fertilizante."
+                    },
+                    "producer": {
+                      "type": "string",
+                      "description": "Nombre del fabricante del fertilizante."
+                    },
+                    "materialSiexId": {
+                      "type": "integer",
+                      "description": "Identificador del material en SIEX."
+                    },
+                    "n": {
+                      "type": "number",
+                      "description": "Cantidad de nitrógeno puro en forma de elemento (%)."
+                    },
+                    "p": {
+                      "type": "number",
+                      "description": "Cantidad de fósforo puro en forma de elemento (%)."
+                    },
+                    "k": {
+                      "type": "number",
+                      "description": "Cantidad de potasio puro en forma de elemento (%)."
+                    },
+                    "p2o5": {
+                      "type": "number",
+                      "description": "Cantidad de fósforo como P2O5 total (%)."
+                    },
+                    "k2o": {
+                      "type": "number",
+                      "description": "Cantidad de potasio como K2O total (%)."
+                    },
+                    "organicN": {
+                      "type": "number",
+                      "description": "Contenido de nitrógeno orgánico (%)."
+                    },
+                    "nitricN": {
+                      "type": "number",
+                      "description": "Contenido de nitrógeno nítrico, NO3 (%)."
+                    },
+                    "ureicN": {
+                      "type": "number",
+                      "description": "Contenido de nitrógeno ureico, NH2 (%)."
+                    },
+                    "ammoniacalN": {
+                      "type": "number",
+                      "description": "Contenido de nitrógeno amoniacal, NH4+ (%)."
+                    },
+                    "waterSolubleP2O5": {
+                      "type": "number",
+                      "description": "Contenido de P2O5 soluble en agua (%)."
+                    },
+                    "ammoniumCitrateSolubleP2O5": {
+                      "type": "number",
+                      "description": "Contenido de P2O5 soluble en citrato de amonio neutro (%)."
+                    },
+                    "waterSolubleK2O": {
+                      "type": "number",
+                      "description": "Contenido de K2O soluble en agua (%)."
+                    },
+                    "organicC": {
+                      "type": "number",
+                      "description": "Contenido de carbono orgánico (%)."
+                    },
+                    "organicMatter": {
+                      "type": "number",
+                      "description": "Contenido de materia orgánica (%)."
+                    },
+                    "ca": {
+                      "type": "number",
+                      "description": "Contenido de calcio como CaO (%)."
+                    },
+                    "mg": {
+                      "type": "number",
+                      "description": "Contenido de magnesio como MgO (%)."
+                    },
+                    "s": {
+                      "type": "number",
+                      "description": "Contenido de azufre como SO3 (%)."
+                    },
+                    "cd": {
+                      "type": "number",
+                      "description": "Contenido de cadmio (%)."
+                    },
+                    "cu": {
+                      "type": "number",
+                      "description": "Contenido de cobre (%)."
+                    },
+                    "pb": {
+                      "type": "number",
+                      "description": "Contenido de plomo (%)."
+                    },
+                    "ni": {
+                      "type": "number",
+                      "description": "Contenido de níquel (%)."
+                    },
+                    "zn": {
+                      "type": "number",
+                      "description": "Contenido de zinc (%)."
+                    },
+                    "hg": {
+                      "type": "number",
+                      "description": "Contenido de mercurio (%)."
+                    },
+                    "cr": {
+                      "type": "number",
+                      "description": "Contenido de cromo (%)."
+                    },
+                    "b": {
+                      "type": "number",
+                      "description": "Contenido de boro (%)."
+                    },
+                    "co": {
+                      "type": "number",
+                      "description": "Contenido de cobalto (%)."
+                    },
+                    "mn": {
+                      "type": "number",
+                      "description": "Contenido de manganeso (%)."
+                    },
+                    "mo": {
+                      "type": "number",
+                      "description": "Contenido de molibdeno (%)."
+                    },
+                    "fe": {
+                      "type": "number",
+                      "description": "Contenido de hierro (%)."
+                    },
+                    "humidity": {
+                      "type": "number",
+                      "description": "Humedad del fertilizante.",
+                      "nullable": true
+                    },
+                    "yearPercent0": {
+                      "type": "integer",
+                      "description": "% de efectividad del fertilizante orgánico en el año de aplicación."
+                    },
+                    "yearPercent1": {
+                      "type": "integer",
+                      "description": "% de efectividad en la campaña actual del fertilizante orgánico aplicado el año anterior."
+                    },
+                    "yearPercent2": {
+                      "type": "integer",
+                      "description": "% de efectividad en la campaña actual del fertilizante orgánico aplicado hace dos años."
+                    },
+                    "appliesAnnualEffectiveness": {
+                      "type": "boolean",
+                      "description": "Indica si aplica la efectividad anual."
+                    },
+                    "nitrificationInhibitor": {
+                      "type": "boolean",
+                      "description": "Indica si el fertilizante es un inhibidor de nitrificación."
+                    },
+                    "ureaseInhibitor": {
+                      "type": "boolean",
+                      "description": "Indica si el fertilizante es un inhibidor de ureasa."
+                    },
+                    "inhibitorName": {
+                      "type": "string",
+                      "description": "Nombre de los inhibidores incluidos.",
+                      "nullable": true
+                    },
+                    "aggregateState": {
+                      "type": "string",
+                      "description": "Estado de agregación del fertilizante.",
+                      "enum": [
+                        "L",
+                        "S"
+                      ]
+                    },
+                    "diluted": {
+                      "type": "boolean",
+                      "description": "Indica si puede aplicarse de forma diluida."
+                    },
+                    "highestConcentration": {
+                      "type": "number",
+                      "description": "Concentración máxima (%)",
+                      "nullable": true
+                    },
+                    "customized": {
+                      "type": "boolean",
+                      "description": "Indica si el fertilizante está personalizado."
+                    },
+                    "density": {
+                      "type": "number",
+                      "description": "Densidad del fertilizante (g/cm³).",
+                      "nullable": true
+                    },
+                    "na": {
+                      "type": "number",
+                      "description": "Contenido de sodio (%)."
+                    },
+                    "ecologicProduct": {
+                      "type": "boolean",
+                      "description": "Indica si el producto es ecológico."
+                    },
+                    "cpf1": {
+                      "type": "number",
+                      "description": "Código clasificación CFP1 UE 2019/1009.",
+                      "nullable": true
+                    },
+                    "cpf2": {
+                      "type": "number",
+                      "description": "Código clasificación CFP2 UE 2019/1009.",
+                      "nullable": true
+                    },
+                    "cpf3": {
+                      "type": "number",
+                      "description": "Código clasificación CFP3 UE 2019/1009.",
+                      "nullable": true
+                    },
+                    "cpf4": {
+                      "type": "number",
+                      "description": "Código clasificación CFP4 UE 2019/1009.",
+                      "nullable": true
+                    },
+                    "cpf5": {
+                      "type": "number",
+                      "description": "Código clasificación CFP5 UE 2019/1009.",
+                      "nullable": true
+                    },
+                    "cpf6": {
+                      "type": "number",
+                      "description": "Código clasificación CFP6 UE 2019/1009.",
+                      "nullable": true
+                    },
+                    "cpf7": {
+                      "type": "number",
+                      "description": "Código clasificación CFP7."
+                    },
+                    "deleted": {
+                      "type": "boolean",
+                      "description": "Indica si el fertilizante ha sido eliminado."
+                    },
+                    "quantity": {
+                      "type": "number",
+                      "description": "Cantidad del fertilizante en la recomendación.",
+                      "nullable": true
+                    },
+                    "id": {
+                      "type": "integer",
+                      "description": "Identificador único del fertilizante."
+                    }
+                  }
+                },
+                "example": {
+                  "name": "ACIDO NITRICO (15-00-00)",
+                  "shortName": "GENERICO",
+                  "compositionName": "15-0-0",
+                  "simple": true,
+                  "type": "NITROGENADO",
+                  "producer": "GENÉRICO",
+                  "materialSiexId": 14,
+                  "n": 15.0,
+                  "p": 0.0,
+                  "k": 0.0,
+                  "p2o5": 0.0,
+                  "k2o": 0.0,
+                  "organicN": 0.0,
+                  "nitricN": 15.0,
+                  "ureicN": 0.0,
+                  "ammoniacalN": 0.0,
+                  "waterSolubleP2O5": 0.0,
+                  "ammoniumCitrateSolubleP2O5": 0.0,
+                  "waterSolubleK2O": 0.0,
+                  "organicC": 0.0,
+                  "organicMatter": 0.0,
+                  "ca": 0.0,
+                  "mg": 0.0,
+                  "s": 0.0,
+                  "cd": 0.0,
+                  "cu": 0.0,
+                  "pb": 0.0,
+                  "ni": 0.0,
+                  "zn": 0.0,
+                  "hg": 0.0,
+                  "cr": 0.0,
+                  "b": null,
+                  "co": null,
+                  "mn": null,
+                  "mo": null,
+                  "fe": null,
+                  "humidity": null,
+                  "yearPercent0": 100,
+                  "yearPercent1": 0,
+                  "yearPercent2": 0,
+                  "appliesAnnualEffectiveness": false,
+                  "nitrificationInhibitor": false,
+                  "ureaseInhibitor": false,
+                  "inhibitorName": null,
+                  "aggregateState": "L",
+                  "diluted": null,
+                  "highestConcentration": null,
+                  "customized": false,
+                  "density": null,
+                  "na": null,
+                  "ecologicProduct": null,
+                  "cpf1": null,
+                  "cpf2": null,
+                  "cpf3": null,
+                  "cpf4": null,
+                  "cpf5": null,
+                  "cpf6": null,
+                  "cpf7": null,
+                  "deleted": false,
+                  "quantity": null,
+                  "id": 1
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/nutrients/fertilizers": {
+      "get": {
+        "tags": [
+          "Fertilizantes"
+        ],
+        "summary": "Catálogo de productos fertilizantes (SIEX)",
+        "description": "Obtiene el listado de fertilizantes y todas sus características.Puedes descargar el [listado completo de fertilizantes](https://gateway.api.itacyl.es/uqserv/mirand/fertilizantes/) en formato excel.\nLos productos de esta lista han sido facilitados por las empresas comercializadoras de manera voluntaria y no presuponen cumplimiento de la normativa de productos fertilizantes.\nEl ITACyL se encarga de acopiar información de todas aquellas empresas que quieran tener sus productos fertilizantes comercializados incluidos en esta base de datos. Si quiere incluir sus productos en esta lista, diríjase al correo: soporte-sativum@itacyl.es y el ITACyL le indicará el procedimiento para la recogida de datos.\n",
+        "security": [
+          {
+            "ApiKeyAuth": []
+          }
+        ],
+        "parameters": [
+          {
+            "in": "query",
+            "name": "organics",
+            "required": false,
+            "schema": {
+              "type": "boolean"
+            },
+            "description": "Filtra los fertilizantes, devolviendo solo aquellos que son orgánicos"
+          },
+          {
+            "in": "query",
+            "name": "minerals",
+            "required": false,
+            "schema": {
+              "type": "boolean"
+            },
+            "description": "Filtra los fertilizantes, devolviendo solo aquellos que son minerales"
+          },
+          {
+            "in": "query",
+            "name": "others",
+            "required": false,
+            "schema": {
+              "type": "boolean"
+            },
+            "description": "Filtra los fertilizantes, devolviendo solo aquellos no catalogados como orgánicos ni minerales"
+          },
+          {
+            "in": "query",
+            "name": "name",
+            "required": false,
+            "schema": {
+              "type": "string"
+            },
+            "description": "Filtra los fertilizantes, devolviendo solo aquellos que contengan el nombre indicado",
+            "example": "NITRATO"
+          },
+          {
+            "in": "query",
+            "name": "producer",
+            "required": false,
+            "schema": {
+              "type": "string"
+            },
+            "allowEmptyValue": false,
+            "description": "Filtra los fertilizantes, devolviendo solo aquellos que sean del fabricante indicado",
+            "example": "GENÉRICO"
+          },
+          {
+            "in": "query",
+            "name": "simple",
+            "required": false,
+            "schema": {
+              "type": "boolean"
+            },
+            "description": "Filtra los fertilizantes, devolviendo solo aquellos de composición simple: nitrogenados, fosfatadados o potásicos"
+          },
+          {
+            "in": "query",
+            "name": "compound",
+            "required": false,
+            "schema": {
+              "type": "boolean"
+            },
+            "description": "Filtra los fertilizantes, devolviendo solo aquellos de composición compleja: ternarios NPK, binarios NP, binarios NK o binarios PK"
+          },
+          {
+            "in": "query",
+            "name": "type[]",
+            "required": false,
+            "schema": {
+              "type": "array",
+              "items": {
+                "type": "string",
+                "enum": [
+                  "NPK",
+                  "NP",
+                  "NK",
+                  "PK",
+                  "N",
+                  "P",
+                  "K"
+                ]
+              }
+            },
+            "description": "Filtra los fertilizantes, devolviendo solo aquellos de tipo: ternarios NPK, binarios NP, binarios NK o binarios PK, nitrogenados, fosfatadados o potásicos",
+            "example": [
+              "NP",
+              "N"
+            ]
+          },
+          {
+            "in": "query",
+            "name": "siexMaterial",
+            "required": false,
+            "schema": {
+              "type": "integer"
+            },
+            "description": "Filtra los fertilizantes, devolviendo solo aquellos relacionados con el código de tipo de material SIEX indicado",
+            "example": 14
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Respuesta exitosa",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "array",
+                  "items": {
+                    "type": "object",
+                    "properties": {
+                      "name": {
+                        "type": "string",
+                        "description": "Nombre del fertilizante."
+                      },
+                      "shortName": {
+                        "type": "string",
+                        "description": "Nombre corto del fertilizante."
+                      },
+                      "compositionName": {
+                        "type": "string",
+                        "description": "Nombre según la composición del fertilizante."
+                      },
+                      "simple": {
+                        "type": "boolean",
+                        "description": "Indica si el fertilizante es simple."
+                      },
+                      "type": {
+                        "type": "string",
+                        "description": "Tipo del fertilizante."
+                      },
+                      "producer": {
+                        "type": "string",
+                        "description": "Nombre del fabricante del fertilizante."
+                      },
+                      "materialSiexId": {
+                        "type": "integer",
+                        "description": "Identificador del material en SIEX."
+                      },
+                      "n": {
+                        "type": "number",
+                        "description": "Cantidad de nitrógeno puro en forma de elemento (%)."
+                      },
+                      "p": {
+                        "type": "number",
+                        "description": "Cantidad de fósforo puro en forma de elemento (%)."
+                      },
+                      "k": {
+                        "type": "number",
+                        "description": "Cantidad de potasio puro en forma de elemento (%)."
+                      },
+                      "p2o5": {
+                        "type": "number",
+                        "description": "Cantidad de fósforo como P2O5 total (%)."
+                      },
+                      "k2o": {
+                        "type": "number",
+                        "description": "Cantidad de potasio como K2O total (%)."
+                      },
+                      "organicN": {
+                        "type": "number",
+                        "description": "Contenido de nitrógeno orgánico (%).",
+                        "nullable": true
+                      },
+                      "nitricN": {
+                        "type": "number",
+                        "description": "Contenido de nitrógeno nítrico, NO3 (%).",
+                        "nullable": true
+                      },
+                      "ureicN": {
+                        "type": "number",
+                        "description": "Contenido de nitrógeno ureico, NH2 (%).",
+                        "nullable": true
+                      },
+                      "ammoniacalN": {
+                        "type": "number",
+                        "description": "Contenido de nitrógeno amoniacal, NH4+ (%).",
+                        "nullable": true
+                      },
+                      "waterSolubleP2O5": {
+                        "type": "number",
+                        "description": "Contenido de P2O5 soluble en agua (%).",
+                        "nullable": true
+                      },
+                      "ammoniumCitrateSolubleP2O5": {
+                        "type": "number",
+                        "description": "Contenido de P2O5 soluble en citrato de amonio neutro (%).",
+                        "nullable": true
+                      },
+                      "waterSolubleK2O": {
+                        "type": "number",
+                        "description": "Contenido de K2O soluble en agua (%).",
+                        "nullable": true
+                      },
+                      "organicC": {
+                        "type": "number",
+                        "description": "Contenido de carbono orgánico (%)."
+                      },
+                      "organicMatter": {
+                        "type": "number",
+                        "description": "Contenido de materia orgánica (%)."
+                      },
+                      "cao": {
+                        "type": "number",
+                        "description": "Contenido de óxico de calcio como CaO (%)."
+                      },
+                      "mgo": {
+                        "type": "number",
+                        "description": "Contenido de óxido de magnesio como MgO (%)."
+                      },
+                      "so3": {
+                        "type": "number",
+                        "description": "Contenido de trióxido de azufre como SO3 (%)."
+                      },
+                      "cd": {
+                        "type": "number",
+                        "description": "Contenido de cadmio (%)."
+                      },
+                      "cu": {
+                        "type": "number",
+                        "description": "Contenido de cobre (%)."
+                      },
+                      "pb": {
+                        "type": "number",
+                        "description": "Contenido de plomo (%)."
+                      },
+                      "ni": {
+                        "type": "number",
+                        "description": "Contenido de níquel (%)."
+                      },
+                      "zn": {
+                        "type": "number",
+                        "description": "Contenido de zinc (%)."
+                      },
+                      "hg": {
+                        "type": "number",
+                        "description": "Contenido de mercurio (%)."
+                      },
+                      "cr": {
+                        "type": "number",
+                        "description": "Contenido de cromo (%)."
+                      },
+                      "b": {
+                        "type": "number",
+                        "description": "Contenido de boro (%).",
+                        "nullable": true
+                      },
+                      "co": {
+                        "type": "number",
+                        "description": "Contenido de cobalto (%).",
+                        "nullable": true
+                      },
+                      "mn": {
+                        "type": "number",
+                        "description": "Contenido de manganeso (%).",
+                        "nullable": true
+                      },
+                      "mo": {
+                        "type": "number",
+                        "description": "Contenido de molibdeno (%).",
+                        "nullable": true
+                      },
+                      "fe": {
+                        "type": "number",
+                        "description": "Contenido de hierro (%).",
+                        "nullable": true
+                      },
+                      "humidity": {
+                        "type": "number",
+                        "description": "Humedad del fertilizante.",
+                        "nullable": true
+                      },
+                      "yearPercent0": {
+                        "type": "integer",
+                        "description": "% de efectividad del fertilizante orgánico en el año de aplicación.",
+                        "nullable": true
+                      },
+                      "yearPercent1": {
+                        "type": "integer",
+                        "description": "% de efectividad en la campaña actual del fertilizante orgánico aplicado el año anterior.",
+                        "nullable": true
+                      },
+                      "yearPercent2": {
+                        "type": "integer",
+                        "description": "% de efectividad en la campaña actual del fertilizante orgánico aplicado hace dos años.",
+                        "nullable": true
+                      },
+                      "appliesAnnualEffectiveness": {
+                        "type": "boolean",
+                        "description": "Indica si aplica la efectividad anual."
+                      },
+                      "nitrificationInhibitor": {
+                        "type": "boolean",
+                        "description": "Indica si el fertilizante es un inhibidor de nitrificación."
+                      },
+                      "ureaseInhibitor": {
+                        "type": "boolean",
+                        "description": "Indica si el fertilizante es un inhibidor de ureasa."
+                      },
+                      "inhibitorName": {
+                        "type": "string",
+                        "description": "Nombre de los inhibidores incluidos.",
+                        "nullable": true
+                      },
+                      "aggregateState": {
+                        "type": "string",
+                        "description": "Estado de agregación del fertilizante.",
+                        "enum": [
+                          "L",
+                          "S"
+                        ]
+                      },
+                      "diluted": {
+                        "type": "boolean",
+                        "description": "Indica si puede aplicarse de forma diluida."
+                      },
+                      "highestConcentration": {
+                        "type": "boolean",
+                        "description": "Concentración máxima (%)",
+                        "nullable": true
+                      },
+                      "customized": {
+                        "type": "boolean",
+                        "description": "Indica si el fertilizante está personalizado."
+                      },
+                      "density": {
+                        "type": "number",
+                        "description": "Densidad del fertilizante (g/cm³)."
+                      },
+                      "na2o": {
+                        "type": "number",
+                        "description": "Contenido de óxido de sodio como Na2O (%)."
+                      },
+                      "ecologicProduct": {
+                        "type": "boolean",
+                        "description": "Indica si el producto es ecológico."
+                      },
+                      "dataSource": {
+                        "type": "string",
+                        "description": "Fuente de datos del fertilizante.",
+                        "nullable": true
+                      },
+                      "cpf1": {
+                        "type": "number",
+                        "description": "Código clasificación CFP1 UE 2019/1009.",
+                        "nullable": true
+                      },
+                      "cpf2": {
+                        "type": "number",
+                        "description": "Código clasificación CFP2 UE 2019/1009.",
+                        "nullable": true
+                      },
+                      "cpf3": {
+                        "type": "number",
+                        "description": "Código clasificación CFP3 UE 2019/1009.",
+                        "nullable": true
+                      },
+                      "cpf4": {
+                        "type": "number",
+                        "description": "Código clasificación CFP4 UE 2019/1009.",
+                        "nullable": true
+                      },
+                      "cpf5": {
+                        "type": "number",
+                        "description": "Código clasificación CFP5 UE 2019/1009.",
+                        "nullable": true
+                      },
+                      "cpf6": {
+                        "type": "number",
+                        "description": "Código clasificación CFP6 UE 2019/1009.",
+                        "nullable": true
+                      },
+                      "cpf7": {
+                        "type": "number",
+                        "description": "Código clasificación CFP7.",
+                        "nullable": true
+                      },
+                      "deleted": {
+                        "type": "boolean",
+                        "description": "Indica si el fertilizante ha sido eliminado."
+                      },
+                      "quantity": {
+                        "type": "number",
+                        "description": "Cantidad del fertilizante en la recomendación.",
+                        "nullable": true
+                      },
+                      "id": {
+                        "type": "integer",
+                        "description": "Identificador único del fertilizante."
+                      }
+                    }
+                  }
+                },
+                "example": [
+                  {
+                    "name": "ACIDO FOSFORICO 52 (00-52-00)",
+                    "shortName": "GENERICO",
+                    "compositionName": "0-52-0",
+                    "simple": true,
+                    "type": "FOSFATADO",
+                    "producer": "GENÉRICO",
+                    "materialSiexId": 14,
+                    "n": 0.0,
+                    "p": 22.88,
+                    "k": 0.0,
+                    "p2o5": 52.477066,
+                    "k2o": 0.0,
+                    "organicN": 0.0,
+                    "nitricN": 0.0,
+                    "ureicN": 0.0,
+                    "ammoniacalN": 0.0,
+                    "waterSolubleP2O5": 52.0,
+                    "ammoniumCitrateSolubleP2O5": 52.0,
+                    "waterSolubleK2O": 0.0,
+                    "organicC": 0.0,
+                    "organicMatter": 0.0,
+                    "cao": 0.0,
+                    "mgo": 0.0,
+                    "so3": 0.0,
+                    "cd": 0.0,
+                    "cu": 0.0,
+                    "pb": 0.0,
+                    "ni": 0.0,
+                    "zn": 0.0,
+                    "hg": 0.0,
+                    "cr": 0.0,
+                    "b": null,
+                    "co": null,
+                    "mn": null,
+                    "mo": null,
+                    "fe": null,
+                    "humidity": null,
+                    "yearPercent0": 100,
+                    "yearPercent1": 0,
+                    "yearPercent2": 0,
+                    "appliesAnnualEffectiveness": false,
+                    "nitrificationInhibitor": false,
+                    "ureaseInhibitor": false,
+                    "inhibitorName": null,
+                    "aggregateState": "L",
+                    "diluted": null,
+                    "highestConcentration": null,
+                    "customized": false,
+                    "density": null,
+                    "na2o": null,
+                    "ecologicProduct": null,
+                    "cpf1": null,
+                    "cpf2": null,
+                    "cpf3": null,
+                    "cpf4": null,
+                    "cpf5": null,
+                    "cpf6": null,
+                    "cpf7": null,
+                    "deleted": false,
+                    "quantity": null,
+                    "id": 13
+                  },
+                  {
+                    "name": "Ácido humico de Leonardita",
+                    "shortName": null,
+                    "compositionName": null,
+                    "simple": null,
+                    "type": null,
+                    "producer": "GENÉRICO",
+                    "materialSiexId": 13,
+                    "n": 2.15,
+                    "p": 0.22,
+                    "k": 5.11,
+                    "p2o5": 0.5045872,
+                    "k2o": 6.1566267,
+                    "organicN": 1.85,
+                    "nitricN": null,
+                    "ureicN": null,
+                    "ammoniacalN": 0.3,
+                    "waterSolubleP2O5": null,
+                    "ammoniumCitrateSolubleP2O5": null,
+                    "waterSolubleK2O": null,
+                    "organicC": 20.98,
+                    "organicMatter": 36.169518,
+                    "cao": null,
+                    "mgo": null,
+                    "so3": null,
+                    "cd": null,
+                    "cu": null,
+                    "pb": null,
+                    "ni": null,
+                    "zn": null,
+                    "hg": null,
+                    "cr": null,
+                    "b": null,
+                    "co": null,
+                    "mn": null,
+                    "mo": null,
+                    "fe": null,
+                    "humidity": null,
+                    "yearPercent0": 100,
+                    "yearPercent1": 0,
+                    "yearPercent2": 0,
+                    "appliesAnnualEffectiveness": false,
+                    "nitrificationInhibitor": null,
+                    "ureaseInhibitor": null,
+                    "inhibitorName": null,
+                    "aggregateState": "L",
+                    "diluted": null,
+                    "highestConcentration": null,
+                    "customized": false,
+                    "density": null,
+                    "na2o": null,
+                    "ecologicProduct": null,
+                    "cpf1": null,
+                    "cpf2": null,
+                    "cpf3": null,
+                    "cpf4": null,
+                    "cpf5": null,
+                    "cpf6": null,
+                    "cpf7": null,
+                    "deleted": false,
+                    "quantity": null,
+                    "id": 801
+                  }
+                ]
+              }
+            }
+          }
+        }
+      }
+    },
+    "/nutrients/fertilizers/recommendation": {
+      "post": {
+        "tags": [
+          "Fertilizantes"
+        ],
+        "summary": "Recomendación de uso de fertilizantes",
+        "description": "Servicio obtención de fertilizantes recomendados según las necesidades del cultivo.",
+        "security": [
+          {
+            "ApiKeyAuth": []
+          }
+        ],
+        "parameters": [],
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "type": "object",
+                "required": [
+                  "npkToCover"
+                ],
+                "properties": {
+                  "adjustedNutrient": {
+                    "type": "string",
+                    "enum": [
+                      "N",
+                      "P",
+                      "K"
+                    ],
+                    "default": "N",
+                    "description": "Nutriente principal a considerar para el ajuste máximo (N, P o K)",
+                    "example": "N"
+                  },
+                  "npkToCover": {
+                    "type": "object",
+                    "description": "Necesidad NPK que se desea cubrir con fertilizantes",
+                    "required": [
+                      "n",
+                      "p",
+                      "k"
+                    ],
+                    "properties": {
+                      "n": {
+                        "type": "number",
+                        "description": "N"
+                      },
+                      "p": {
+                        "type": "number",
+                        "description": "P2O5"
+                      },
+                      "k": {
+                        "type": "number",
+                        "description": "K2O"
+                      }
+                    }
+                  },
+                  "npkTotal": {
+                    "type": "object",
+                    "description": "Necesidad NPK total",
+                    "required": [
+                      "n",
+                      "p",
+                      "k"
+                    ],
+                    "properties": {
+                      "n": {
+                        "type": "number",
+                        "description": "N"
+                      },
+                      "p": {
+                        "type": "number",
+                        "description": "P2O5"
+                      },
+                      "k": {
+                        "type": "number",
+                        "description": "K2O"
+                      }
+                    }
+                  },
+                  "fertilizers": {
+                    "type": "array",
+                    "description": "Listado de fertilizantes con los que calcular la propuesta",
+                    "items": {
+                      "type": "object",
+                      "required": [
+                        "name",
+                        "n",
+                        "p",
+                        "k"
+                      ],
+                      "description": "Fertilizante para la propuesta",
+                      "properties": {
+                        "name": {
+                          "type": "string",
+                          "description": "Denominación del fertilizante"
+                        },
+                        "n": {
+                          "type": "number",
+                          "description": "N"
+                        },
+                        "p": {
+                          "type": "number",
+                          "description": "P2O5"
+                        },
+                        "k": {
+                          "type": "number",
+                          "description": "K2O"
+                        }
+                      }
+                    }
+                  }
+                }
+              },
+              "examples": {
+                "example1": {
+                  "value": {
+                    "npkToCover": {
+                      "n": 99.63718750000002,
+                      "p": 16.435,
+                      "k": 20.54375
+                    }
+                  },
+                  "summary": "Recomendación simple con NKP a cubrir"
+                },
+                "example2": {
+                  "value": {
+                    "npkTotal": {
+                      "n": 127.62487500000002,
+                      "p": 16.078125,
+                      "k": 122.96875
+                    },
+                    "npkToCover": {
+                      "n": 117.82487500000002,
+                      "p": 12.678125,
+                      "k": 116.66875
+                    },
+                    "fertilizers": [
+                      {
+                        "name": "fertilizante 1",
+                        "n": 2,
+                        "p": 3.4,
+                        "k": 0.1
+                      },
+                      {
+                        "name": "Superfosfato Simple (SSP18) de FERTISAC, S.L. (Propio)",
+                        "n": 0,
+                        "p": 7.85,
+                        "k": 0
+                      },
+                      {
+                        "name": "fertilizante 3",
+                        "n": 1.05,
+                        "p": 0.5,
+                        "k": 0.7
+                      },
+                      {
+                        "name": "SUPERFOSFATO SIMPLE-SSP 18 (00-52-00) (Propio)",
+                        "n": 0,
+                        "p": 7.92,
+                        "k": 0
+                      }
+                    ]
+                  },
+                  "summary": "Recomendación teniendo en cuenta listado de fertilizantes disponibles"
+                }
+              }
+            }
+          }
+        },
+        "responses": {
+          "200": {
+            "description": "Listado con las 5 mejores propuestas, teniendo en cuenta listado de fertilizantes disponibles, ajustando al 100% las necesidades a cubrir del elemento enviado en adjustedNutrient (por defecto a N), y mejor equilibrio para los otros dos. Observaciones cuando no se puede dar una propuesta.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "array",
+                  "description": "Listado de las 5 mejores propuestas de fertilización",
+                  "minItems": 0,
+                  "maxItems": 5,
+                  "items": {
+                    "type": "object",
+                    "properties": {
+                      "unique": {
+                        "type": "array",
+                        "items": {
+                          "type": "object",
+                          "properties": {
+                            "id": {
+                              "type": "integer"
+                            },
+                            "name": {
+                              "type": "string"
+                            },
+                            "shortName": {
+                              "type": "string"
+                            },
+                            "compositionName": {
+                              "type": "string"
+                            },
+                            "type": {
+                              "type": "string"
+                            },
+                            "producer": {
+                              "type": "string",
+                              "nullable": true
+                            },
+                            "simple": {
+                              "type": "boolean"
+                            },
+                            "materialSiexId": {
+                              "type": "integer"
+                            },
+                            "n": {
+                              "type": "number"
+                            },
+                            "p": {
+                              "type": "number"
+                            },
+                            "k": {
+                              "type": "number"
+                            },
+                            "p2o5": {
+                              "type": "number",
+                              "nullable": true
+                            },
+                            "k2o": {
+                              "type": "number",
+                              "nullable": true
+                            },
+                            "organicN": {
+                              "type": "number",
+                              "nullable": true
+                            },
+                            "nitricN": {
+                              "type": "number",
+                              "nullable": true
+                            },
+                            "ureicN": {
+                              "type": "number",
+                              "nullable": true
+                            },
+                            "ammoniacalN": {
+                              "type": "number",
+                              "nullable": true
+                            },
+                            "waterSolubleP2O5": {
+                              "type": "number",
+                              "nullable": true
+                            },
+                            "ammoniumCitrateSolubleP2O5": {
+                              "type": "number",
+                              "nullable": true
+                            },
+                            "waterSolubleK2O": {
+                              "type": "number",
+                              "nullable": true
+                            },
+                            "organicC": {
+                              "type": "number",
+                              "nullable": true
+                            },
+                            "organicMatter": {
+                              "type": "number",
+                              "nullable": true
+                            },
+                            "cao": {
+                              "type": "number",
+                              "nullable": true
+                            },
+                            "mgo": {
+                              "type": "number",
+                              "nullable": true
+                            },
+                            "so3": {
+                              "type": "number",
+                              "nullable": true
+                            },
+                            "cd": {
+                              "type": "number",
+                              "nullable": true
+                            },
+                            "cu": {
+                              "type": "number",
+                              "nullable": true
+                            },
+                            "pb": {
+                              "type": "number",
+                              "nullable": true
+                            },
+                            "ni": {
+                              "type": "number",
+                              "nullable": true
+                            },
+                            "zn": {
+                              "type": "number",
+                              "nullable": true
+                            },
+                            "hg": {
+                              "type": "number",
+                              "nullable": true
+                            },
+                            "cr": {
+                              "type": "number",
+                              "nullable": true
+                            },
+                            "b": {
+                              "type": "number",
+                              "nullable": true
+                            },
+                            "co": {
+                              "type": "number",
+                              "nullable": true
+                            },
+                            "mn": {
+                              "type": "number",
+                              "nullable": true
+                            },
+                            "mo": {
+                              "type": "number",
+                              "nullable": true
+                            },
+                            "fe": {
+                              "type": "number",
+                              "nullable": true
+                            },
+                            "na2o": {
+                              "type": "number",
+                              "nullable": true
+                            },
+                            "humidity": {
+                              "type": "number",
+                              "nullable": true
+                            },
+                            "yearPercent0": {
+                              "type": "integer"
+                            },
+                            "yearPercent1": {
+                              "type": "integer"
+                            },
+                            "yearPercent2": {
+                              "type": "integer"
+                            },
+                            "appliesAnnualEffectiveness": {
+                              "type": "boolean"
+                            },
+                            "nitrificationInhibitor": {
+                              "type": "boolean"
+                            },
+                            "ureaseInhibitor": {
+                              "type": "boolean"
+                            },
+                            "inhibitorName": {
+                              "type": "string",
+                              "nullable": true
+                            },
+                            "aggregateState": {
+                              "type": "string"
+                            },
+                            "diluted": {
+                              "type": "boolean",
+                              "nullable": true
+                            },
+                            "highestConcentration": {
+                              "type": "number",
+                              "nullable": true
+                            },
+                            "customized": {
+                              "type": "boolean"
+                            },
+                            "density": {
+                              "type": "number",
+                              "nullable": true
+                            },
+                            "ecologicProduct": {
+                              "type": "boolean",
+                              "nullable": true
+                            },
+                            "dataSource": {
+                              "type": "string",
+                              "nullable": true
+                            },
+                            "cpf1": {
+                              "type": "string",
+                              "nullable": true
+                            },
+                            "cpf2": {
+                              "type": "string",
+                              "nullable": true
+                            },
+                            "cpf3": {
+                              "type": "string",
+                              "nullable": true
+                            },
+                            "cpf4": {
+                              "type": "string",
+                              "nullable": true
+                            },
+                            "cpf5": {
+                              "type": "string",
+                              "nullable": true
+                            },
+                            "cpf6": {
+                              "type": "string",
+                              "nullable": true
+                            },
+                            "cpf7": {
+                              "type": "string",
+                              "nullable": true
+                            },
+                            "deleted": {
+                              "type": "boolean"
+                            },
+                            "quantity": {
+                              "type": "number"
+                            }
+                          }
+                        }
+                      },
+                      "code": {
+                        "type": "string",
+                        "nullable": true,
+                        "description": "Código de la observación.\n\n**Valores posibles:**\n\n* **NO_NEED_TO_COVER**: Sin ninguna necesidad a cubrir. Alguno de los valores N, P o K a cubrir debe ser mayor que el valor mínimo permitido.\n* **NO_TOTAL_NEED**: Sin ninguna necesidad total. Alguno de los valores N, P o K total debe ser mayor que el valor mínimo permitido.\n* **ONLY_N_REQUIRED**: Solo necesitas cubrir nitrógeno. Añade a mano el fertilizante nitrogenado que tu prefieras dentro del formulario.\n* **N_TOO_LOW**: La necesidad de nitrógeno que quieres cubrir es demasiado pequeña. Ajusta por fósforo o potasio.\n* **P_TOO_LOW**: La necesidad de fósforo que quieres cubrir es demasiado pequeña. Ajusta por nitrógeno o potasio.\n* **K_TOO_LOW**: La necesidad de potasio que quieres cubrir es demasiado pequeña. Ajusta por nitrógeno o fósforo.\n* **TO_COMPLETE_P**: Propuesta a completar con fertilizante simple P no incluido en el listado proporcionado.\n* **TO_COMPLETE_K**: Propuesta a completar con fertilizante simple K no incluido en el listado proporcionado."
+                      },
+                      "observations": {
+                        "type": "string",
+                        "description": "Observaciones sobre la propuesta",
+                        "nullable": true
+                      }
+                    }
+                  }
+                },
+                "example": [
+                  {
+                    "unique": [
+                      {
+                        "name": "20-15-10",
+                        "shortName": "20-15-10",
+                        "compositionName": "20-15-10",
+                        "simple": false,
+                        "type": "TERNARIO NPK",
+                        "producer": null,
+                        "materialSiexId": 14,
+                        "n": 20.0,
+                        "p": 6.54,
+                        "k": 8.3,
+                        "p2o5": 15.000001,
+                        "k2o": 10.000001,
+                        "organicN": 0.0,
+                        "nitricN": 0.0,
+                        "ureicN": 14.1,
+                        "ammoniacalN": 5.9,
+                        "waterSolubleP2O5": 14.3,
+                        "ammoniumCitrateSolubleP2O5": null,
+                        "waterSolubleK2O": 10.0,
+                        "organicC": 0.0,
+                        "organicMatter": 0.0,
+                        "cao": 0.0,
+                        "mgo": 0.0,
+                        "so3": 4.12,
+                        "cd": 0.0,
+                        "cu": 0.0,
+                        "pb": 0.0,
+                        "ni": 0.0,
+                        "zn": 0.0,
+                        "hg": 0.0,
+                        "cr": 0.0,
+                        "b": 0.0,
+                        "co": 0.0,
+                        "mn": 0.0,
+                        "mo": 0.0,
+                        "fe": 1.34,
+                        "humidity": null,
+                        "yearPercent0": 100,
+                        "yearPercent1": 0,
+                        "yearPercent2": 0,
+                        "appliesAnnualEffectiveness": false,
+                        "nitrificationInhibitor": false,
+                        "ureaseInhibitor": false,
+                        "inhibitorName": null,
+                        "aggregateState": "S",
+                        "diluted": false,
+                        "highestConcentration": null,
+                        "customized": false,
+                        "density": null,
+                        "na2o": 0.0,
+                        "ecologicProduct": false,
+                        "dataSource": null,
+                        "cpf1": "1(C)(I)(a)(ii)+CFP 1(C)(I)(a)(i)",
+                        "cpf2": null,
+                        "cpf3": null,
+                        "cpf4": null,
+                        "cpf5": null,
+                        "cpf6": null,
+                        "cpf7": "CFP 1(C)(I)(a)(ii)+CFP 1(C)(I)(a)(i)",
+                        "deleted": false,
+                        "quantity": 216.74312,
+                        "id": 0
+                      }
+                    ],
+                    "code": null,
+                    "observations": null
+                  },
+                  {
+                    "unique": [
+                      {
+                        "name": "15-13-13",
+                        "shortName": "15-13-13",
+                        "compositionName": "15-13-13",
+                        "simple": false,
+                        "type": "TERNARIO NPK",
+                        "producer": null,
+                        "materialSiexId": 14,
+                        "n": 15.0,
+                        "p": 5.67,
+                        "k": 10.79,
+                        "p2o5": 13.004588,
+                        "k2o": 13.0,
+                        "organicN": 0.0,
+                        "nitricN": 5.0,
+                        "ureicN": 0.0,
+                        "ammoniacalN": 10.0,
+                        "waterSolubleP2O5": 11.6,
+                        "ammoniumCitrateSolubleP2O5": 13.0,
+                        "waterSolubleK2O": 13.0,
+                        "organicC": 0.0,
+                        "organicMatter": 0.0,
+                        "cao": 0.0,
+                        "mgo": 0.0,
+                        "so3": 12.5,
+                        "cd": 0.0,
+                        "cu": 0.0,
+                        "pb": 0.0,
+                        "ni": 0.0,
+                        "zn": 0.0,
+                        "hg": 0.0,
+                        "cr": 0.0,
+                        "b": null,
+                        "co": null,
+                        "mn": null,
+                        "mo": null,
+                        "fe": null,
+                        "humidity": null,
+                        "yearPercent0": 100,
+                        "yearPercent1": 0,
+                        "yearPercent2": 0,
+                        "appliesAnnualEffectiveness": false,
+                        "nitrificationInhibitor": true,
+                        "ureaseInhibitor": false,
+                        "inhibitorName": null,
+                        "aggregateState": "S",
+                        "diluted": null,
+                        "highestConcentration": null,
+                        "customized": false,
+                        "density": null,
+                        "na2o": null,
+                        "ecologicProduct": null,
+                        "cpf1": null,
+                        "cpf2": null,
+                        "cpf3": null,
+                        "cpf4": null,
+                        "cpf5": null,
+                        "cpf6": null,
+                        "cpf7": null,
+                        "deleted": false,
+                        "quantity": 250.0,
+                        "id": 0
+                      }
+                    ],
+                    "code": null,
+                    "observations": null
+                  }
+                ]
+              }
+            }
+          }
+        }
+      }
+    },
+    "/pests": {
+      "get": {
+        "tags": [
+          "Plagas"
+        ],
+        "summary": "Calendario de plagas/enfermedades para un cultivo o grupo de cultivos",
+        "description": "Servicio que obtiene el calendario de plagas/enfermedades para un cultivo o un grupo de cultivos.",
+        "security": [
+          {
+            "ApiKeyAuth": []
+          }
+        ],
+        "parameters": [
+          {
+            "name": "crop",
+            "in": "query",
+            "required": false,
+            "schema": {
+              "type": "integer"
+            },
+            "allowEmptyValue": true,
+            "description": "Filtra por el código de cultivo indicado (obligatorio uno de los dos, cultivo o grupo)",
+            "example": 1
+          },
+          {
+            "name": "group",
+            "in": "query",
+            "required": false,
+            "schema": {
+              "type": "string",
+              "enum": [
+                "CEREALES",
+                "LEGUMINOSAS"
+              ]
+            },
+            "allowEmptyValue": true,
+            "description": "Filtra los el grupo de cultivos indicado (obligatorio uno de los dos, cultivo o grupo)"
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Correcto",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "array",
+                  "items": {
+                    "type": "object",
+                    "properties": {
+                      "items": {
+                        "type": "object",
+                        "properties": {
+                          "id": {
+                            "type": "integer",
+                            "description": "ID único de la plaga/enfermedad"
+                          },
+                          "name": {
+                            "type": "string",
+                            "description": "Nombre de la plaga/enfermedad"
+                          },
+                          "causalAgent": {
+                            "type": "string",
+                            "description": "Agente causante de la plaga/enfermedad"
+                          },
+                          "criticalMoment": {
+                            "type": "string",
+                            "description": "Momento crítico de aparición de la plaga/enfermedad"
+                          },
+                          "observations": {
+                            "type": "string",
+                            "description": "Observaciones"
+                          },
+                          "link": {
+                            "type": "string",
+                            "description": "Enlace a información más detallada de la plaga/enfermedad"
+                          },
+                          "type": {
+                            "type": "string",
+                            "description": "Indica si es plaga o enfermedad"
+                          },
+                          "productCalendar": {
+                            "type": "array",
+                            "description": "Calendario de afectación de la plaga/enfermedad en el cultivo seleccionado",
+                            "items": {
+                              "type": "object",
+                              "properties": {
+                                "productId": {
+                                  "type": "integer",
+                                  "description": "ID único del cultivo al que afecta"
+                                },
+                                "group": {
+                                  "type": "string",
+                                  "description": "Grupo de cultivo al que pertenece"
+                                },
+                                "calendar": {
+                                  "type": "array",
+                                  "description": "Listado de semanas del año con su nivel de afectación de la plaga/enfermedad en el cultivo",
+                                  "items": {
+                                    "type": "object",
+                                    "properties": {
+                                      "alertLevel": {
+                                        "type": "number",
+                                        "description": "Nivel de alerta de la plaga/enfermedad"
+                                      },
+                                      "week": {
+                                        "type": "integer",
+                                        "description": "Número de semana del año"
+                                      }
+                                    }
+                                  }
+                                }
+                              }
+                            }
+                          }
+                        }
+                      }
+                    }
+                  }
+                }
+              }
+            },
+            "example": {
+              "id": 51,
+              "name": "PULGÓN",
+              "causalAgent": "Rhopalosiphum spp., Sitobium avenae,...",
+              "criticalMoment": "Especial atención en germinación y espigado (se puede alargar el ciclo por condiciones ambientales hasta el momento de la siembra, transmitiendo virus)",
+              "observations": "Especialmente transmisión del virus del enanismo amarillo de la cebada \"BYDV\"",
+              "link": "https://plagas.itacyl.es/pulgones",
+              "type": "plaga",
+              "productCalendar": [
+                {
+                  "productId": 1,
+                  "group": null,
+                  "calendar": [
+                    {
+                      "alertLevel": 0.0,
+                      "week": 1
+                    },
+                    {
+                      "alertLevel": 0.0,
+                      "week": 2
+                    },
+                    {
+                      "alertLevel": 0.0,
+                      "week": 3
+                    },
+                    {
+                      "alertLevel": 0.0,
+                      "week": 4
+                    },
+                    {
+                      "alertLevel": 0.0,
+                      "week": 5
+                    },
+                    {
+                      "alertLevel": 0.0,
+                      "week": 6
+                    },
+                    {
+                      "alertLevel": 0.0,
+                      "week": 7
+                    },
+                    {
+                      "alertLevel": 0.0,
+                      "week": 8
+                    },
+                    {
+                      "alertLevel": 0.0,
+                      "week": 9
+                    },
+                    {
+                      "alertLevel": 0.0,
+                      "week": 10
+                    },
+                    {
+                      "alertLevel": 0.0,
+                      "week": 11
+                    },
+                    {
+                      "alertLevel": 0.0,
+                      "week": 12
+                    },
+                    {
+                      "alertLevel": 0.0,
+                      "week": 13
+                    },
+                    {
+                      "alertLevel": 50.0,
+                      "week": 14
+                    },
+                    {
+                      "alertLevel": 50.0,
+                      "week": 15
+                    },
+                    {
+                      "alertLevel": 50.0,
+                      "week": 16
+                    },
+                    {
+                      "alertLevel": 50.0,
+                      "week": 17
+                    },
+                    {
+                      "alertLevel": 50.0,
+                      "week": 18
+                    },
+                    {
+                      "alertLevel": 50.0,
+                      "week": 19
+                    },
+                    {
+                      "alertLevel": 100.0,
+                      "week": 20
+                    },
+                    {
+                      "alertLevel": 100.0,
+                      "week": 21
+                    },
+                    {
+                      "alertLevel": 100.0,
+                      "week": 22
+                    },
+                    {
+                      "alertLevel": 100.0,
+                      "week": 23
+                    },
+                    {
+                      "alertLevel": 100.0,
+                      "week": 24
+                    },
+                    {
+                      "alertLevel": 100.0,
+                      "week": 25
+                    },
+                    {
+                      "alertLevel": 50.0,
+                      "week": 26
+                    },
+                    {
+                      "alertLevel": 50.0,
+                      "week": 27
+                    },
+                    {
+                      "alertLevel": 50.0,
+                      "week": 28
+                    },
+                    {
+                      "alertLevel": 50.0,
+                      "week": 29
+                    },
+                    {
+                      "alertLevel": 50.0,
+                      "week": 30
+                    },
+                    {
+                      "alertLevel": 50.0,
+                      "week": 31
+                    },
+                    {
+                      "alertLevel": 50.0,
+                      "week": 32
+                    },
+                    {
+                      "alertLevel": 50.0,
+                      "week": 33
+                    },
+                    {
+                      "alertLevel": 50.0,
+                      "week": 34
+                    },
+                    {
+                      "alertLevel": 50.0,
+                      "week": 35
+                    },
+                    {
+                      "alertLevel": 50.0,
+                      "week": 36
+                    },
+                    {
+                      "alertLevel": 50.0,
+                      "week": 37
+                    },
+                    {
+                      "alertLevel": 50.0,
+                      "week": 38
+                    },
+                    {
+                      "alertLevel": 50.0,
+                      "week": 39
+                    },
+                    {
+                      "alertLevel": 50.0,
+                      "week": 40
+                    },
+                    {
+                      "alertLevel": 100.0,
+                      "week": 41
+                    },
+                    {
+                      "alertLevel": 100.0,
+                      "week": 42
+                    },
+                    {
+                      "alertLevel": 100.0,
+                      "week": 43
+                    },
+                    {
+                      "alertLevel": 100.0,
+                      "week": 44
+                    },
+                    {
+                      "alertLevel": 100.0,
+                      "week": 45
+                    },
+                    {
+                      "alertLevel": 100.0,
+                      "week": 46
+                    },
+                    {
+                      "alertLevel": 100.0,
+                      "week": 47
+                    },
+                    {
+                      "alertLevel": 100.0,
+                      "week": 48
+                    },
+                    {
+                      "alertLevel": 50.0,
+                      "week": 49
+                    },
+                    {
+                      "alertLevel": 0.0,
+                      "week": 50
+                    },
+                    {
+                      "alertLevel": 0.0,
+                      "week": 51
+                    },
+                    {
+                      "alertLevel": 0.0,
+                      "week": 52
+                    },
+                    {
+                      "alertLevel": 0.0,
+                      "week": 53
+                    }
+                  ]
+                }
+              ]
+            }
+          }
+        }
+      }
+    }
+  },
+  "components": {
+    "securitySchemes": {
+      "ApiKeyAuth": {
+        "type": "apiKey",
+        "in": "header",
+        "name": "apikey"
+      }
+    }
+  }
+}

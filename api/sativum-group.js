@@ -1,0 +1,271 @@
+/**
+ * api/sativum-group.js — :group-crop-units
+ *
+ * Agrupa Unidades de Cultivo (UCs) de Visual en hojas de cultivo/planes de
+ * abonado, sin calcular NPK. NO llama a Visual — recibe en `cropUnits[]`
+ * objetos ya obtenidos por el agente vía MCP Visual (getCropUnits con
+ * listas:["varieties","persons","sigpac"], includeGeom opcional).
+ *
+ * Reutiliza tal cual (sin tocar su lógica) lib/agrupacion/agruparLogica.js +
+ * valores.js, vendorizados de fertipro-test/plantilla (ver CLAUDE.md,
+ * sección "Vendoring y diseño de :group-crop-units").
+ *
+ * NOTA IMPORTANTE (Cowork, 2026-09-01, mismo hilo — sustituye el diseño
+ * anterior por idExploitation): NO se particiona por `idExploitation`.
+ * Miguel confirmó que muchas UC en Visual no tienen la explotación agrícola
+ * asociada/informada (históricamente se asimilaba el productor al titular
+ * de explotación) — hasta que ese registro sea obligatorio por SIEX, no se
+ * tiene en cuenta. El "plan" (antes 1 por idExploitation) es, de forma
+ * PROVISIONAL, 1 por `nif` de titular resuelto — que ya es el primer campo
+ * de la partición dura dentro de agruparLogica.js, así que cada grupo que
+ * devuelve agruparFilas() ya es homogéneo en nif por construcción; no hace
+ * falta partir el lote de entrada antes de llamar a la función (a
+ * diferencia de idExploitation, que esa función no conoce). Revisar esta
+ * decisión cuando el registro de explotación en Visual sea obligatorio y
+ * fiable (y si para entonces getCropUnits expone idExploitation en lote,
+ * cosa que hoy no hace).
+ *
+ * URL definitiva (API STD), ya expuesta vía rewrite en vercel.json:
+ *   POST /v1/sativum/crop-units:group-crop-units
+ * (el fichero sigue siendo /api/sativum-group.js — routing por fichero de Vercel;
+ * ambas rutas responden igual, la de arriba es la pública/canónica)
+ */
+
+import { agruparFilas, normalizarTexto, extraerAnio } from '../lib/agrupacion/agruparLogica.js'
+import { modaTexto } from '../lib/agrupacion/valores.js'
+
+// ------------------------------------------------------------- envelope §8
+function errorEnvelope({ httpStatusInfo, key, message, params = {}, details = [] }) {
+  return {
+    correlationId: null,
+    httpStatusInfo,
+    key,
+    message,
+    formattedMessage: message,
+    params,
+    details,
+  }
+}
+
+// --------------------------------------------------- resolución de titular
+// Rol "Titular" (id=20, dado de alta recientemente en Visual, sigue el
+// estándar SIEX/RD 1051/2022) con rescate a "Productor" (id=1) si no está
+// informado. NUNCA "Representante" (id=3) — concepto SIEX distinto, no es
+// la identidad de agrupación. Este nif es también, de forma provisional, la
+// clave de "plan" de nivel superior (ver nota de cabecera). Ver CLAUDE.md
+// para el detalle de verificación contra datos reales (UC demo idFinca=498).
+const ID_ROL_TITULAR = 20
+const ID_ROL_PRODUCTOR = 1
+
+function nifDeUC(uc) {
+  const persons = Array.isArray(uc?.persons) ? uc.persons : []
+  const titular = persons.find((p) => p?.idRole === ID_ROL_TITULAR)
+  if (titular?.rut) return normalizarTexto(titular.rut)
+  const productor = persons.find((p) => p?.idRole === ID_ROL_PRODUCTOR)
+  if (productor?.rut) return normalizarTexto(productor.rut)
+  return null
+}
+
+// -------------------------------------------------- resolución de superficie
+// (1) suma de varieties[].superficie ("Sup. especie", fuente primaria ya
+//     confirmada). (2) si falta, suma de sigpac[].supOcupada ("Superficie
+//     real ocupada del recinto SIGPAC", rescate). (3) si tampoco hay dato,
+//     null — la UC queda excluida del totalSurface del grupo con aviso,
+//     nunca se usa superficieLic (descartada como fuente, ver CLAUDE.md).
+function sumaNumerica(lista, campo) {
+  const valores = (Array.isArray(lista) ? lista : [])
+    .map((x) => x?.[campo])
+    .filter((v) => typeof v === 'number' && Number.isFinite(v))
+  return valores.length > 0 ? valores.reduce((s, v) => s + v, 0) : null
+}
+
+function superficieDeUC(uc) {
+  const especie = sumaNumerica(uc?.varieties, 'superficie')
+  if (especie !== null) return especie
+  const sigpac = sumaNumerica(uc?.sigpac, 'supOcupada')
+  if (sigpac !== null) return sigpac
+  return null
+}
+
+// ------------------------------------------------------------ mapeo de UC
+function primeraVariedad(uc) {
+  const varieties = Array.isArray(uc?.varieties) ? uc.varieties : []
+  return varieties.length > 0 ? varieties[0] : null
+}
+
+/**
+ * UC de Visual -> objeto plano que espera agruparLogica.js, más un puñado
+ * de campos "__" propios (no los lee agruparLogica.js, sobreviven en
+ * g.filas porque agruparFilas() devuelve las mismas referencias de fila)
+ * para poder reconstruir la salida del contrato sin volver a tocar la UC
+ * original. `variedad`/portainjerto: solo se usa subVariety — patrón
+ * (plantations[].patron) queda deliberadamente fuera del veto: además del
+ * riesgo de asimetría en blanco ya documentado, Miguel confirma que en la
+ * práctica es un campo que a menudo no se cumplimenta (ver CLAUDE.md).
+ */
+function ucAFilaPlana(uc, nif) {
+  const variedad = primeraVariedad(uc)
+  const cultivo = normalizarTexto(variedad?.variety) || null
+  const subVariety = normalizarTexto(variedad?.subvariety) || null
+
+  return {
+    // --- campos que agruparLogica.js compara/usa ---
+    nif,
+    cultivoFertipro: cultivo,
+    cultivoSativum: cultivo,
+    variedad: subVariety,
+    cultivoAnteriorFertipro: null,
+    cultivoAnteriorSativum: null,
+    municipio: normalizarTexto(uc?.municipio) || null,
+    sistemaExplotacion: uc?.idExploitationSystem != null ? String(uc.idExploitationSystem) : null,
+    sistemaCultivo: normalizarTexto(uc?.cropSystem) || null,
+    anioPlantacion: extraerAnio(uc?.anyosPlantacion),
+    refSuelo: null,
+    refAgua: null,
+    refEnmienda: null,
+    pSuelo: null,
+    kSuelo: null,
+    materiaOrganica: null,
+    texturaFao: null,
+    produccionObjetivo: null,
+    fechaFin: null,
+    ref: uc?.idFinca != null ? String(uc.idFinca) : null,
+    // --- campos propios, para construir la salida del contrato ---
+    __idFinca: uc?.idFinca ?? null,
+    __superficie: superficieDeUC(uc),
+    __variety: cultivo,
+    __subVariety: subVariety,
+    __municipioOut: uc?.municipio ?? null,
+    __cropSystemOut: uc?.cropSystem ?? null,
+  }
+}
+
+// --------------------------------------------------------- salida por grupo
+function construirGrupoSalida(g, groupId) {
+  const filas = g.filas
+  const idFincas = filas.map((f) => f.__idFinca)
+  const conSuperficie = filas.filter((f) => f.__superficie !== null)
+  const sinSuperficie = filas.filter((f) => f.__superficie === null)
+  const totalSurface = conSuperficie.reduce((s, f) => s + f.__superficie, 0)
+
+  const warnings = []
+  if (g.aviso) warnings.push(...g.aviso.split(' | ').filter(Boolean))
+  if (sinSuperficie.length > 0) {
+    warnings.push(
+      `${sinSuperficie.length} UC sin superficie de especie ni SIGPAC declarada ` +
+        `(idFinca: ${sinSuperficie.map((f) => f.__idFinca).join(', ')}) — excluida del total`,
+    )
+  }
+
+  return {
+    groupId,
+    idFincas,
+    totalSurface,
+    variety: modaTexto(filas.map((f) => f.__variety)),
+    subVariety: modaTexto(filas.map((f) => f.__subVariety)),
+    municipio: filas[0].__municipioOut,
+    cropSystem: filas[0].__cropSystemOut,
+    warnings,
+  }
+}
+
+// -------------------------------------------------------------- handler
+export default async function handler(req, res) {
+  if (req.method !== 'POST') {
+    return res.status(405).json(
+      errorEnvelope({
+        httpStatusInfo: '405 METHOD_NOT_ALLOWED',
+        key: 'METHOD_NOT_ALLOWED',
+        message: 'Método no permitido. Usa POST.',
+      }),
+    )
+  }
+
+  const body = req.body ?? {}
+  const cropUnits = Array.isArray(body.cropUnits) ? body.cropUnits : null
+  if (!cropUnits) {
+    return res.status(400).json(
+      errorEnvelope({
+        httpStatusInfo: '400 BAD_REQUEST',
+        key: 'INVALID_PAYLOAD',
+        message: 'Falta "cropUnits" (array) en el body.',
+      }),
+    )
+  }
+
+  const pageIndex = Number.isInteger(body.pageIndex) ? body.pageIndex : 0
+  const pageSize = Math.min(Math.max(Number.isInteger(body.pageSize) ? body.pageSize : 20, 1), 100)
+  if (pageIndex < 0) {
+    return res.status(400).json(
+      errorEnvelope({
+        httpStatusInfo: '400 BAD_REQUEST',
+        key: 'INVALID_PAYLOAD',
+        message: '"pageIndex" debe ser >= 0.',
+      }),
+    )
+  }
+
+  // Cada UC necesita un titular resoluble (nif) para poder agruparse — sin
+  // nif, dos UCs "sin titular" compararían igual (blank === blank en
+  // agruparLogica.js) y se fusionarían por error, así que se excluyen en
+  // vez de dejarlas pasar con un nif en blanco. Ya NO se exige
+  // idExploitation (ver nota de cabecera del fichero): no particionamos por
+  // explotación mientras ese registro no sea obligatorio/fiable en Visual.
+  const excluidas = []
+  const filas = []
+  for (const uc of cropUnits) {
+    const nif = nifDeUC(uc)
+    if (!nif) {
+      excluidas.push({ idFinca: uc?.idFinca ?? null, motivos: ['sin titular resoluble (rol Titular ni Productor)'] })
+      continue
+    }
+    filas.push(ucAFilaPlana(uc, nif))
+  }
+
+  if (excluidas.length > 0 && filas.length === 0) {
+    return res.status(422).json(
+      errorEnvelope({
+        httpStatusInfo: '422 UNPROCESSABLE_ENTITY',
+        key: 'NO_PROCESSABLE_CROP_UNITS',
+        message: 'Ninguna UC del lote es agrupable (falta titular resoluble en todas).',
+        details: excluidas,
+      }),
+    )
+  }
+
+  // Una única llamada a agruparFilas() sobre todo el lote: nif ya es el
+  // primer campo de la partición dura interna, así que cada grupo devuelto
+  // es homogéneo en nif por construcción (no hace falta partir antes).
+  const gruposCrudos = agruparFilas(filas)
+  const gruposPorNif = new Map()
+  for (const g of gruposCrudos) {
+    const nifGrupo = g.filas[0]?.nif ?? null
+    if (!gruposPorNif.has(nifGrupo)) gruposPorNif.set(nifGrupo, [])
+    gruposPorNif.get(nifGrupo).push(g)
+  }
+
+  const resultadoCompleto = [...gruposPorNif.entries()].map(([nifTitular, grupos]) => {
+    const groups = grupos.map((g, i) => construirGrupoSalida(g, `group-${i + 1}`))
+    return { nifTitular, groupCount: groups.length, groups }
+  })
+
+  const count = resultadoCompleto.length
+  const start = pageIndex * pageSize
+  const result = resultadoCompleto.slice(start, start + pageSize)
+
+  res.setHeader('Cache-Control', 'no-store')
+  return res.status(200).json({
+    pageIndex,
+    pageSize,
+    count,
+    result,
+    ...(excluidas.length > 0
+      ? {
+          warnings: [
+            `${excluidas.length} UC excluida(s) del agrupamiento: ` +
+              excluidas.map((e) => `idFinca ${e.idFinca ?? '(sin idFinca)'} (${e.motivos.join('; ')})`).join(', '),
+          ],
+        }
+      : {}),
+  })
+}

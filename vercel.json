@@ -5,6 +5,10 @@
       "destination": "/api/sativum-plan"
     },
     {
+      "source": "/v1/sativum/crop-units\\:group-crop-units",
+      "destination": "/api/sativum-group"
+    },
+    {
       "source": "/api/(.*)",
       "destination": "/api/$1"
     }
