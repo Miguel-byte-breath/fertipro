@@ -93,7 +93,16 @@ async function llamarSativumAlgo(payload) {
   const raw = await upstream.text()
 
   if (!upstream.ok) {
-    const err = new Error(`Sativum respondió ${upstream.status}: ${raw.slice(0, 300)}`)
+    // El upstream devuelve una página de error Django completa (HTML con
+    // <style> inline antes que nada) — los primeros ~300 caracteres son solo
+    // CSS, nunca el traceback real. Extraemos texto plano y, si aparece un
+    // nombre de excepción tipo Python (KeyError, ValueError...), recortamos
+    // una ventana centrada ahí para quedarnos con la parte útil del mensaje
+    // en vez de la cabecera de estilos.
+    const textoPlano = raw.replace(/<[^>]*>/g, ' ').replace(/\s+/g, ' ').trim()
+    const matchExcepcion = textoPlano.match(/[A-Z][A-Za-z]*(?:Error|Exception)\b[\s\S]{0,400}/)
+    const detalle = matchExcepcion ? matchExcepcion[0] : textoPlano.slice(0, 400)
+    const err = new Error(`Sativum respondió ${upstream.status}: ${detalle.slice(0, 500)}`)
     err.code = 'SATIVUM_UPSTREAM_ERROR'
     throw err
   }
@@ -150,24 +159,33 @@ function aplicarParcheTrees(data, payload) {
  *     nunca se asume 0 en silencio: se emite un warning explícito y ese
  *     nutriente queda sin descuento de riego.
  */
-function resolverAguaRiego(water) {
+function resolverAguaRiego(water, cultivoActual) {
   const warnings = []
-  if (!water) return { nRiego: 0, pRiego: 0, kRiego: 0, warnings }
+  const w = water || {}
 
-  const dot = Number(water.dotacionM3) || 0
-  const esSubterranea = water.sourceType === 'SUBTERRANEA'
+  // Dotación: si el agente no la informa, se usa la sugerida por el catálogo
+  // Sativum para el cultivo actual (cultivo.irrigation) — mismo criterio que
+  // App.jsx (auto-rellena dotación de riego al elegir cultivo, ver
+  // useLayoutEffect correspondiente). No es un rescate inventado: es el dato
+  // de catálogo, igual que la app en vivo. Si el catálogo marca secano
+  // (irrigation=0 o ausente) sencillamente no hay riego que aportar.
+  const dotacionInformada = w.dotacionM3 != null && w.dotacionM3 !== ''
+  const dot = dotacionInformada
+    ? (Number(w.dotacionM3) || 0)
+    : (Number(cultivoActual?.irrigation) || 0)
+  const esSubterranea = w.sourceType === 'SUBTERRANEA'
 
   const faltante = (v) => v == null || v === ''
 
-  let no3 = water.no3MgL
-  if (faltante(no3) && esSubterranea && !faltante(water.arcgisNo3MgL)) {
-    no3 = water.arcgisNo3MgL
+  let no3 = w.no3MgL
+  if (faltante(no3) && esSubterranea && !faltante(w.arcgisNo3MgL)) {
+    no3 = w.arcgisNo3MgL
   }
-  let k = water.kMgL
-  if (faltante(k) && esSubterranea && !faltante(water.arcgisKMgL)) {
-    k = water.arcgisKMgL
+  let k = w.kMgL
+  if (faltante(k) && esSubterranea && !faltante(w.arcgisKMgL)) {
+    k = w.arcgisKMgL
   }
-  const p = water.pMgL // sin rescate ArcGIS en ningún origen
+  const p = w.pMgL // sin rescate ArcGIS en ningún origen
 
   if (dot > 0) {
     if (faltante(no3)) {
@@ -193,7 +211,10 @@ function construirCultivosArr(item) {
   if (item.precedingCrop?.crop) {
     cultivos.push({
       cultivo: item.precedingCrop.crop,
-      cropYield: item.precedingCrop.targetYield,
+      // Mismo criterio que App.jsx: si el agente no informa rendimiento
+      // objetivo, se usa el yieldMedium del catálogo Sativum para ese
+      // cultivo (dato real de catálogo, no un valor inventado desde cero).
+      cropYield: item.precedingCrop.targetYield ?? item.precedingCrop.crop.yieldMedium ?? 0,
       cv: item.precedingCrop.cv ?? 0,
       recogeResiduos: Boolean(item.precedingCrop.collectResidues),
       quemaResiduos: Boolean(item.precedingCrop.burnResidues),
@@ -202,7 +223,7 @@ function construirCultivosArr(item) {
   }
   cultivos.push({
     cultivo: item.currentCrop.crop,
-    cropYield: item.currentCrop.targetYield,
+    cropYield: item.currentCrop.targetYield ?? item.currentCrop.crop.yieldMedium ?? 0,
     cv: item.currentCrop.cv ?? 0,
     recogeResiduos: Boolean(item.currentCrop.collectResidues),
     quemaResiduos: Boolean(item.currentCrop.burnResidues),
@@ -238,7 +259,7 @@ async function calcularItem(item) {
     return { status: 'BLOCKED', warnings: [{ code: 'SOIL_DATA_MISSING', message: e.message }] }
   }
 
-  const { nRiego, pRiego, kRiego, warnings } = resolverAguaRiego(item.water)
+  const { nRiego, pRiego, kRiego, warnings } = resolverAguaRiego(item.water, item.currentCrop.crop)
 
   let data
   try {
