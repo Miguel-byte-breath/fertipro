@@ -9,6 +9,10 @@
       "destination": "/api/sativum-group"
     },
     {
+      "source": "/v1/sativum/fertilization-plans\\:export-report",
+      "destination": "/api/sativum-report"
+    },
+    {
       "source": "/api/(.*)",
       "destination": "/api/$1"
     }
