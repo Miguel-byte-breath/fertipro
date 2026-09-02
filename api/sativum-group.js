@@ -25,9 +25,10 @@
  * fiable (y si para entonces getCropUnits expone idExploitation en lote,
  * cosa que hoy no hace).
  *
- * URL de momento (routing por fichero, sin rewrite todavía): POST /api/sativum-group
- * URL objetivo final (API STD, pendiente de rewrite en vercel.json):
+ * URL definitiva (API STD), ya expuesta vía rewrite en vercel.json:
  *   POST /v1/sativum/crop-units:group-crop-units
+ * (el fichero sigue siendo /api/sativum-group.js — routing por fichero de Vercel;
+ * ambas rutas responden igual, la de arriba es la pública/canónica)
  */
 
 import { agruparFilas, normalizarTexto, extraerAnio } from '../lib/agrupacion/agruparLogica.js'
