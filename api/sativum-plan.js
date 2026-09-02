@@ -99,9 +99,16 @@ async function llamarSativumAlgo(payload) {
     // nombre de excepción tipo Python (KeyError, ValueError...), recortamos
     // una ventana centrada ahí para quedarnos con la parte útil del mensaje
     // en vez de la cabecera de estilos.
-    const textoPlano = raw.replace(/<[^>]*>/g, ' ').replace(/\s+/g, ' ').trim()
-    const matchExcepcion = textoPlano.match(/[A-Z][A-Za-z]*(?:Error|Exception)\b[\s\S]{0,400}/)
-    const detalle = matchExcepcion ? matchExcepcion[0] : textoPlano.slice(0, 400)
+    const sinEstilos = raw
+      .replace(/<style[\s\S]*?<\/style>/gi, ' ')
+      .replace(/<script[\s\S]*?<\/script>/gi, ' ')
+    const textoPlano = sinEstilos.replace(/<[^>]*>/g, ' ').replace(/\s+/g, ' ').trim()
+    // La 1a aparición del nombre de excepcion es solo el <title>...at /ruta/</title>;
+    // la 2a aparición (el <h1>) va seguida del valor real de la excepcion en la
+    // pagina tecnica de Django -- por eso saltamos a la 2a, no a la 1a.
+    const nombresExcepcion = [...textoPlano.matchAll(/\b[A-Z][A-Za-z]*(?:Error|Exception)\b/g)]
+    const inicio = nombresExcepcion.length >= 2 ? nombresExcepcion[1].index : 0
+    const detalle = textoPlano.slice(inicio, inicio + 400)
     const err = new Error(`Sativum respondió ${upstream.status}: ${detalle.slice(0, 500)}`)
     err.code = 'SATIVUM_UPSTREAM_ERROR'
     throw err
