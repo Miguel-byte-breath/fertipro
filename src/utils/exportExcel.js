@@ -195,7 +195,7 @@ const SOIL_TYPE_LABEL = {
  * @param {object}  [opts.cultivoAnteriorParams] — { cropYield, laboreo, recogeResiduos, quemaResiduos }
  * @param {string}  [opts.baseName]
  */
-export async function exportarPlanAbonado({
+export async function construirWorkbookPlanAbonado({
   point,
   recinto,
   recintos = [],
@@ -563,5 +563,19 @@ export async function exportarPlanAbonado({
   XLSX.utils.book_append_sheet(wb, wsNotas, 'Notas')
   if (wsRecintosWkt) XLSX.utils.book_append_sheet(wb, wsRecintosWkt, 'Recintos (WKT)')
 
+  return wb
+}
+
+/**
+ * Wrapper de descarga en navegador — delega toda la construcción del workbook
+ * en construirWorkbookPlanAbonado() (pura, sin DOM) para poder reutilizarla
+ * tal cual desde el endpoint serverless :export-report (api/sativum-report.js),
+ * sin duplicar la lógica de las 4 hojas. Mismo comportamiento externo que antes.
+ */
+export async function exportarPlanAbonado(params) {
+  const { baseName = 'fertipro_plan_abonado' } = params
+  const wb = await construirWorkbookPlanAbonado(params)
+  const mod  = await import('xlsx')
+  const XLSX = mod.default ?? mod
   XLSX.writeFile(wb, `${baseName}.xlsx`)
 }
