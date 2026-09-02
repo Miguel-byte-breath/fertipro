@@ -18,58 +18,29 @@
  *   SATIVUM_BASE_URL  (opcional) por defecto https://gateway.api.itacyl.es/sativum
  */
 
-const DEFAULT_BASE_URL = 'https://gateway.api.itacyl.es/sativum'
+import { postSativumAlgo } from '../src/api/sativum-http.js'
 
 export default async function handler(req, res) {
   if (req.method !== 'POST') {
     return res.status(405).json({ error: 'Método no permitido. Usa POST.' })
   }
 
-  const apikey  = process.env.SATIVUM_API_KEY
-  const baseUrl = (process.env.SATIVUM_BASE_URL || DEFAULT_BASE_URL).replace(/\/$/, '')
-
-  if (!apikey) {
-    return res.status(503).json({
-      error:  'Sativum no configurado',
-      detail: 'Define SATIVUM_API_KEY en las variables de entorno de Vercel.',
-      stub:   true,
-    })
-  }
-
-  // La barra final es obligatoria — el gateway rechaza sin ella
-  const url = `${baseUrl}/fertilicalc/algo/`
-
   try {
-    const controller = new AbortController()
-    const timeoutId  = setTimeout(() => controller.abort(), 15000)
+    // Mecanismo de bajo nivel (apikey + fetch + timeout/abort) compartido
+    // con api/sativum-plan.js vía src/api/sativum-http.js. Este handler
+    // conserva su propio contrato de respuesta (forma de error, status
+    // codes, stub 503) tal cual estaba — el helper solo hace la llamada.
+    const { status, ok, raw } = await postSativumAlgo(req.body)
 
-    let upstream
-    try {
-      upstream = await fetch(url, {
-        method:  'POST',
-        headers: {
-          'Content-Type': 'application/json',
-          'Accept':       'application/json',
-          apikey,
-        },
-        body:   JSON.stringify(req.body),
-        signal: controller.signal,
-      })
-    } finally {
-      clearTimeout(timeoutId)
-    }
-
-    if (!upstream.ok) {
-      const text = await upstream.text().catch(() => '')
-      return res.status(upstream.status).json({
-        error:  `Sativum respondió ${upstream.status}`,
-        detail: text.slice(0, 500),
+    if (!ok) {
+      return res.status(status).json({
+        error:  `Sativum respondió ${status}`,
+        detail: raw.slice(0, 500),
       })
     }
 
     // ⚠️ Defensive parsing: upstream devuelve Content-Type: text/html
     // aunque el body sea JSON válido
-    const raw  = await upstream.text()
     let data
     try {
       data = JSON.parse(raw)
@@ -92,7 +63,14 @@ export default async function handler(req, res) {
     return res.status(200).json(data)
 
   } catch (err) {
-    if (err.name === 'AbortError') {
+    if (err.code === 'SATIVUM_NOT_CONFIGURED') {
+      return res.status(503).json({
+        error:  'Sativum no configurado',
+        detail: 'Define SATIVUM_API_KEY en las variables de entorno de Vercel.',
+        stub:   true,
+      })
+    }
+    if (err.code === 'SATIVUM_TIMEOUT' || err.name === 'AbortError') {
       return res.status(504).json({ error: 'Timeout conectando con Sativum' })
     }
     return res.status(502).json({

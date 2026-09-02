@@ -1,6 +1,13 @@
 {
   "rewrites": [
-    { "source": "/api/(.*)", "destination": "/api/$1" }
+    {
+      "source": "/v1/sativum/fertilization-plans\\:calculate-npk",
+      "destination": "/api/sativum-plan"
+    },
+    {
+      "source": "/api/(.*)",
+      "destination": "/api/$1"
+    }
   ],
   "functions": {
     "api/**/*.js": {

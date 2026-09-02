@@ -28,9 +28,10 @@
  *     el resto de estrategias no los tolera.
  *   - Alcance: solo N/P2O5/K2O — Ca/Mg/S/micronutrientes son del motor propio FertiPRO.
  *
- * URL de momento (routing por fichero, sin rewrite todavía): POST /api/sativum-plan
- * URL objetivo final (API STD, pendiente de rewrite en vercel.json):
+ * URL definitiva (API STD), ya expuesta vía rewrite en vercel.json:
  *   POST /v1/sativum/fertilization-plans:calculate-npk
+ * (el fichero sigue siendo /api/sativum-plan.js — routing por fichero de Vercel;
+ * ambas rutas responden igual, la de arriba es la pública/canónica)
  *
  * Reutiliza tal cual ensamblarPayloadAlgo()/calcularNAgua() de src/api/sativum-algo.js
  * (mismas validaciones "sin rescate silencioso" ya verificadas en producción) y
@@ -40,8 +41,7 @@
  */
 
 import { ensamblarPayloadAlgo, calcularNAgua } from '../src/api/sativum-algo.js'
-
-const DEFAULT_BASE_URL = 'https://gateway.api.itacyl.es/sativum'
+import { postSativumAlgo } from '../src/api/sativum-http.js'
 
 // Mismo criterio que App.jsx (CEC por textura, tabla real Sativum) — no es
 // un rescate inventado: si no hay CEC de analítica real, se deriva de la
@@ -69,39 +69,13 @@ function errorEnvelope(httpStatus, key, message, details = []) {
 }
 
 async function llamarSativumAlgo(payload) {
-  const apikey = process.env.SATIVUM_API_KEY
-  const baseUrl = (process.env.SATIVUM_BASE_URL || DEFAULT_BASE_URL).replace(/\/$/, '')
+  // Mecanismo de bajo nivel (apikey + fetch + timeout/abort) compartido con
+  // api/sativum-algo.js vía src/api/sativum-http.js — ver ese fichero para
+  // el porqué de no compartir más que esto (no se puede invocar el handler
+  // de api/sativum-algo.js como función interna, rompería su contrato OAS).
+  const { status, ok, raw } = await postSativumAlgo(payload)
 
-  if (!apikey) {
-    const err = new Error('SATIVUM_API_KEY no configurada en el entorno.')
-    err.code = 'SATIVUM_NOT_CONFIGURED'
-    throw err
-  }
-
-  // Misma trampa ya documentada en api/sativum-algo.js: barra final obligatoria.
-  const url = `${baseUrl}/fertilicalc/algo/`
-
-  const controller = new AbortController()
-  const timeoutId = setTimeout(() => controller.abort(), 15000)
-  let upstream
-  try {
-    upstream = await fetch(url, {
-      method: 'POST',
-      headers: { 'Content-Type': 'application/json', Accept: 'application/json', apikey },
-      body: JSON.stringify(payload),
-      signal: controller.signal,
-    })
-  } catch (e) {
-    const err = new Error(e.name === 'AbortError' ? 'Timeout conectando con Sativum.' : `Error conectando con Sativum: ${e.message}`)
-    err.code = e.name === 'AbortError' ? 'SATIVUM_TIMEOUT' : 'SATIVUM_CONNECTION_ERROR'
-    throw err
-  } finally {
-    clearTimeout(timeoutId)
-  }
-
-  const raw = await upstream.text()
-
-  if (!upstream.ok) {
+  if (!ok) {
     // El upstream devuelve una página de error Django completa (HTML con
     // <style> inline antes que nada) — los primeros ~300 caracteres son solo
     // CSS, nunca el traceback real. Extraemos texto plano y, si aparece un
@@ -118,7 +92,7 @@ async function llamarSativumAlgo(payload) {
     const nombresExcepcion = [...textoPlano.matchAll(/\b[A-Z][A-Za-z]*(?:Error|Exception)\b/g)]
     const inicio = nombresExcepcion.length >= 2 ? nombresExcepcion[1].index : 0
     const detalle = textoPlano.slice(inicio, inicio + 400)
-    const err = new Error(`Sativum respondió ${upstream.status}: ${detalle.slice(0, 500)}`)
+    const err = new Error(`Sativum respondió ${status}: ${detalle.slice(0, 500)}`)
     err.code = 'SATIVUM_UPSTREAM_ERROR'
     throw err
   }
