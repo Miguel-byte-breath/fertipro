@@ -17,8 +17,8 @@
  * en "Exportar Excel".
  */
 import area from '@turf/area'
-import { MEDIDAS_MITIGACION_GEI } from '../data/sativum/medidasMitigacionGEI'
-import { aniosTranscurridos } from './npkUtils'
+import { MEDIDAS_MITIGACION_GEI } from '../data/sativum/medidasMitigacionGEI.js'
+import { aniosTranscurridos } from './npkUtils.js'
 
 /**
  * Descarga el Excel.
