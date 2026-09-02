@@ -15,8 +15,17 @@
  *     se emite un warning explícito.
  *   - residuesInFieldPct null = automático (regla B7 de cereal o default de catálogo).
  *   - advancedOverrides espeja algoOverrides/nEcuacion de EstrategiaPanel.jsx.
- *   - MAINTENANCE tolera analítica de suelo ausente (organicMatter/ph/pOlsen/kSoil);
- *     el resto de estrategias no — soilType/cec son SIEMPRE obligatorios.
+ *   - soilType/cec son SIEMPRE obligatorios, en cualquier estrategia.
+ *   - Suelo P/K (pOlsen/kSoil): analítica manual por defecto; si falta, se rescata con
+ *     la estimación ArcGIS (soil.arcgisPOlsen/arcgisKSoil) que ya usa normalizarSuelo()
+ *     en producción — sin restricción por textura de suelo, a diferencia del rescate de
+ *     agua. Son obligatorios para Sativum en CUALQUIER estrategia (OAS real:
+ *     sample.required=[p_conc,k_conc], confirmado 2-sep-2026 tras un 500 real de
+ *     Sativum al mandar null bajo MAINTENANCE — "MAINTENANCE ignora sample" solo es
+ *     cierto para el RESULTADO, no para si el campo puede faltar en la petición). Si
+ *     tampoco hay ArcGIS, se bloquea el item explícito, nunca se manda null.
+ *   - organicMatter/ph SÍ los tolera ausentes MAINTENANCE (no son required en el OAS);
+ *     el resto de estrategias no los tolera.
  *   - Alcance: solo N/P2O5/K2O — Ca/Mg/S/micronutrientes son del motor propio FertiPRO.
  *
  * URL de momento (routing por fichero, sin rewrite todavía): POST /api/sativum-plan
@@ -213,6 +222,32 @@ function resolverAguaRiego(water, cultivoActual) {
   return { nRiego, pRiego, kRiego, warnings }
 }
 
+function resolverSueloAnalitica(soil) {
+  // p_conc/k_conc son SIEMPRE obligatorios para Sativum (OAS real de
+  // /fertilicalc/algo/: sample.required = ["p_conc","k_conc"], sin
+  // excepcion por estrategia). Aunque bajo MAINTENANCE el VALOR concreto no
+  // cambie el resultado final (verificado sesion 2026-07-28), enviar null
+  // revienta con un 500 real: "'>' not supported between instances of
+  // 'NoneType' and 'int'" (confirmado 2-sep-2026 contra Sativum real, Patata
+  // + MAINTENANCE + sample sin analitica). Igual que con el agua de riego:
+  // primero la analitica manual; si falta, se rescata con la estimacion
+  // ArcGIS que ya usa normalizarSuelo() en produccion (capas 6/7 de P Olsen
+  // y K de suelo) -- y a diferencia del rescate de agua, este NO esta
+  // restringido por tipo/textura de suelo (confirmado con Miguel
+  // 2-sep-2026). Si tampoco hay dato ArcGIS, no se inventa nada: se deja
+  // null y el caller (calcularItem) bloquea el item explicitamente.
+  const faltante = (v) => v == null || v === ''
+  let pOlsen = soil.pOlsen
+  if (faltante(pOlsen) && !faltante(soil.arcgisPOlsen)) {
+    pOlsen = soil.arcgisPOlsen
+  }
+  let kSoil = soil.kSoil
+  if (faltante(kSoil) && !faltante(soil.arcgisKSoil)) {
+    kSoil = soil.arcgisKSoil
+  }
+  return { ...soil, pOlsen, kSoil }
+}
+
 function construirCultivosArr(item) {
   const cultivos = []
   if (item.precedingCrop?.crop) {
@@ -245,9 +280,27 @@ async function calcularItem(item) {
   }
 
   const strategy = item.strategy || 'MAINTENANCE'
-  const soil = item.soil || {}
+  const soil = resolverSueloAnalitica(item.soil || {})
   const tillage = Boolean(item.precedingCrop?.tillageAfterHarvest)
   const cultivos = construirCultivosArr(item)
+
+  // p_conc/k_conc son obligatorios para Sativum en CUALQUIER estrategia (ver
+  // resolverSueloAnalitica) -- si tras el rescate ArcGIS siguen sin
+  // resolver, bloqueamos aqui explicito, antes de ensamblarPayloadAlgo()
+  // (que bajo MAINTENANCE dejaria pasar null sin avisar, dando pie al 500
+  // real ya documentado en vez de un BLOCKED claro).
+  if (soil.pOlsen == null || soil.kSoil == null) {
+    const faltantes = []
+    if (soil.pOlsen == null) faltantes.push('pOlsen (P de suelo)')
+    if (soil.kSoil == null) faltantes.push('kSoil (K de suelo)')
+    return {
+      status: 'BLOCKED',
+      warnings: [{
+        code: 'SOIL_DATA_MISSING',
+        message: `Falta ${faltantes.join(' y ')} real (ni analítica manual ni estimación ArcGIS disponible) — Sativum los exige siempre, en cualquier estrategia.`,
+      }],
+    }
+  }
 
   let payload
   try {
