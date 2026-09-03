@@ -13,6 +13,22 @@
       "destination": "/api/sativum-report"
     },
     {
+      "source": "/api/sigpac-bbox",
+      "destination": "/api/sigpac?__action=bbox"
+    },
+    {
+      "source": "/api/sigpac-mvt",
+      "destination": "/api/sigpac?__action=mvt"
+    },
+    {
+      "source": "/api/sigpac-recinfo",
+      "destination": "/api/sigpac?__action=recinfo"
+    },
+    {
+      "source": "/api/sigpac-zvn",
+      "destination": "/api/sigpac?__action=zvn"
+    },
+    {
       "source": "/api/(.*)",
       "destination": "/api/$1"
     }
