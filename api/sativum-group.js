@@ -31,7 +31,7 @@
  * ambas rutas responden igual, la de arriba es la pública/canónica)
  */
 
-import { agruparFilas, normalizarTexto, extraerAnio } from '../lib/agrupacion/agruparLogica.js'
+import { agruparFilas, construirBloques, normalizarTexto, extraerAnio, TOLERANCIA_ANIOS_PLANTACION } from '../lib/agrupacion/agruparLogica.js'
 import { modaTexto } from '../lib/agrupacion/valores.js'
 
 // ------------------------------------------------------------- envelope §8
@@ -119,7 +119,7 @@ function ucAFilaPlana(uc, nif) {
     municipio: normalizarTexto(uc?.municipio) || null,
     sistemaExplotacion: uc?.idExploitationSystem != null ? String(uc.idExploitationSystem) : null,
     sistemaCultivo: normalizarTexto(uc?.cropSystem) || null,
-    anioPlantacion: extraerAnio(uc?.anyosPlantacion),
+    anioPlantacion: extraerAnio(variedad?.startDate),
     refSuelo: null,
     refAgua: null,
     refEnmienda: null,
@@ -140,8 +140,41 @@ function ucAFilaPlana(uc, nif) {
   }
 }
 
+// ------------------------------------------- aviso "no se fusiono por que" --
+// Solo aplica a grupos de 1 sola UC: si esa UC comparte particion dura con
+// otras UC del lote (mismo bloque de construirBloques()) que acabaron en
+// grupos distintos, explica por que no se fusionaron -- casi siempre falta
+// de fecha de plantacion, la unica senal de fusion que este endpoint puede
+// alimentar hoy con datos de Visual (ref de suelo/agua/enmienda siempre
+// viaja null aqui, ver ucAFilaPlana). Decision de Miguel (3-sep-2026): la
+// particion dura sola NO fusiona -- sigue exigiendose una senal positiva,
+// y cuando falta se lo decimos al usuario para que la registre y relance.
+function explicarNoFusion(filaActual, otrasFilasDelBloque) {
+  const anioActual = extraerAnio(filaActual.anioPlantacion)
+  const idFincasOtros = otrasFilasDelBloque.map((f) => f.__idFinca)
+  if (anioActual == null) {
+    return (
+      `Coincide en titular/cultivo/variedad/municipio con la(s) UC ${idFincasOtros.join(', ')} ` +
+      `pero no se fusiono: falta la fecha de plantacion de esta UC -- registrala en Visual ` +
+      `(modulo Variedad en parcela -> Fecha inicio) y vuelve a lanzar el proceso.`
+    )
+  }
+  const sinFecha = otrasFilasDelBloque.filter((f) => extraerAnio(f.anioPlantacion) == null)
+  if (sinFecha.length > 0) {
+    return (
+      `Coincide en titular/cultivo/variedad/municipio con la(s) UC ${idFincasOtros.join(', ')} ` +
+      `pero no se fusiono: falta la fecha de plantacion en la(s) UC ${sinFecha.map((f) => f.__idFinca).join(', ')} ` +
+      `-- registrala en Visual (modulo Variedad en parcela -> Fecha inicio) y vuelve a lanzar el proceso.`
+    )
+  }
+  return (
+    `Coincide en titular/cultivo/variedad/municipio con la(s) UC ${idFincasOtros.join(', ')} ` +
+    `pero no se fusiono: la fecha de plantacion difiere en mas de ${TOLERANCIA_ANIOS_PLANTACION} anos.`
+  )
+}
+
 // --------------------------------------------------------- salida por grupo
-function construirGrupoSalida(g, groupId) {
+function construirGrupoSalida(g, groupId, otrosDelBloqueSinFusionar = null) {
   const filas = g.filas
   const idFincas = filas.map((f) => f.__idFinca)
   const conSuperficie = filas.filter((f) => f.__superficie !== null)
@@ -155,6 +188,10 @@ function construirGrupoSalida(g, groupId) {
       `${sinSuperficie.length} UC sin superficie de especie ni SIGPAC declarada ` +
         `(idFinca: ${sinSuperficie.map((f) => f.__idFinca).join(', ')}) — excluida del total`,
     )
+  }
+
+  if (filas.length === 1 && otrosDelBloqueSinFusionar && otrosDelBloqueSinFusionar.length > 0) {
+    warnings.push(explicarNoFusion(filas[0], otrosDelBloqueSinFusionar))
   }
 
   return {
@@ -236,6 +273,12 @@ export default async function handler(req, res) {
   // Una única llamada a agruparFilas() sobre todo el lote: nif ya es el
   // primer campo de la partición dura interna, así que cada grupo devuelto
   // es homogéneo en nif por construcción (no hace falta partir antes).
+  const indiceDeFila = new Map(filas.map((f, i) => [f, i]))
+  const bloqueDeIndice = new Map()
+  for (const bloque of construirBloques(filas)) {
+    for (const idx of bloque) bloqueDeIndice.set(idx, bloque)
+  }
+
   const gruposCrudos = agruparFilas(filas)
   const gruposPorNif = new Map()
   for (const g of gruposCrudos) {
@@ -245,7 +288,17 @@ export default async function handler(req, res) {
   }
 
   const resultadoCompleto = [...gruposPorNif.entries()].map(([nifTitular, grupos]) => {
-    const groups = grupos.map((g, i) => construirGrupoSalida(g, `group-${i + 1}`))
+    const groups = grupos.map((g, i) => {
+      let otrosDelBloqueSinFusionar = null
+      if (g.filas.length === 1) {
+        const idx = indiceDeFila.get(g.filas[0])
+        const bloque = idx != null ? bloqueDeIndice.get(idx) : null
+        if (bloque && bloque.length > 1) {
+          otrosDelBloqueSinFusionar = bloque.filter((i) => i !== idx).map((i) => filas[i])
+        }
+      }
+      return construirGrupoSalida(g, `group-${i + 1}`, otrosDelBloqueSinFusionar)
+    })
     return { nifTitular, groupCount: groups.length, groups }
   })
 
