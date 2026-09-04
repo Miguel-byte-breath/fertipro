@@ -309,15 +309,15 @@ async function calcularItem(item) {
   }
 
   const nBruto = rec.n ?? 0
-  const p2o5Bruto = rec.p ?? 0
-  const k2oBruto = rec.k ?? 0
+  const pBruto = rec.p ?? 0
+  const kBruto = rec.k ?? 0
 
   return {
     status: 'OK',
     npk: {
       n: { gross: nBruto, waterCredit: nRiego, net: Math.max(0, nBruto - nRiego) },
-      p2o5: { gross: p2o5Bruto, waterCredit: pRiego, net: Math.max(0, p2o5Bruto - pRiego) },
-      k2o: { gross: k2oBruto, waterCredit: kRiego, net: Math.max(0, k2oBruto - kRiego) },
+      p: { gross: pBruto, waterCredit: pRiego, net: Math.max(0, pBruto - pRiego) },
+      k: { gross: kBruto, waterCredit: kRiego, net: Math.max(0, kBruto - kRiego) },
     },
     warnings,
   }
