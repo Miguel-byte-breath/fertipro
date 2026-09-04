@@ -54,32 +54,35 @@ function buildGeometry(lon, lat) {
   })
 }
 
-export default async function handler(req, res) {
-  const {
-    lon, lat,
-    layers    = DEFAULT_LAYERS,
-    tolerance = DEFAULT_TOLERANCE,
-  } = req.query
-
-  if (!lon || !lat) {
-    return res.status(400).json({ error: 'Parámetros `lon` y `lat` requeridos' })
-  }
-
-  const lonF = parseFloat(lon)
-  const latF = parseFloat(lat)
-  if (isNaN(lonF) || isNaN(latF)) {
-    return res.status(400).json({ error: 'lon/lat deben ser números' })
-  }
+/**
+ * Llama al identify de ArcGIS Sativum para un punto lon/lat ya validado y
+ * devuelve el resultado clasificado en { ok:true, data } o
+ * { ok:false, status, error }.
+ *
+ * Extraída del handler HTTP de más abajo (GET /api/sativum-suelo) para que
+ * api/sativum-arcgis-npk.js (tool MCP estimate_soil_water_arcgis) pueda
+ * reutilizar exactamente la misma llamada upstream -- apikey, timeout,
+ * parsing de errores -- sin duplicarla ni pasar por una segunda petición
+ * HTTP. El handler por defecto sigue respondiendo exactamente igual que
+ * antes: esta extracción no cambia ningún status code ni forma de body.
+ */
+export async function identificarSativum(lonF, latF, opts = {}) {
+  const layers    = opts.layers    ?? DEFAULT_LAYERS
+  const tolerance = opts.tolerance ?? DEFAULT_TOLERANCE
 
   const apikey  = process.env.SATIVUM_API_KEY
   const baseUrl = process.env.SATIVUM_BASE_URL || DEFAULT_BASE_URL
 
   if (!apikey) {
-    return res.status(503).json({
-      error:  'Sativum no configurado',
-      detail: 'Define SATIVUM_API_KEY en las variables de entorno de Vercel.',
-      stub:   true,
-    })
+    return {
+      ok: false,
+      status: 503,
+      error: {
+        error:  'Sativum no configurado',
+        detail: 'Define SATIVUM_API_KEY en las variables de entorno de Vercel.',
+        stub:   true,
+      },
+    }
   }
 
   const params = new URLSearchParams({
@@ -115,28 +118,66 @@ export default async function handler(req, res) {
 
     if (!upstream.ok) {
       const text = await upstream.text().catch(() => '')
-      return res.status(upstream.status).json({
-        error:  `Sativum respondió ${upstream.status}`,
-        detail: text.slice(0, 500),
-      })
+      return {
+        ok: false,
+        status: upstream.status,
+        error: {
+          error:  `Sativum respondió ${upstream.status}`,
+          detail: text.slice(0, 500),
+        },
+      }
     }
 
     const data = await upstream.json()
 
     // ArcGIS a veces devuelve 200 con error embebido en el body
     if (data?.error) {
-      return res.status(502).json({
-        error:  'Error upstream Sativum',
-        detail: data.error,
-      })
+      return {
+        ok: false,
+        status: 502,
+        error: {
+          error:  'Error upstream Sativum',
+          detail: data.error,
+        },
+      }
     }
 
-    res.setHeader('Cache-Control', 's-maxage=600, stale-while-revalidate=1200')
-    return res.status(200).json(data)
+    return { ok: true, data }
   } catch (err) {
-    return res.status(502).json({
-      error:  'Error conectando con Sativum',
-      detail: err.message,
-    })
+    return {
+      ok: false,
+      status: 502,
+      error: {
+        error:  'Error conectando con Sativum',
+        detail: err.message,
+      },
+    }
   }
+}
+
+export default async function handler(req, res) {
+  const {
+    lon, lat,
+    layers    = DEFAULT_LAYERS,
+    tolerance = DEFAULT_TOLERANCE,
+  } = req.query
+
+  if (!lon || !lat) {
+    return res.status(400).json({ error: 'Parámetros `lon` y `lat` requeridos' })
+  }
+
+  const lonF = parseFloat(lon)
+  const latF = parseFloat(lat)
+  if (isNaN(lonF) || isNaN(latF)) {
+    return res.status(400).json({ error: 'lon/lat deben ser números' })
+  }
+
+  const result = await identificarSativum(lonF, latF, { layers, tolerance })
+
+  if (!result.ok) {
+    return res.status(result.status).json(result.error)
+  }
+
+  res.setHeader('Cache-Control', 's-maxage=600, stale-while-revalidate=1200')
+  return res.status(200).json(result.data)
 }

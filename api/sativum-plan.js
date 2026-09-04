@@ -24,8 +24,12 @@
  *     Sativum al mandar null bajo MAINTENANCE — "MAINTENANCE ignora sample" solo es
  *     cierto para el RESULTADO, no para si el campo puede faltar en la petición). Si
  *     tampoco hay ArcGIS, se bloquea el item explícito, nunca se manda null.
- *   - organicMatter/ph SÍ los tolera ausentes MAINTENANCE (no son required en el OAS);
- *     el resto de estrategias no los tolera.
+ *   - organicMatter/ph: mismo patrón de rescate que P/K (soil.arcgisOrganicMatter/
+ *     arcgisPh, capas 0 y 5 del mismo identify ArcGIS -- confirmado con Miguel
+ *     4-sep-2026 que ArcGIS también las devuelve). No son required en el OAS bajo
+ *     MAINTENANCE (se toleran ausentes); el resto de estrategias sí los exige, y si
+ *     tras el rescate ArcGIS siguen faltando, ensamblarPayloadAlgo() bloquea el item
+ *     con su mensaje explícito (nunca null silencioso).
  *   - Alcance: solo N/P2O5/K2O — Ca/Mg/S/micronutrientes son del motor propio FertiPRO.
  *
  * URL definitiva (API STD), ya expuesta vía rewrite en vercel.json:
@@ -219,7 +223,17 @@ function resolverSueloAnalitica(soil) {
   if (faltante(kSoil) && !faltante(soil.arcgisKSoil)) {
     kSoil = soil.arcgisKSoil
   }
-  return { ...soil, pOlsen, kSoil }
+  // organicMatter/ph: mismo patron de rescate ArcGIS que P/K (ver comentario
+  // de cabecera de esta funcion) -- capas 0 y 5 del mismo identify.
+  let organicMatter = soil.organicMatter
+  if (faltante(organicMatter) && !faltante(soil.arcgisOrganicMatter)) {
+    organicMatter = soil.arcgisOrganicMatter
+  }
+  let ph = soil.ph
+  if (faltante(ph) && !faltante(soil.arcgisPh)) {
+    ph = soil.arcgisPh
+  }
+  return { ...soil, pOlsen, kSoil, organicMatter, ph }
 }
 
 function construirCultivosArr(item) {

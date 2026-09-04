@@ -4,11 +4,28 @@
  * Agrupa Unidades de Cultivo (UCs) de Visual en hojas de cultivo/planes de
  * abonado, sin calcular NPK. NO llama a Visual — recibe en `cropUnits[]`
  * objetos ya obtenidos por el agente vía MCP Visual (getCropUnits con
- * listas:["varieties","persons","sigpac"], includeGeom opcional).
+ * listas:["varieties","persons","sigpac"], includeGeom RECOMENDADO — sin
+ * él, cada grupo sale sin recintosWkt/centroid, sin error).
+ *
+ * Geometría por grupo (Cowork, 4-sep-2026, continuación 9 -- ver memoria de
+ * proyecto project_fertipro_mcp_visual_endpoint.md): si las UC llegan con
+ * `geom.wkt` (includeGeom:true), cada grupo de salida lleva:
+ *   - `recintosWkt`: lista por parcela { ref, superficieHa, wkt }, con la
+ *     MISMA forma que espera `export_report.recintosWkt` -- se puede pasar
+ *     sin transformar al paso final de la cadena.
+ *   - `centroid`: { lon, lat } -- UN SOLO punto representativo de TODO el
+ *     grupo (nunca uno por parcela), via centroideDeGrupo(). Pensado para
+ *     alimentar una futura tool de resolución de suelo/agua por ArcGIS --
+ *     el agente pregunta primero por analítica real; solo si falta, usa
+ *     este centroide para consultar ArcGIS (una llamada por grupo, no por
+ *     parcela -- cuota compartida de ITACyL).
+ * Si ninguna UC del grupo trae geometría, `recintosWkt` sale `[]` y
+ * `centroid` sale `null` -- no es un error, solo significa que no se pidió
+ * includeGeom o que Visual no la tenía para esas UC.
  *
  * Reutiliza tal cual (sin tocar su lógica) lib/agrupacion/agruparLogica.js +
- * valores.js, vendorizados de fertipro-test/plantilla (ver CLAUDE.md,
- * sección "Vendoring y diseño de :group-crop-units").
+ * valores.js + centroideGrupo.js, vendorizados de fertipro-test/plantilla
+ * (ver CLAUDE.md, sección "Vendoring y diseño de :group-crop-units").
  *
  * NOTA IMPORTANTE (Cowork, 2026-09-01, mismo hilo — sustituye el diseño
  * anterior por idExploitation): NO se particiona por `idExploitation`.
@@ -33,6 +50,7 @@
 
 import { agruparFilas, construirBloques, normalizarTexto, extraerAnio, TOLERANCIA_ANIOS_PLANTACION } from '../lib/agrupacion/agruparLogica.js'
 import { modaTexto } from '../lib/agrupacion/valores.js'
+import { centroideDeGrupo } from '../lib/agrupacion/centroideGrupo.js'
 
 // ------------------------------------------------------------- envelope §8
 function errorEnvelope({ httpStatusInfo, key, message, params = {}, details = [] }) {
@@ -137,6 +155,7 @@ function ucAFilaPlana(uc, nif) {
     __subVariety: subVariety,
     __municipioOut: uc?.municipio ?? null,
     __cropSystemOut: uc?.cropSystem ?? null,
+    __wkt: uc?.geom?.wkt ?? null,
   }
 }
 
@@ -194,6 +213,38 @@ function construirGrupoSalida(g, groupId, otrosDelBloqueSinFusionar = null) {
     warnings.push(explicarNoFusion(filas[0], otrosDelBloqueSinFusionar))
   }
 
+  // Geometria: opcional, solo si el agente pidio includeGeom:true. recintosWkt
+  // viaja tal cual a export_report.recintosWkt; centroid es UN SOLO punto por
+  // grupo (nunca por parcela), pensado para una futura tool de resolucion de
+  // suelo/agua via ArcGIS -- coherente con la cuota compartida de ITACyL.
+  const conWkt = filas.filter((f) => f.__wkt)
+  const recintosWkt = conWkt.map((f) => ({
+    ref: f.__idFinca != null ? `UC ${f.__idFinca}` : null,
+    superficieHa: f.__superficie,
+    wkt: f.__wkt,
+  }))
+
+  let centroid = null
+  if (conWkt.length > 0) {
+    try {
+      const { lon, lat, wktsFallidos } = centroideDeGrupo(
+        conWkt.map((f) => ({
+          geometriaWkt: f.__wkt,
+          ref: f.__idFinca != null ? String(f.__idFinca) : undefined,
+        })),
+      )
+      centroid = { lon, lat }
+      if (wktsFallidos.length > 0) {
+        warnings.push(
+          `${wktsFallidos.length} geometria(s) no se pudo(pudieron) interpretar para el centroide: ` +
+            wktsFallidos.map((w) => `${w.ref} (${w.error})`).join('; '),
+        )
+      }
+    } catch (e) {
+      warnings.push(`No se pudo calcular el centroide del grupo: ${e.message}`)
+    }
+  }
+
   return {
     groupId,
     idFincas,
@@ -202,6 +253,8 @@ function construirGrupoSalida(g, groupId, otrosDelBloqueSinFusionar = null) {
     subVariety: modaTexto(filas.map((f) => f.__subVariety)),
     municipio: filas[0].__municipioOut,
     cropSystem: filas[0].__cropSystemOut,
+    recintosWkt,
+    centroid,
     warnings,
   }
 }

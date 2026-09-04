@@ -37,6 +37,7 @@ import { z } from 'zod'
 import calculateNpkHandler from './sativum-plan.js'
 import groupCropUnitsHandler from './sativum-group.js'
 import exportReportHandler from './sativum-report.js'
+import estimateSoilWaterArcgisHandler from './sativum-arcgis-npk.js'
 
 // ---------------------------------------------------------------------
 // invocarHandler: llama a un handler de Vercel (req, res) => void con un
@@ -171,6 +172,41 @@ function crearServidor() {
     },
     async ({ cropUnits, pageIndex, pageSize }) => {
       const r = await invocarHandler(groupCropUnitsHandler, { cropUnits, pageIndex, pageSize })
+      return resultadoJson(r)
+    },
+  )
+
+  // ---- estimate_soil_water_arcgis — rescate ArcGIS de suelo/agua (ITACyL) ----
+  server.registerTool(
+    'estimate_soil_water_arcgis',
+    {
+      title: 'Estimar suelo/agua vía ArcGIS (Sativum)',
+      description:
+        'Rescate de suelo/agua vía ArcGIS (ITACyL) para un punto -- normalmente el `centroid` ' +
+        'que devuelve group_crop_units. USAR SOLO COMO RESCATE: pregunta siempre primero por ' +
+        'analítica real (pOlsen, kSoil, organicMatter, ph, soilType, no3MgL/kMgL de agua si el ' +
+        'origen es subterráneo) y llama a esta tool únicamente si falta algún dato. Devuelve un ' +
+        'bloque `arcgisFields` ya con los nombres exactos que espera calculate_npk ' +
+        '(soil.arcgisPOlsen/arcgisKSoil/arcgisOrganicMatter/arcgisPh, water.arcgisNo3MgL/arcgisKMgL) ' +
+        '-- cópialos tal cual, calculate_npk ya decide solo si aplicarlos (p.ej. el rescate de agua ' +
+        'solo se usa si water.sourceType es SUBTERRANEA). OJO: `soilType` NO tiene equivalente ' +
+        '`arcgis*` en calculate_npk -- si no hay soilType manual, asigna el valor devuelto aquí ' +
+        'directamente en soil.soilType. Si ArcGIS no clasifica el punto, los campos llegan `null` ' +
+        'con un warning explicativo -- nunca se inventa un valor.',
+      inputSchema: {
+        lon: z.number().describe('Longitud WGS84 (EPSG:4326) del punto a consultar.'),
+        lat: z.number().describe('Latitud WGS84 (EPSG:4326) del punto a consultar.'),
+        tolerance: z
+          .number()
+          .int()
+          .min(1)
+          .max(50)
+          .optional()
+          .describe('Tolerancia en píxeles del identify ArcGIS (por defecto 10, igual que en producción). Rara vez hace falta tocarlo.'),
+      },
+    },
+    async ({ lon, lat, tolerance }) => {
+      const r = await invocarHandler(estimateSoilWaterArcgisHandler, { lon, lat, tolerance })
       return resultadoJson(r)
     },
   )
