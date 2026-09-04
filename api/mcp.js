@@ -125,7 +125,8 @@ function crearServidor() {
         'Calcula el balance de N/P2O5/K2O (bruto y neto de riego) para un lote de unidades ' +
         'de cultivo, vía el motor ITACyL/Sativum. Cada item del lote devuelve su propio ' +
         'status ("OK" o "BLOCKED") con warnings — no hace falta que todos los items estén ' +
-        'completos para poder calcular los demás.',
+        'completos para poder calcular los demás. Antes de calcular, pregunta si la parcela ' +
+        'es de secano o regadío (ver water.dotacionM3 en items, más abajo).',
       inputSchema: {
         items: z
           .array(z.record(z.any()))
@@ -133,7 +134,13 @@ function crearServidor() {
             'Lote de unidades a calcular. Cada item: { currentCrop:{crop,targetYield?,cv?,...}, ' +
               'precedingCrop?, soil:{soilType,cec,pOlsen|arcgisPOlsen,kSoil|arcgisKSoil,...}, ' +
               'water?, strategy?, advancedOverrides? } — mismo contrato que ' +
-              'POST /v1/sativum/fertilization-plans:calculate-npk.',
+              'POST /v1/sativum/fertilization-plans:calculate-npk. ' +
+              'water.dotacionM3 (m³/ha): si se omite, se usa el valor por defecto del catálogo ' +
+              'de cultivo (currentCrop.crop.irrigation). Convención secano/regadío: secano → ' +
+              'enviar water.dotacionM3: 0 (anula explícitamente el catálogo, no se calcula ' +
+              'aporte por riego); regadío con dotación conocida → enviar water.dotacionM3: ' +
+              '<m³/ha>; regadío sin dato conocido → omitir dotacionM3 y dejar el valor por ' +
+              'defecto del catálogo.',
           ),
         pageIndex: z.number().int().min(0).optional(),
         pageSize: z.number().int().min(1).max(100).optional(),
@@ -177,14 +184,27 @@ function crearServidor() {
         'Genera el Excel del plan de abonado (mismo fichero que "Exportar Excel" en la web, ' +
         'reimportable en producción) y lo devuelve como recurso adjunto en base64. Campos ' +
         'obligatorios: cultivo y npk — mismo contrato que POST ' +
-        '/v1/sativum/fertilization-plans:export-report.',
+        '/v1/sativum/fertilization-plans:export-report. Ojo: riego usa una forma propia, ' +
+        'distinta de water en calculate_npk — no reutilizar el mismo objeto entre ambos tools.',
       inputSchema: {
         cultivo: z.record(z.any()).describe('Cultivo del plan (obligatorio).'),
         npk: z.record(z.any()).describe('Balance NPK del plan (obligatorio).'),
         suelo: z.record(z.any()).optional(),
-        riego: z.record(z.any()).optional(),
+        riego: z
+          .record(z.any())
+          .optional()
+          .describe(
+            '{ sistemaExplotacion: "regadio"|"secano", dotacionM3?, no3MgL?, pMgL?, kMgL? } — ' +
+              'sistemaExplotacion determina la línea "Sistema de explotación" del Excel y si se ' +
+              'muestran los kg/ha cubiertos por riego (solo si es "regadio" y dotacionM3 > 0). ' +
+              'No es el mismo objeto que water en calculate_npk: hay que traducirlo ' +
+              'explícitamente al encadenar los dos tools.',
+          ),
         titular: z.record(z.any()).optional().describe('{ nifCif, ... } — para el nombre de fichero.'),
         nombrePlan: z.string().optional(),
+        fecha: z.string().optional().describe('Fecha del plan (YYYY-MM-DD). Si se omite, se usa la fecha actual.'),
+        fechaInicioCiclo: z.string().optional().describe('Inicio del ciclo de cultivo (YYYY-MM-DD).'),
+        fechaFinCiclo: z.string().optional().describe('Fin del ciclo de cultivo (YYYY-MM-DD).'),
         recintos: z
           .array(z.record(z.any()))
           .optional()
