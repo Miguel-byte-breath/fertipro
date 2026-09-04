@@ -205,10 +205,21 @@ function crearServidor() {
         fecha: z.string().optional().describe('Fecha del plan (YYYY-MM-DD). Si se omite, se usa la fecha actual.'),
         fechaInicioCiclo: z.string().optional().describe('Inicio del ciclo de cultivo (YYYY-MM-DD).'),
         fechaFinCiclo: z.string().optional().describe('Fin del ciclo de cultivo (YYYY-MM-DD).'),
-        recintos: z
-          .array(z.record(z.any()))
+        recintosWkt: z
+          .array(z.object({
+            ref: z.string(),
+            fichero: z.string().optional(),
+            fila: z.number().optional(),
+            superficieHa: z.number(),
+            wkt: z.string(),
+          }))
           .optional()
-          .describe('Geometría WKT opcional, para la hoja "Recintos (WKT)".'),
+          .describe(
+            'Geometría WKT, una entrada por recinto (nunca fusionada) — rellena la hoja ' +
+              'opcional "Recintos (WKT)", necesaria para reimportar el plan en producción con ' +
+              'la geometría exacta (ver importExcel.js: sin esta hoja, el usuario tiene que ' +
+              'volver a cargar la parcela en el mapa a mano).',
+          ),
         format: z.literal('xlsx').optional(),
       },
     },
