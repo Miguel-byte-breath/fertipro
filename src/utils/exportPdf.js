@@ -479,7 +479,7 @@ export async function exportarPlanAbonadoPdf({
   doc.setFont('helvetica', 'bold')
   doc.setTextColor(...C_LABEL)
   doc.text(estrategiaLabel, boxX + 57, by)
-  by += 7 + 6  // fila estrategia + gap antes de círculos
+  by += 7 + 3  // fila estrategia + gap antes de círculos (reducido para más aire abajo)
 
   // Círculos NPK — blancos con borde azul oscuro, más grandes
   const badges = [
