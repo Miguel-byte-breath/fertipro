@@ -127,8 +127,16 @@ function crearServidor() {
         'Calcula el balance de N/P2O5/K2O (bruto y neto de riego) para un lote de unidades ' +
         'de cultivo, vía el motor ITACyL/Sativum. Cada item del lote devuelve su propio ' +
         'status ("OK" o "BLOCKED") con warnings — no hace falta que todos los items estén ' +
-        'completos para poder calcular los demás. Antes de calcular, pregunta si la parcela ' +
-        'es de secano o regadío (ver water.dotacionM3 en items, más abajo).',
+        'completos para poder calcular los demás. Antes de calcular, pregunta SIEMPRE: ' +
+        '(1) si la parcela es de secano o regadío (ver water.dotacionM3 en items, más abajo); ' +
+        '(2) si hay cultivo precedente relevante (precedingCrop.crop, resuelto con search_crop ' +
+        'igual que currentCrop.crop) y, si lo hay, si hubo laboreo tras su cosecha ' +
+        '(precedingCrop.tillageAfterHarvest) y qué se hizo con sus residuos ' +
+        '(precedingCrop.collectResidues/burnResidues/residuesInFieldPct — si se omiten, no se ' +
+        'asume ningún efecto de residuo del cultivo anterior); (3) qué estrategia aplicar ' +
+        '(strategy: SUFFICIENCY|REDUCED|MAINTENANCE|MAXIMUM — si se omite, se usa MAINTENANCE ' +
+        'en silencio, que es el criterio correcto SOLO si no hay analítica de suelo real). No ' +
+        'asumir ninguno de estos 3 valores sin preguntar, igual que ya se hace con secano/regadío.',
       inputSchema: {
         items: z
           .array(z.record(z.any()))
@@ -257,8 +265,29 @@ function crearServidor() {
         '/v1/sativum/fertilization-plans:export-report. Ojo: riego usa una forma propia, ' +
         'distinta de water en calculate_npk — no reutilizar el mismo objeto entre ambos tools.',
       inputSchema: {
-        cultivo: z.record(z.any()).describe('Cultivo del plan (obligatorio).'),
-        npk: z.record(z.any()).describe('Balance NPK del plan (obligatorio).'),
+        cultivo: z
+          .record(z.any())
+          .describe(
+            'Cultivo del plan (obligatorio). DEBE ser literalmente el mismo objeto de catálogo ' +
+              'Sativum que devolvió search_crop y que ya usaste en currentCrop.crop de ' +
+              'calculate_npk (con name/id/plantSpeciesGroup/yieldMedium/nfixCode/cv/irrigation) ' +
+              '-- NUNCA construyas aquí un objeto-resumen nuevo con datos de Visual ' +
+              '(municipio/nombre/variedad/superficie); esos datos van en otros campos ' +
+              '(recintosWkt, nombrePlan), no en cultivo. Si no reutilizas el objeto real, las ' +
+              'filas "Cultivo"/"Cultivo ID Sativum"/etc. del Excel salen vacías y el reimport en ' +
+              'la web no puede autoseleccionar el cultivo.',
+          ),
+        npk: z
+          .record(z.any())
+          .describe(
+            'Balance NPK del plan (obligatorio) -- forma PLANA de números: { n, p, k } (kg ' +
+              'elemento/ha, brutos). OJO: NO es la forma que devuelve calculate_npk -- esa tool ' +
+              'devuelve, por item, npk.n/npk.p/npk.k como OBJETOS { gross, waterCredit, net }. ' +
+              'Aquí hay que extraer el campo .gross de cada uno y pasarlo como número plano: ' +
+              '{ n: resultado.npk.n.gross, p: resultado.npk.p.gross, k: resultado.npk.k.gross }. ' +
+              'Si se pasa el objeto completo en vez del número, el Excel sale con las ' +
+              '"Necesidades brutas" a 0.',
+          ),
         suelo: z.record(z.any()).optional(),
         riego: z
           .record(z.any())
