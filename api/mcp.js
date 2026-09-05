@@ -224,7 +224,16 @@ function crearServidor() {
         'precedingCrop.crop -- no hace falta que el usuario pegue el JSON del catálogo a mano. ' +
         'Usa name (recomendado, ej. "Naranjo") para acotar: si se omiten name y group a la vez, ' +
         'devuelve el catálogo completo (150+ cultivos). Si un cultivo no aparece (ej. mandarino), ' +
-        'significa que Sativum no lo tiene en catálogo -- no es un fallo de la tool.',
+        'significa que Sativum no lo tiene en catálogo -- no es un fallo de la tool. ' +
+        'ORDEN RECOMENDADO: llamar después de group_crop_units, usando el nombre de variety/' +
+        'cropSystem que esa tool ya confirmó como realmente plantado -- no asumir el nombre tal ' +
+        'cual lo dijo el usuario en la conversación, puede no coincidir con el catálogo real. ' +
+        'AMBIGÜEDAD: el cruce con el catálogo de Visual se hace por texto, sin id estable -- es ' +
+        'frecuente que una búsqueda devuelva varias variantes del mismo cultivo por rendimiento ' +
+        'objetivo (ej. "Patata - Rto. inferior a 45.000 kg/ha" vs "...superior..."). Si hay más de ' +
+        'un resultado, NUNCA elegir uno por cuenta propia: comparar targetYield (si se conoce) ' +
+        'contra el umbral que lleva cada name, y si no es concluyente, preguntar al asesor cuál ' +
+        'aplica.',
       inputSchema: {
         name: z.string().optional().describe('Nombre del cultivo, coincidencia parcial case-insensitive (ej. "naranjo").'),
         group: z.string().optional().describe('plantSpeciesGroup, coincidencia parcial case-insensitive (ej. "Cereals").'),
