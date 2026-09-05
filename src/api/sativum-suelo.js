@@ -20,8 +20,8 @@
  *   9 → NO₃ agua de riego (mg/L)
  */
 
-import soilTypesSimpl from '../data/sativum/soilTypesSimpl.json'
-import soilTypes      from '../data/sativum/soilTypes.json'
+import soilTypesSimpl from '../data/sativum/soilTypesSimpl.json' with { type: 'json' }
+import soilTypes      from '../data/sativum/soilTypes.json' with { type: 'json' }
 
 /**
  * Identify Sativum en un punto lon/lat.
