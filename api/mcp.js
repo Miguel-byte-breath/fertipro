@@ -91,21 +91,72 @@ function resultadoJson({ status, json }) {
 // Igual que resultadoJson, pero para el caso binario de :export-report: si
 // hay error va como texto (envelope §8); si hay éxito, el buffer se envía
 // como bloque `resource` en base64 (spec MCP), tal como estaba diseñado.
-function resultadoArchivo({ status, json, buffer }, { uri, mimeType }) {
+// warnings (opcional): avisos de validación defensiva (ver normalizarNpkPlano/
+// validarCultivoCatalogo más abajo) -- si hay alguno, se añade ANTES del bloque
+// resource como bloque de texto propio, nunca en silencio.
+function resultadoArchivo({ status, json, buffer }, { uri, mimeType, warnings = [] }) {
   if (status >= 400) {
     return {
       isError: true,
       content: [{ type: 'text', text: JSON.stringify(json, null, 2) }],
     }
   }
-  return {
-    content: [
-      {
-        type: 'resource',
-        resource: { uri, mimeType, blob: buffer.toString('base64') },
-      },
-    ],
+  const content = []
+  if (warnings.length > 0) {
+    content.push({
+      type: 'text',
+      text: `Avisos de export_report (revisar antes de dar el Excel por bueno):\n- ${warnings.join('\n- ')}`,
+    })
   }
+  content.push({
+    type: 'resource',
+    resource: { uri, mimeType, blob: buffer.toString('base64') },
+  })
+  return { content }
+}
+
+// ---------------------------------------------------------------------
+// Validación defensiva de export_report (5-sep-2026, tras el test real de
+// Miguel -- ver memoria de proyecto project_fertipro_mcp_visual_endpoint.md,
+// seccion HALLAZGO). La description de la tool ya pide pasar npk en forma
+// plana {n,p,k}, pero calculate_npk devuelve, por elemento, un objeto
+// {gross, waterCredit, net} -- si un agente no sigue la instruccion al pie
+// de la letra, el Excel salia con las "Necesidades brutas" a 0 en silencio.
+// Aqui se normaliza en el propio codigo (defensa en profundidad), en vez de
+// depender solo de la description -- y siempre avisando, nunca corrigiendo
+// sin decirlo.
+// ---------------------------------------------------------------------
+function normalizarNpkPlano(npk) {
+  if (!npk || typeof npk !== 'object') return { npk, warnings: [] }
+  const warnings = []
+  const out = { ...npk }
+  for (const elemento of ['n', 'p', 'k']) {
+    const valor = npk[elemento]
+    if (valor && typeof valor === 'object' && 'gross' in valor) {
+      out[elemento] = valor.gross
+      warnings.push(
+        `npk.${elemento} llego como objeto {gross,waterCredit,net} (formato de calculate_npk) -- se uso .gross (${valor.gross}) automaticamente.`,
+      )
+    }
+  }
+  return { npk: out, warnings }
+}
+
+// No hay forma honesta de "reconstruir" aqui el objeto de catalogo Sativum
+// si llega uno equivocado (ej. un resumen de Visual con nombre/municipio/
+// variedad) -- eso requeriria volver a llamar a search_crop. Nos limitamos
+// a avisar, nunca a corregir en silencio ni a bloquear la exportacion (esas
+// celdas ya salen vacias en el Excel, esto solo hace visible el porque).
+function validarCultivoCatalogo(cultivo) {
+  if (!cultivo || typeof cultivo !== 'object') return []
+  if (cultivo.id == null || cultivo.name == null) {
+    return [
+      'cultivo no parece el objeto de catalogo Sativum de search_crop (faltan id/name) -- ' +
+        'es probable que las filas "Cultivo"/"Cultivo ID Sativum" del Excel salgan vacias y ' +
+        'que el reimport en la web no pueda autoseleccionar el cultivo.',
+    ]
+  }
+  return []
 }
 
 // ---------------------------------------------------------------------
@@ -323,10 +374,14 @@ function crearServidor() {
       },
     },
     async (body) => {
-      const r = await invocarHandler(exportReportHandler, body)
+      const { npk: npkPlano, warnings: warningsNpk } = normalizarNpkPlano(body.npk)
+      const warningsCultivo = validarCultivoCatalogo(body.cultivo)
+      const bodyNormalizado = { ...body, npk: npkPlano }
+      const r = await invocarHandler(exportReportHandler, bodyNormalizado)
       return resultadoArchivo(r, {
         uri: 'sativum://export-report/plan-abonado.xlsx',
         mimeType: 'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet',
+        warnings: [...warningsCultivo, ...warningsNpk],
       })
     },
   )
