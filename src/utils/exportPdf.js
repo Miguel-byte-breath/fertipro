@@ -415,6 +415,10 @@ export async function exportarPlanAbonadoPdf({
     MAXIMUM:     'Acumulacion y mantenimiento (maximo rendimiento)',
   }
   const estrategiaLabel = ESTRATEGIA_LABEL[calculo?.strategy] ?? calculo?.strategy ?? '—'
+
+  // Nueva pagina si el recuadro no cabe entero antes del margen inferior
+  // (evita que quede partido por un salto de pagina a mitad)
+  if (y + boxH > 297 - MB) { doc.addPage(); y = MT }
   const boxY = y
 
   // Fondo claro del recuadro
@@ -435,7 +439,7 @@ export async function exportarPlanAbonadoPdf({
   doc.setFontSize(9.5)
   doc.setFont('helvetica', 'bold')
   doc.setTextColor(255, 255, 255)
-  doc.text('NECESIDADES NUTRICIONALES', PW / 2, boxY + BOX_HEADER_H / 2 + 1.5, { align: 'center' })
+  doc.text('BALANCE DE NUTRIENTES', PW / 2, boxY + BOX_HEADER_H / 2 + 1.5, { align: 'center' })
 
   let by = boxY + BOX_HEADER_H + 8
 
