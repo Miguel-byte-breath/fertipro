@@ -38,6 +38,7 @@ import calculateNpkHandler from './sativum-plan.js'
 import groupCropUnitsHandler from './sativum-group.js'
 import exportReportHandler from './sativum-report.js'
 import estimateSoilWaterArcgisHandler from './sativum-arcgis-npk.js'
+import searchCropHandler from './sativum-crops-search.js'
 
 // ---------------------------------------------------------------------
 // invocarHandler: llama a un handler de Vercel (req, res) => void con un
@@ -207,6 +208,30 @@ function crearServidor() {
     },
     async ({ lon, lat, tolerance }) => {
       const r = await invocarHandler(estimateSoilWaterArcgisHandler, { lon, lat, tolerance })
+      return resultadoJson(r)
+    },
+  )
+
+  // ---- search_crop — misma entrada/salida que GET /api/sativum-crops (filtros en body) ----
+  server.registerTool(
+    'search_crop',
+    {
+      title: 'Buscar cultivo en el catálogo (Sativum)',
+      description:
+        'Busca en el catálogo de cultivos Sativum (parámetros agronómicos: HI, concentraciones ' +
+        'N/P/K en órganos cosechados, f_res, nfix_code, irrigation, etc.) y devuelve el objeto ' +
+        'completo del cultivo, TAL CUAL lo espera calculate_npk en currentCrop.crop / ' +
+        'precedingCrop.crop -- no hace falta que el usuario pegue el JSON del catálogo a mano. ' +
+        'Usa name (recomendado, ej. "Naranjo") para acotar: si se omiten name y group a la vez, ' +
+        'devuelve el catálogo completo (150+ cultivos). Si un cultivo no aparece (ej. mandarino), ' +
+        'significa que Sativum no lo tiene en catálogo -- no es un fallo de la tool.',
+      inputSchema: {
+        name: z.string().optional().describe('Nombre del cultivo, coincidencia parcial case-insensitive (ej. "naranjo").'),
+        group: z.string().optional().describe('plantSpeciesGroup, coincidencia parcial case-insensitive (ej. "Cereals").'),
+      },
+    },
+    async ({ name, group }) => {
+      const r = await invocarHandler(searchCropHandler, { name, group })
       return resultadoJson(r)
     },
   )

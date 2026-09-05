@@ -29,18 +29,32 @@
 
 const DEFAULT_BASE_URL = 'https://gateway.api.itacyl.es/sativum'
 
-export default async function handler(req, res) {
-  const { name, group } = req.query
-
+/**
+ * Llama al catalogo Sativum (/nutrients/crops) ya filtrado por name/group, y
+ * devuelve el resultado clasificado en { ok:true, data } o
+ * { ok:false, status, error } -- mismo convenio que identificarSativum() en
+ * api/sativum-suelo.js.
+ *
+ * Extraida del handler HTTP de mas abajo (GET /api/sativum-crops) para que
+ * api/sativum-crops-search.js (tool MCP search_crop) pueda reutilizar
+ * exactamente la misma llamada upstream -- apikey, timeout, filtros -- sin
+ * duplicarla. El handler por defecto sigue respondiendo exactamente igual
+ * que antes: esta extraccion no cambia ningun status code ni forma de body.
+ */
+export async function buscarCultivosSativum({ name, group } = {}) {
   const apikey  = process.env.SATIVUM_API_KEY
   const baseUrl = (process.env.SATIVUM_BASE_URL || DEFAULT_BASE_URL).replace(/\/$/, '')
 
   if (!apikey) {
-    return res.status(503).json({
-      error:  'Sativum no configurado',
-      detail: 'Define SATIVUM_API_KEY en las variables de entorno de Vercel.',
-      stub:   true,
-    })
+    return {
+      ok: false,
+      status: 503,
+      error: {
+        error:  'Sativum no configurado',
+        detail: 'Define SATIVUM_API_KEY en las variables de entorno de Vercel.',
+        stub:   true,
+      },
+    }
   }
 
   const url = `${baseUrl}/nutrients/crops`
@@ -64,10 +78,14 @@ export default async function handler(req, res) {
 
     if (!upstream.ok) {
       const text = await upstream.text().catch(() => '')
-      return res.status(upstream.status).json({
-        error:  `Sativum respondió ${upstream.status}`,
-        detail: text.slice(0, 500),
-      })
+      return {
+        ok: false,
+        status: upstream.status,
+        error: {
+          error:  `Sativum respondió ${upstream.status}`,
+          detail: text.slice(0, 500),
+        },
+      }
     }
 
     let data = await upstream.json()
@@ -87,16 +105,32 @@ export default async function handler(req, res) {
       data = data.filter(c => re.test(c.plantSpeciesGroup ?? ''))
     }
 
-    res.setHeader('Cache-Control', 's-maxage=300, stale-while-revalidate=1800')
-    return res.status(200).json(data)
+    return { ok: true, data }
 
   } catch (err) {
     if (err.name === 'AbortError') {
-      return res.status(504).json({ error: 'Timeout conectando con Sativum' })
+      return { ok: false, status: 504, error: { error: 'Timeout conectando con Sativum' } }
     }
-    return res.status(502).json({
-      error:  'Error conectando con Sativum',
-      detail: err.message,
-    })
+    return {
+      ok: false,
+      status: 502,
+      error: {
+        error:  'Error conectando con Sativum',
+        detail: err.message,
+      },
+    }
   }
+}
+
+export default async function handler(req, res) {
+  const { name, group } = req.query
+
+  const result = await buscarCultivosSativum({ name, group })
+
+  if (!result.ok) {
+    return res.status(result.status).json(result.error)
+  }
+
+  res.setHeader('Cache-Control', 's-maxage=300, stale-while-revalidate=1800')
+  return res.status(200).json(result.data)
 }
