@@ -252,7 +252,10 @@ function crearServidor() {
         'solo se usa si water.sourceType es SUBTERRANEA). OJO: `soilType` NO tiene equivalente ' +
         '`arcgis*` en calculate_npk -- si no hay soilType manual, asigna el valor devuelto aquí ' +
         'directamente en soil.soilType. Si ArcGIS no clasifica el punto, los campos llegan `null` ' +
-        'con un warning explicativo -- nunca se inventa un valor.',
+        'con un warning explicativo -- nunca se inventa un valor. IMPORTANTE para el Excel ' +
+        'final: guarda soilType/soilTypeUsdaLabel/organicMatter/ph/pOlsen/kSoil de esta ' +
+        'respuesta -- export_report.suelo espera ese mismo objeto (filas "Textura suelo"/' +
+        '"Textura USDA"/etc. del Excel, hoy en blanco si no se reenvía).',
       inputSchema: {
         lon: z.number().describe('Longitud WGS84 (EPSG:4326) del punto a consultar.'),
         lat: z.number().describe('Latitud WGS84 (EPSG:4326) del punto a consultar.'),
@@ -339,7 +342,35 @@ function crearServidor() {
               'Si se pasa el objeto completo en vez del número, el Excel sale con las ' +
               '"Necesidades brutas" a 0.',
           ),
-        suelo: z.record(z.any()).optional(),
+        suelo: z
+          .record(z.any())
+          .optional()
+          .describe(
+            'Datos de suelo para las filas informativas del Excel (Textura suelo/Textura USDA/' +
+              'Materia orgánica/pH/P Olsen/K suelo) -- NO recalcula nada, solo documenta. Reutiliza ' +
+              'literalmente el objeto que ya tenías (de tu analítica real, o de ' +
+              'estimate_soil_water_arcgis: soilType/soilTypeUsdaLabel/organicMatter/ph/pOlsen/kSoil) -- ' +
+              'si no lo reenvías, esas filas salen en blanco. OJO: cec y soilEffect NO van aquí dentro, ' +
+              'son campos propios de nivel superior (ver más abajo).',
+          ),
+        cec: z
+          .number()
+          .optional()
+          .describe(
+            'CEC (meq/kg) realmente usado en el cálculo -- campo propio, NO dentro de suelo. ' +
+              'Cógelo de resolvedSoil.cec en la respuesta de calculate_npk (ya viene resuelto: ' +
+              'analítica real, o tabla por textura si no la había). Sin este dato, la fila "CEC" ' +
+              'del Excel sale en blanco.',
+          ),
+        soilEffect: z
+          .number()
+          .optional()
+          .describe(
+            'Coeficiente soil_effect (== densidad aparente, misma magnitud según la OAS de Sativum) ' +
+              'realmente usado en el cálculo -- campo propio, NO dentro de suelo. Cógelo de ' +
+              'resolvedSoil.soilEffect en la respuesta de calculate_npk. Opcional: si se omite, la ' +
+              'fila "Densidad aparente" del Excel simplemente no aparece.',
+          ),
         riego: z
           .record(z.any())
           .optional()
@@ -352,9 +383,9 @@ function crearServidor() {
           ),
         titular: z.record(z.any()).optional().describe('{ nifCif, ... } — para el nombre de fichero.'),
         nombrePlan: z.string().optional(),
-        fecha: z.string().optional().describe('Fecha del plan (YYYY-MM-DD). Si se omite, se usa la fecha actual.'),
-        fechaInicioCiclo: z.string().optional().describe('Inicio del ciclo de cultivo (YYYY-MM-DD).'),
-        fechaFinCiclo: z.string().optional().describe('Fin del ciclo de cultivo (YYYY-MM-DD).'),
+        fecha: z.string().regex(/^\d{4}-\d{2}-\d{2}$/, 'Formato de fecha inválido, debe ser YYYY-MM-DD (ISO).').optional().describe('Fecha del plan (YYYY-MM-DD, ISO estricto). Si se omite, se usa la fecha actual.'),
+        fechaInicioCiclo: z.string().regex(/^\d{4}-\d{2}-\d{2}$/, 'Formato de fecha inválido, debe ser YYYY-MM-DD (ISO).').optional().describe('Inicio del ciclo de cultivo (YYYY-MM-DD, ISO estricto).'),
+        fechaFinCiclo: z.string().regex(/^\d{4}-\d{2}-\d{2}$/, 'Formato de fecha inválido, debe ser YYYY-MM-DD (ISO).').optional().describe('Fin del ciclo de cultivo (YYYY-MM-DD, ISO estricto).'),
         recintosWkt: z
           .array(z.object({
             ref: z.string(),

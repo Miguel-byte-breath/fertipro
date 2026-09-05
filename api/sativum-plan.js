@@ -333,6 +333,17 @@ async function calcularItem(item) {
       p: { gross: pBruto, waterCredit: pRiego, net: Math.max(0, pBruto - pRiego) },
       k: { gross: kBruto, waterCredit: kRiego, net: Math.max(0, kBruto - kRiego) },
     },
+    // Eco del suelo REALMENTE usado en el payload enviado a Sativum (mismo
+    // objeto `payload` de ensamblarPayloadAlgo, no recalculado aparte) --
+    // para que el agente pueda reenviarlo tal cual a export_report.suelo/cec
+    // (fila "CEC"/"Densidad aparente" del Excel, hoy huerfanas porque este
+    // dato se resolvia aqui y no viajaba de vuelta). Ver
+    // project_fertipro_mcp_visual_endpoint.md, 5-sep-2026.
+    resolvedSoil: {
+      soilType:   payload.soil.soil_type,
+      cec:        payload.sample.cec,
+      soilEffect: payload.soil_effect.coeff,
+    },
     warnings,
   }
 }

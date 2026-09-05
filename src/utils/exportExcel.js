@@ -185,6 +185,7 @@ const SOIL_TYPE_LABEL = {
  * @param {object}  opts.cultivo              — objeto catálogo Sativum
  * @param {object}  [opts.suelo]             — resultado normalizarSuelo()
  * @param {number}  opts.cec                  — meq/kg
+ * @param {number}  [opts.soilEffect]         — coeficiente soil_effect/densidad aparente (mismo valor, ver OAS Sativum)
  * @param {object}  opts.riego               — { fuenteId, fuenteLabel, no3MgL, dotacionM3 }
  * @param {object}  opts.calculo             — { strategy, cropYield, recogeResiduos, quemaResiduos }
  * @param {string}  [opts.fecha]             — fecha del plan (YYYY-MM-DD)
@@ -202,6 +203,7 @@ export async function construirWorkbookPlanAbonado({
   cultivo,
   suelo,
   cec,
+  soilEffect,
   riego,
   calculo,
   fecha,
@@ -370,6 +372,7 @@ export async function construirWorkbookPlanAbonado({
   row('P Olsen',            num(suelo?.pOlsen, 1),  'ppm')
   row('K suelo',            num(suelo?.kSoil, 0),   'ppm')
   row('CEC',                num(cec, 0),             'meq/kg')
+  row('Densidad aparente',  num(soilEffect, 2))
 
   row('', null)
 
