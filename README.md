@@ -147,6 +147,36 @@ SIGPAC HubCloud no requiere clave: sus endpoints son públicos.
 
 ---
 
+## Servidor MCP para agentes IA
+
+Además de la web, FertiPRO Add-on Sativum expone un **servidor MCP (Model Context Protocol)** en
+`https://fertipro-motor-sativum.app/api/mcp`, para que un agente de IA (por ejemplo Claude, vía un
+conector MCP) pueda generar un plan de abonado completo de forma conversacional — sin que un humano
+rellene el formulario web paso a paso.
+
+El servidor expone 5 tools, pensadas para usarse en este orden:
+
+1. **`group_crop_units`** — agrupa unidades de cultivo de Visual por titular/cultivo, con geometría.
+2. **`search_crop`** — busca un cultivo en el catálogo Sativum (por nombre y/o grupo).
+3. **`estimate_soil_water_arcgis`** — estima suelo y agua subterránea por ArcGIS cuando no hay
+   analítica propia (siempre como último recurso, nunca sustituye a un análisis real).
+4. **`calculate_npk`** — calcula las necesidades NPK (motor FertiliCalc/Sativum), preguntando por
+   cultivo actual y precedente, laboreo/residuos, y estrategia de abonado.
+5. **`export_report`** — genera el Excel del plan, reutilizando exactamente la misma función que el
+   botón "Exportar Excel" de la web — el fichero resultante es indistinguible y se puede reimportar
+   sin problema.
+
+Tres de estas tools (`calculate_npk`, `group_crop_units`, `export_report`) envuelven exactamente los
+mismos endpoints HTTP `POST /v1/sativum/...` que usa el MCP internamente — pensados también como una
+posible vía de conexión directa desde la propia aplicación de Visual en el futuro, sin pasar por un
+agente IA.
+
+> **Estado (septiembre 2026):** validado con un caso real de extremo a extremo (2 planes de abonado
+> completos generados vía Claude). Sin autenticación todavía — cualquiera con la URL puede llamar a
+> las tools; pendiente de decidir un token antes de compartirla ampliamente.
+
+---
+
 ## Estructura del repositorio
 
 ```
@@ -156,6 +186,12 @@ fertipro-api-sativum/
 │   ├── sativum-fertilizers.js        GET/POST /nutrients/fertilizers — catálogo y recomendación
 │   ├── sativum-crops.js              GET /nutrients/crops — catálogo de cultivos
 │   ├── sativum-suelo.js              GET ArcGIS identify — características del suelo
+│   ├── sativum-plan.js               POST :calculate-npk — cálculo NPK (contrato estable, usado también por el MCP)
+│   ├── sativum-group.js              POST :group-crop-units — agrupación de unidades de cultivo Visual
+│   ├── sativum-report.js             POST :export-report — genera el Excel del plan (contrato estable)
+│   ├── sativum-arcgis-npk.js         Estimación de suelo/agua por ArcGIS para el MCP
+│   ├── sativum-crops-search.js       Búsqueda en el catálogo Sativum para el MCP
+│   ├── mcp.js                        Servidor MCP — 5 tools para agentes IA (ver sección abajo)
 │   ├── plan-riego.js                 POST /api/calcular-riego (SIG Riego Pro) — plan de riego semanal
 │   ├── sigpac.js                     GET OGC API Features — recinto en un punto
 │   ├── sigpac-mvt.js                 GET teselas MVT/GeoJSON de SIGPAC (capa de recintos en el mapa)
